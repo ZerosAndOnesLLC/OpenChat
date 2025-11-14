@@ -1,3 +1,6 @@
+// Cache functions for future Redis integration (Phase 9-11)
+#![allow(dead_code)]
+
 use redis::AsyncCommands;
 use serde_json;
 use uuid::Uuid;

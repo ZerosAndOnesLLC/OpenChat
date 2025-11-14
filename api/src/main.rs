@@ -12,7 +12,7 @@ mod models;
 mod services;
 
 use config::Config;
-use handlers::users as user_handlers;
+use handlers::{channels as channel_handlers, users as user_handlers};
 
 async fn health_check() -> impl Responder {
     HttpResponse::Ok().json(serde_json::json!({
@@ -58,6 +58,18 @@ async fn main() -> std::io::Result<()> {
                     .route("/{id}", web::get().to(user_handlers::get_user))
                     .route("/{id}", web::put().to(user_handlers::update_user))
                     .route("/{id}/status", web::put().to(user_handlers::update_user_status))
+            )
+            // Channel routes
+            .service(
+                web::scope("/api/channels")
+                    .route("", web::get().to(channel_handlers::list_channels))
+                    .route("", web::post().to(channel_handlers::create_channel))
+                    .route("/{id}", web::get().to(channel_handlers::get_channel))
+                    .route("/{id}", web::put().to(channel_handlers::update_channel))
+                    .route("/{id}", web::delete().to(channel_handlers::delete_channel))
+                    .route("/{id}/members", web::get().to(channel_handlers::list_members))
+                    .route("/{id}/members", web::post().to(channel_handlers::add_member))
+                    .route("/{id}/members/{user_id}", web::delete().to(channel_handlers::remove_member))
             )
     })
     .bind((config.host.as_str(), config.port))?

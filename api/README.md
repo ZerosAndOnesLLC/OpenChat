@@ -169,9 +169,27 @@ Infrastructure is managed via Terraform in `~/dev/terraform/prod/us-east-1/openc
 - ✅ Cache invalidation on updates
 - ✅ RESTful API routes wired up
 
-**Next**: Phase 5 - Channel Management
+**Phase 5 Complete** - Channel Management
+- ✅ Channel model with full CRUD operations
+- ✅ Channel member management model
+- ✅ Create, read, update, delete channels
+- ✅ Add/remove members from channels
+- ✅ Public and private channel support
+- ✅ Redis caching for channels and members
+- ✅ Authorization (only creators can manage channels)
+
+**Next**: Phase 6 - Messaging (REST)
 
 ## Version History
+
+### v0.5.0 (Phase 5)
+- Channel model with CRUD operations
+- Channel member management (add/remove)
+- Public/private channel types
+- Channel endpoints (list, create, get, update, delete)
+- Member endpoints (list, add, remove)
+- Redis caching for channel data
+- Creator-based authorization for channel management
 
 ### v0.4.0 (Phase 4)
 - Organization model for multi-tenant support

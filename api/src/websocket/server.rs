@@ -34,15 +34,6 @@ impl WsServer {
         }
     }
 
-    /// Send message to all sessions of a user
-    fn send_to_user(&self, user_id: &Uuid, message: ServerMessage) {
-        if let Some(session_ids) = self.user_sessions.get(user_id) {
-            for session_id in session_ids {
-                self.send_message(session_id, message.clone());
-            }
-        }
-    }
-
     /// Send message to all users in an organization (except excluded sessions)
     fn send_to_org(&self, org_id: &Uuid, message: ServerMessage, exclude: Option<Uuid>) {
         if let Some(session_ids) = self.org_sessions.get(org_id) {
@@ -169,7 +160,6 @@ impl Handler<Disconnect> for WsServer {
 #[derive(ActixMessage)]
 #[rtype(result = "()")]
 pub struct SendMessage {
-    pub session_id: Uuid,
     pub user_id: Uuid,
     pub org_id: Uuid,
     pub channel_id: Option<Uuid>,

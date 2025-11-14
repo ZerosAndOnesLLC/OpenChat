@@ -1,38 +1,12 @@
-use actix::{Actor, Addr, AsyncContext, Context, Handler, Message as ActixMessage, StreamHandler};
+use actix::{Actor, Addr, AsyncContext, Context, Handler, Message as ActixMessage, WrapFuture};
 use futures_util::stream::StreamExt;
-use redis::aio::PubSub;
 use redis::AsyncCommands;
 use serde::{Deserialize, Serialize};
 use std::time::Duration;
 use uuid::Uuid;
 
 use super::messages::ServerMessage;
-use super::server::{WsServer, SendMessage, TypingIndicator, UpdateUserStatus};
-
-/// Redis Pub/Sub channels for cross-instance communication
-pub struct RedisPubSubChannels;
-
-impl RedisPubSubChannels {
-    /// Channel for organization-wide messages
-    pub fn org_channel(org_id: Uuid) -> String {
-        format!("openchat:org:{}:events", org_id)
-    }
-
-    /// Channel for specific channel messages
-    pub fn channel_channel(channel_id: Uuid) -> String {
-        format!("openchat:channel:{}:events", channel_id)
-    }
-
-    /// Channel for typing indicators
-    pub fn typing_channel(org_id: Uuid) -> String {
-        format!("openchat:org:{}:typing", org_id)
-    }
-
-    /// Channel for status updates
-    pub fn status_channel(org_id: Uuid) -> String {
-        format!("openchat:org:{}:status", org_id)
-    }
-}
+use super::server::WsServer;
 
 /// Events published to Redis for cross-instance communication
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -115,10 +89,8 @@ impl RedisPubSub {
         ctx.spawn(
             async move {
                 loop {
-                    match redis_client.get_multiplexed_async_connection().await {
-                        Ok(con) => {
-                            let mut pubsub = con.into_pubsub();
-
+                    match redis_client.get_async_pubsub().await {
+                        Ok(mut pubsub) => {
                             // Subscribe to a pattern to catch all our channels
                             if let Err(e) = pubsub.psubscribe("openchat:*").await {
                                 tracing::error!("Failed to subscribe to Redis channels: {}", e);
@@ -178,7 +150,7 @@ impl RedisPubSub {
                 parent_message_id,
                 created_at,
             } => {
-                ws_server.do_send(BroadcastMessage {
+                ws_server.do_send(super::server::BroadcastMessage {
                     org_id,
                     channel_id,
                     message: ServerMessage::NewMessage {
@@ -198,7 +170,7 @@ impl RedisPubSub {
                 content,
                 edited_at,
             } => {
-                ws_server.do_send(BroadcastMessage {
+                ws_server.do_send(super::server::BroadcastMessage {
                     org_id,
                     channel_id: None,
                     message: ServerMessage::MessageEdited {
@@ -209,7 +181,7 @@ impl RedisPubSub {
                 });
             }
             PubSubEvent::MessageDeleted { message_id, org_id } => {
-                ws_server.do_send(BroadcastMessage {
+                ws_server.do_send(super::server::BroadcastMessage {
                     org_id,
                     channel_id: None,
                     message: ServerMessage::MessageDeleted { message_id },
@@ -222,7 +194,7 @@ impl RedisPubSub {
                 channel_id,
                 dm_id,
             } => {
-                ws_server.do_send(BroadcastTyping {
+                ws_server.do_send(super::server::BroadcastTyping {
                     org_id,
                     channel_id,
                     message: ServerMessage::UserTyping {
@@ -238,7 +210,7 @@ impl RedisPubSub {
                 org_id,
                 status,
             } => {
-                ws_server.do_send(BroadcastStatus {
+                ws_server.do_send(super::server::BroadcastStatus {
                     org_id,
                     message: ServerMessage::UserStatus { user_id, status },
                 });
@@ -249,7 +221,7 @@ impl RedisPubSub {
                 org_id,
                 emoji,
             } => {
-                ws_server.do_send(BroadcastMessage {
+                ws_server.do_send(super::server::BroadcastMessage {
                     org_id,
                     channel_id: None,
                     message: ServerMessage::ReactionAdded {
@@ -265,7 +237,7 @@ impl RedisPubSub {
                 org_id,
                 emoji,
             } => {
-                ws_server.do_send(BroadcastMessage {
+                ws_server.do_send(super::server::BroadcastMessage {
                     org_id,
                     channel_id: None,
                     message: ServerMessage::ReactionRemoved {
@@ -284,34 +256,8 @@ impl Actor for RedisPubSub {
 
     fn started(&mut self, ctx: &mut Self::Context) {
         tracing::info!("Redis Pub/Sub actor started");
-        self.subscribe_to_channels(ctx);
+        let _ = self.subscribe_to_channels(ctx);
     }
-}
-
-/// Message to broadcast to WebSocket clients via org
-#[derive(ActixMessage)]
-#[rtype(result = "()")]
-pub struct BroadcastMessage {
-    pub org_id: Uuid,
-    pub channel_id: Option<Uuid>,
-    pub message: ServerMessage,
-}
-
-/// Message to broadcast typing indicator
-#[derive(ActixMessage)]
-#[rtype(result = "()")]
-pub struct BroadcastTyping {
-    pub org_id: Uuid,
-    pub channel_id: Option<Uuid>,
-    pub message: ServerMessage,
-}
-
-/// Message to broadcast status update
-#[derive(ActixMessage)]
-#[rtype(result = "()")]
-pub struct BroadcastStatus {
-    pub org_id: Uuid,
-    pub message: ServerMessage,
 }
 
 /// Publish an event to Redis

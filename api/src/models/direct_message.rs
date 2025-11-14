@@ -168,33 +168,4 @@ impl DmParticipant {
 
         Ok(participants)
     }
-
-    /// Add a participant to a DM
-    pub async fn add(pool: &PgPool, dm_id: Uuid, user_id: Uuid) -> ApiResult<DmParticipant> {
-        let participant = sqlx::query_as::<_, DmParticipant>(
-            r#"
-            INSERT INTO dm_participants (id, dm_id, user_id)
-            VALUES ($1, $2, $3)
-            RETURNING *
-            "#,
-        )
-        .bind(Uuid::new_v4())
-        .bind(dm_id)
-        .bind(user_id)
-        .fetch_one(pool)
-        .await?;
-
-        Ok(participant)
-    }
-
-    /// Remove a participant from a DM
-    pub async fn remove(pool: &PgPool, dm_id: Uuid, user_id: Uuid) -> ApiResult<()> {
-        sqlx::query("DELETE FROM dm_participants WHERE dm_id = $1 AND user_id = $2")
-            .bind(dm_id)
-            .bind(user_id)
-            .execute(pool)
-            .await?;
-
-        Ok(())
-    }
 }

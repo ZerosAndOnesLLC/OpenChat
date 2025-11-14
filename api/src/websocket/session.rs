@@ -1,4 +1,4 @@
-use actix::{Actor, Addr, AsyncContext, Handler, Message as ActixMessage, StreamHandler};
+use actix::{Actor, ActorContext, Addr, AsyncContext, Handler, Message as ActixMessage, StreamHandler};
 use actix_web_actors::ws;
 use std::time::{Duration, Instant};
 use uuid::Uuid;
@@ -64,7 +64,6 @@ impl WsSession {
                 parent_message_id,
             } => {
                 self.server.do_send(server::SendMessage {
-                    session_id: self.id,
                     user_id: self.user_id,
                     org_id: self.org_id,
                     channel_id,

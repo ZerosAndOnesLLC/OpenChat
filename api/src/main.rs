@@ -1,5 +1,6 @@
 use actix::Actor;
 use actix_web::{web, App, HttpResponse, HttpServer, Responder};
+use std::sync::Arc;
 use tracing::info;
 use tracing_subscriber::EnvFilter;
 
@@ -21,6 +22,7 @@ use handlers::{
     reactions as reaction_handlers,
     users as user_handlers,
 };
+use services::tv_api::TvApiClient;
 
 async fn health_check() -> impl Responder {
     HttpResponse::Ok().json(serde_json::json!({
@@ -71,11 +73,15 @@ async fn main() -> std::io::Result<()> {
 
     info!("Starting OpenChat API server on {}:{}", config.host, config.port);
 
+    // Create TV API client
+    let tv_api_client = Arc::new(TvApiClient::new(config.tv_api_url.clone()));
+
     // Start HTTP server
     HttpServer::new(move || {
         App::new()
             .app_data(web::Data::new(db_pool.clone()))
             .app_data(web::Data::new(ws_server.clone()))
+            .app_data(web::Data::new(tv_api_client.clone()))
             .route("/health", web::get().to(health_check))
             .route("/api/ws", web::get().to(websocket::ws_route))
             // User routes

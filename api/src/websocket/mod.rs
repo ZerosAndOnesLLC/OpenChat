@@ -3,12 +3,13 @@ pub mod pubsub;
 pub mod server;
 pub mod session;
 
-use actix::{Actor, Addr};
+use actix::Addr;
 use actix_web::{web, Error, HttpRequest, HttpResponse};
 use actix_web_actors::ws;
 use sqlx::PgPool;
+use std::sync::Arc;
 
-use crate::{errors::ApiError, models::user::User, services::tv_api};
+use crate::{errors::ApiError, models::user::User, services::tv_api::TvApiClient};
 use server::WsServer;
 use session::WsSession;
 
@@ -18,6 +19,7 @@ pub async fn ws_route(
     stream: web::Payload,
     server: web::Data<Addr<WsServer>>,
     pool: web::Data<PgPool>,
+    tv_api_client: web::Data<Arc<TvApiClient>>,
 ) -> Result<HttpResponse, Error> {
     // Extract token from query parameter
     let query = req.query_string();
@@ -34,7 +36,7 @@ pub async fn ws_route(
         .ok_or_else(|| ApiError::Authentication("Missing token parameter".to_string()))?;
 
     // Verify token with tv-api
-    let claims = tv_api::verify_token(token)
+    let claims = tv_api_client.verify_token(token)
         .await
         .map_err(|_| ApiError::Authentication("Invalid token".to_string()))?;
 

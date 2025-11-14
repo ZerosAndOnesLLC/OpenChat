@@ -103,44 +103,4 @@ impl Reaction {
 
         Ok(counts)
     }
-
-    /// Check if a user has reacted to a message with a specific emoji
-    pub async fn exists(
-        pool: &PgPool,
-        message_id: Uuid,
-        user_id: Uuid,
-        emoji: &str,
-    ) -> ApiResult<bool> {
-        let result = sqlx::query_scalar::<_, bool>(
-            "SELECT EXISTS(SELECT 1 FROM reactions WHERE message_id = $1 AND user_id = $2 AND emoji = $3)",
-        )
-        .bind(message_id)
-        .bind(user_id)
-        .bind(emoji)
-        .fetch_one(pool)
-        .await?;
-
-        Ok(result)
-    }
-
-    /// Get all reactions by a user on a message
-    pub async fn get_user_reactions(
-        pool: &PgPool,
-        message_id: Uuid,
-        user_id: Uuid,
-    ) -> ApiResult<Vec<Reaction>> {
-        let reactions = sqlx::query_as::<_, Reaction>(
-            r#"
-            SELECT * FROM reactions
-            WHERE message_id = $1 AND user_id = $2
-            ORDER BY created_at
-            "#,
-        )
-        .bind(message_id)
-        .bind(user_id)
-        .fetch_all(pool)
-        .await?;
-
-        Ok(reactions)
-    }
 }

@@ -2,14 +2,17 @@ use actix_web::{web, App, HttpResponse, HttpServer, Responder};
 use tracing::info;
 use tracing_subscriber::EnvFilter;
 
+mod cache;
 mod config;
 mod db;
 mod errors;
+mod handlers;
 mod middleware;
 mod models;
 mod services;
 
 use config::Config;
+use handlers::users as user_handlers;
 
 async fn health_check() -> impl Responder {
     HttpResponse::Ok().json(serde_json::json!({
@@ -48,6 +51,14 @@ async fn main() -> std::io::Result<()> {
         App::new()
             .app_data(web::Data::new(db_pool.clone()))
             .route("/health", web::get().to(health_check))
+            // User routes
+            .service(
+                web::scope("/api/users")
+                    .route("", web::get().to(user_handlers::list_users))
+                    .route("/{id}", web::get().to(user_handlers::get_user))
+                    .route("/{id}", web::put().to(user_handlers::update_user))
+                    .route("/{id}/status", web::put().to(user_handlers::update_user_status))
+            )
     })
     .bind((config.host.as_str(), config.port))?
     .run()

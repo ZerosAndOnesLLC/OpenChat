@@ -160,9 +160,26 @@ Infrastructure is managed via Terraform in `~/dev/terraform/prod/us-east-1/openc
 - ✅ User model with database operations
 - ✅ User upsert on authentication
 
-**Next**: Phase 4 - User & Organization Management
+**Phase 4 Complete** - User & Organization Management
+- ✅ Organization model with CRUD operations
+- ✅ User management endpoints (list, get, update)
+- ✅ User profile update endpoint
+- ✅ User status update endpoint (online/offline/away)
+- ✅ Redis caching infrastructure for user data
+- ✅ Cache invalidation on updates
+- ✅ RESTful API routes wired up
+
+**Next**: Phase 5 - Channel Management
 
 ## Version History
+
+### v0.4.0 (Phase 4)
+- Organization model for multi-tenant support
+- User management REST API endpoints
+- User profile and status update functionality
+- Redis caching layer for user data
+- Cache invalidation strategies
+- Authorization checks (users can only update their own data)
 
 ### v0.3.0 (Phase 3)
 - TitaniumVault SSO integration via API client

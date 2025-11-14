@@ -4,7 +4,7 @@ use uuid::Uuid;
 
 use crate::errors::{ApiError, ApiResult};
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[allow(dead_code)]
 pub struct TokenClaims {
     pub user_id: Uuid,

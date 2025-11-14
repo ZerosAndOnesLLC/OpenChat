@@ -5,6 +5,9 @@ use tracing_subscriber::EnvFilter;
 mod config;
 mod db;
 mod errors;
+mod middleware;
+mod models;
+mod services;
 
 use config::Config;
 

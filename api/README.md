@@ -152,9 +152,25 @@ Infrastructure is managed via Terraform in `~/dev/terraform/prod/us-east-1/openc
 - ✅ Database connection pool setup
 - ✅ RLS context helper for middleware
 
-**Next**: Phase 3 - Authentication & Middleware
+**Phase 3 Complete** - Authentication & Middleware
+- ✅ TitaniumVault API integration for token verification
+- ✅ JWT token extraction from Authorization header
+- ✅ Authentication middleware with org_id extraction
+- ✅ Automatic RLS context setting per request
+- ✅ User model with database operations
+- ✅ User upsert on authentication
+
+**Next**: Phase 4 - User & Organization Management
 
 ## Version History
+
+### v0.3.0 (Phase 3)
+- TitaniumVault SSO integration via API client
+- Authentication middleware for protected routes
+- JWT token verification and claims extraction
+- Automatic user creation/update on authentication
+- User model with CRUD operations
+- Integrated RLS context setting in auth flow
 
 ### v0.2.0 (Phase 2)
 - Database schema with 9 tables (organizations, users, channels, messages, etc.)

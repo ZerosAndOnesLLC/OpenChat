@@ -145,9 +145,22 @@ Infrastructure is managed via Terraform in `~/dev/terraform/prod/us-east-1/openc
 - ✅ Configuration management
 - ✅ Error handling framework
 
-**Next**: Phase 2 - Database schema and Row Level Security
+**Phase 2 Complete** - Database schema and Row Level Security
+- ✅ PostgreSQL schema with all core tables
+- ✅ Database migrations using SQLx
+- ✅ Row Level Security (RLS) policies for org isolation
+- ✅ Database connection pool setup
+- ✅ RLS context helper for middleware
+
+**Next**: Phase 3 - Authentication & Middleware
 
 ## Version History
+
+### v0.2.0 (Phase 2)
+- Database schema with 9 tables (organizations, users, channels, messages, etc.)
+- Row Level Security policies for multi-tenant isolation
+- Database connection pool with SQLx
+- Migration system for schema management
 
 ### v0.1.0 (Phase 1)
 - Initial project setup

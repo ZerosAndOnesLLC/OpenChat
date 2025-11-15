@@ -1,15 +1,17 @@
 [package]
 name = "openchat-api"
-version = "0.12.0"
+version = "0.13.0"
 edition = "2024"
 
 [dependencies]
 # Web Framework
-actix-web = "4"
+actix-web = { version = "4", features = ["rustls-0_23"] }
 actix-ws = "0.3"
 actix-cors = "0.7"
 actix = "0.13"
 actix-web-actors = "4"
+rustls = "0.23"
+rustls-pemfile = "2"
 
 # Async Runtime
 tokio = { version = "1", features = ["full"] }

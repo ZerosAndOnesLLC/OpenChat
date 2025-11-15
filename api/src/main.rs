@@ -1,5 +1,9 @@
 use actix::Actor;
 use actix_web::{web, App, HttpResponse, HttpServer, Responder};
+use rustls::{ServerConfig, pki_types::{CertificateDer, PrivateKeyDer}};
+use rustls_pemfile::{certs, pkcs8_private_keys};
+use std::fs::File;
+use std::io::BufReader;
 use std::sync::Arc;
 use tracing::info;
 use tracing_subscriber::EnvFilter;
@@ -31,6 +35,37 @@ async fn health_check() -> impl Responder {
         "service": "openchat-api",
         "version": env!("CARGO_PKG_VERSION")
     }))
+}
+
+fn load_tls_config(cert_path: &str, key_path: &str) -> std::io::Result<ServerConfig> {
+    // Load certificate chain
+    let cert_file = File::open(cert_path)?;
+    let mut cert_reader = BufReader::new(cert_file);
+    let cert_chain: Vec<CertificateDer> = certs(&mut cert_reader)
+        .collect::<Result<Vec<_>, _>>()?;
+
+    // Load private key
+    let key_file = File::open(key_path)?;
+    let mut key_reader = BufReader::new(key_file);
+    let mut keys = pkcs8_private_keys(&mut key_reader)
+        .collect::<Result<Vec<_>, _>>()?;
+
+    if keys.is_empty() {
+        return Err(std::io::Error::new(
+            std::io::ErrorKind::InvalidInput,
+            "No private key found in key file",
+        ));
+    }
+
+    let private_key = PrivateKeyDer::Pkcs8(keys.remove(0));
+
+    // Build TLS configuration
+    let config = ServerConfig::builder()
+        .with_no_client_auth()
+        .with_single_cert(cert_chain, private_key)
+        .map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidInput, e))?;
+
+    Ok(config)
 }
 
 #[actix_web::main]
@@ -72,13 +107,11 @@ async fn main() -> std::io::Result<()> {
         }
     }
 
-    info!("Starting OpenChat API server on {}:{}", config.host, config.port);
-
     // Create TV API client
     let tv_api_client = Arc::new(TvApiClient::new(config.tv_api_url.clone()));
 
-    // Start HTTP server
-    HttpServer::new(move || {
+    // Build HTTP server
+    let server = HttpServer::new(move || {
         App::new()
             .app_data(web::Data::new(db_pool.clone()))
             .app_data(web::Data::new(ws_server.clone()))
@@ -127,8 +160,35 @@ async fn main() -> std::io::Result<()> {
             )
             // SSO routes
             .configure(routes::sso::configure)
-    })
-    .bind((config.host.as_str(), config.port))?
-    .run()
-    .await
+    });
+
+    // Bind server with or without TLS
+    if config.enable_tls {
+        let cert_path = config.tls_cert_path.as_ref()
+            .ok_or_else(|| std::io::Error::new(
+                std::io::ErrorKind::InvalidInput,
+                "TLS_CERT_PATH must be set when ENABLE_TLS is true"
+            ))?;
+
+        let key_path = config.tls_key_path.as_ref()
+            .ok_or_else(|| std::io::Error::new(
+                std::io::ErrorKind::InvalidInput,
+                "TLS_KEY_PATH must be set when ENABLE_TLS is true"
+            ))?;
+
+        info!("Loading TLS configuration from cert: {}, key: {}", cert_path, key_path);
+        let tls_config = load_tls_config(cert_path, key_path)?;
+
+        info!("Starting OpenChat API server with TLS on {}:{}", config.host, config.port);
+        server
+            .bind_rustls_0_23((config.host.as_str(), config.port), tls_config)?
+            .run()
+            .await
+    } else {
+        info!("Starting OpenChat API server (HTTP only) on {}:{}", config.host, config.port);
+        server
+            .bind((config.host.as_str(), config.port))?
+            .run()
+            .await
+    }
 }

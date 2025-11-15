@@ -11,6 +11,7 @@ mod errors;
 mod handlers;
 mod middleware;
 mod models;
+mod routes;
 mod services;
 mod websocket;
 
@@ -124,6 +125,8 @@ async fn main() -> std::io::Result<()> {
                     .route("/{id}", web::get().to(dm_handlers::get_dm))
                     .route("/{id}/messages", web::get().to(dm_handlers::list_dm_messages))
             )
+            // SSO routes
+            .configure(routes::sso::configure)
     })
     .bind((config.host.as_str(), config.port))?
     .run()

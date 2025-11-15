@@ -70,6 +70,11 @@ fn load_tls_config(cert_path: &str, key_path: &str) -> std::io::Result<ServerCon
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
+    // Install rustls crypto provider for TLS support
+    rustls::crypto::aws_lc_rs::default_provider()
+        .install_default()
+        .expect("Failed to install rustls crypto provider");
+
     // Load environment variables from .env file
     dotenvy::dotenv().ok();
 

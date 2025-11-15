@@ -1,6 +1,6 @@
 [package]
 name = "openchat-api"
-version = "0.1.0"
+version = "0.11.1"
 edition = "2024"
 
 [dependencies]
@@ -8,9 +8,12 @@ edition = "2024"
 actix-web = "4"
 actix-ws = "0.3"
 actix-cors = "0.7"
+actix = "0.13"
+actix-web-actors = "4"
 
 # Async Runtime
 tokio = { version = "1", features = ["full"] }
+futures-util = "0.3"
 
 # Database
 sqlx = { version = "0.8", features = [

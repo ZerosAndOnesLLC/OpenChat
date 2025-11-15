@@ -1,5 +1,6 @@
 use actix::Actor;
 use actix_web::{web, App, HttpResponse, HttpServer, Responder};
+use actix_cors::Cors;
 use rustls::{ServerConfig, pki_types::{CertificateDer, PrivateKeyDer}};
 use rustls_pemfile::{certs, pkcs8_private_keys};
 use std::fs::File;
@@ -117,7 +118,20 @@ async fn main() -> std::io::Result<()> {
 
     // Build HTTP server
     let server = HttpServer::new(move || {
+        // Configure CORS
+        let cors = Cors::default()
+            .allowed_origin("https://openchat.zerosandones.us")
+            .allowed_origin("http://localhost:3000")
+            .allowed_methods(vec!["GET", "POST", "PUT", "DELETE", "OPTIONS"])
+            .allowed_headers(vec![
+                actix_web::http::header::AUTHORIZATION,
+                actix_web::http::header::ACCEPT,
+                actix_web::http::header::CONTENT_TYPE,
+            ])
+            .max_age(3600);
+
         App::new()
+            .wrap(cors)
             .app_data(web::Data::new(db_pool.clone()))
             .app_data(web::Data::new(ws_server.clone()))
             .app_data(web::Data::new(tv_api_client.clone()))

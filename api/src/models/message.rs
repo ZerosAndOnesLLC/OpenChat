@@ -1,0 +1,286 @@
+use chrono::{DateTime, Utc};
+use serde::{Deserialize, Serialize};
+use sqlx::PgPool;
+use uuid::Uuid;
+
+use crate::errors::ApiResult;
+
+#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
+pub struct Message {
+    pub id: Uuid,
+    pub channel_id: Option<Uuid>,
+    pub dm_id: Option<Uuid>,
+    pub user_id: Uuid,
+    pub content: String,
+    pub parent_message_id: Option<Uuid>,
+    pub created_at: DateTime<Utc>,
+    pub edited_at: Option<DateTime<Utc>>,
+    pub deleted_at: Option<DateTime<Utc>>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PaginatedMessages {
+    pub messages: Vec<Message>,
+    pub has_more: bool,
+    pub next_cursor: Option<String>,
+}
+
+impl Message {
+    /// Create a new message in a channel
+    pub async fn create_channel_message(
+        pool: &PgPool,
+        channel_id: Uuid,
+        user_id: Uuid,
+        content: &str,
+        parent_message_id: Option<Uuid>,
+    ) -> ApiResult<Message> {
+        let message = sqlx::query_as::<_, Message>(
+            r#"
+            INSERT INTO messages (id, channel_id, user_id, content, parent_message_id)
+            VALUES ($1, $2, $3, $4, $5)
+            RETURNING *
+            "#,
+        )
+        .bind(Uuid::new_v4())
+        .bind(channel_id)
+        .bind(user_id)
+        .bind(content)
+        .bind(parent_message_id)
+        .fetch_one(pool)
+        .await?;
+
+        Ok(message)
+    }
+
+    /// Create a new message in a DM
+    pub async fn create_dm_message(
+        pool: &PgPool,
+        dm_id: Uuid,
+        user_id: Uuid,
+        content: &str,
+        parent_message_id: Option<Uuid>,
+    ) -> ApiResult<Message> {
+        let message = sqlx::query_as::<_, Message>(
+            r#"
+            INSERT INTO messages (id, dm_id, user_id, content, parent_message_id)
+            VALUES ($1, $2, $3, $4, $5)
+            RETURNING *
+            "#,
+        )
+        .bind(Uuid::new_v4())
+        .bind(dm_id)
+        .bind(user_id)
+        .bind(content)
+        .bind(parent_message_id)
+        .fetch_one(pool)
+        .await?;
+
+        Ok(message)
+    }
+
+    /// List messages for a channel with cursor-based pagination
+    /// Returns messages in descending order (newest first)
+    pub async fn list_by_channel(
+        pool: &PgPool,
+        channel_id: Uuid,
+        limit: i64,
+        cursor: Option<String>,
+    ) -> ApiResult<PaginatedMessages> {
+        let limit = limit.min(100); // Cap at 100 messages per request
+
+        let messages = if let Some(cursor_str) = cursor {
+            // Parse cursor: format is "timestamp_id"
+            let parts: Vec<&str> = cursor_str.split('_').collect();
+            if parts.len() != 2 {
+                return Err(crate::errors::ApiError::BadRequest("Invalid cursor format".to_string()));
+            }
+
+            let cursor_time = parts[0].parse::<i64>()
+                .map_err(|_| crate::errors::ApiError::BadRequest("Invalid cursor timestamp".to_string()))?;
+            let cursor_id = Uuid::parse_str(parts[1])
+                .map_err(|_| crate::errors::ApiError::BadRequest("Invalid cursor ID".to_string()))?;
+
+            let cursor_datetime = DateTime::<Utc>::from_timestamp(cursor_time, 0)
+                .ok_or_else(|| crate::errors::ApiError::BadRequest("Invalid cursor timestamp".to_string()))?;
+
+            sqlx::query_as::<_, Message>(
+                r#"
+                SELECT * FROM messages
+                WHERE channel_id = $1
+                    AND deleted_at IS NULL
+                    AND (created_at < $2 OR (created_at = $2 AND id < $3))
+                ORDER BY created_at DESC, id DESC
+                LIMIT $4
+                "#,
+            )
+            .bind(channel_id)
+            .bind(cursor_datetime)
+            .bind(cursor_id)
+            .bind(limit + 1)
+            .fetch_all(pool)
+            .await?
+        } else {
+            sqlx::query_as::<_, Message>(
+                r#"
+                SELECT * FROM messages
+                WHERE channel_id = $1 AND deleted_at IS NULL
+                ORDER BY created_at DESC, id DESC
+                LIMIT $2
+                "#,
+            )
+            .bind(channel_id)
+            .bind(limit + 1)
+            .fetch_all(pool)
+            .await?
+        };
+
+        let has_more = messages.len() > limit as usize;
+        let mut messages = messages;
+
+        if has_more {
+            messages.pop(); // Remove the extra message used for has_more check
+        }
+
+        let next_cursor = if has_more && !messages.is_empty() {
+            let last = messages.last().unwrap();
+            Some(format!("{}_{}", last.created_at.timestamp(), last.id))
+        } else {
+            None
+        };
+
+        Ok(PaginatedMessages {
+            messages,
+            has_more,
+            next_cursor,
+        })
+    }
+
+    /// List messages for a DM with cursor-based pagination
+    /// Will be used in Phase 7 (Direct Messages)
+    #[allow(dead_code)]
+    pub async fn list_by_dm(
+        pool: &PgPool,
+        dm_id: Uuid,
+        limit: i64,
+        cursor: Option<String>,
+    ) -> ApiResult<PaginatedMessages> {
+        let limit = limit.min(100); // Cap at 100 messages per request
+
+        let messages = if let Some(cursor_str) = cursor {
+            // Parse cursor: format is "timestamp_id"
+            let parts: Vec<&str> = cursor_str.split('_').collect();
+            if parts.len() != 2 {
+                return Err(crate::errors::ApiError::BadRequest("Invalid cursor format".to_string()));
+            }
+
+            let cursor_time = parts[0].parse::<i64>()
+                .map_err(|_| crate::errors::ApiError::BadRequest("Invalid cursor timestamp".to_string()))?;
+            let cursor_id = Uuid::parse_str(parts[1])
+                .map_err(|_| crate::errors::ApiError::BadRequest("Invalid cursor ID".to_string()))?;
+
+            let cursor_datetime = DateTime::<Utc>::from_timestamp(cursor_time, 0)
+                .ok_or_else(|| crate::errors::ApiError::BadRequest("Invalid cursor timestamp".to_string()))?;
+
+            sqlx::query_as::<_, Message>(
+                r#"
+                SELECT * FROM messages
+                WHERE dm_id = $1
+                    AND deleted_at IS NULL
+                    AND (created_at < $2 OR (created_at = $2 AND id < $3))
+                ORDER BY created_at DESC, id DESC
+                LIMIT $4
+                "#,
+            )
+            .bind(dm_id)
+            .bind(cursor_datetime)
+            .bind(cursor_id)
+            .bind(limit + 1)
+            .fetch_all(pool)
+            .await?
+        } else {
+            sqlx::query_as::<_, Message>(
+                r#"
+                SELECT * FROM messages
+                WHERE dm_id = $1 AND deleted_at IS NULL
+                ORDER BY created_at DESC, id DESC
+                LIMIT $2
+                "#,
+            )
+            .bind(dm_id)
+            .bind(limit + 1)
+            .fetch_all(pool)
+            .await?
+        };
+
+        let has_more = messages.len() > limit as usize;
+        let mut messages = messages;
+
+        if has_more {
+            messages.pop(); // Remove the extra message used for has_more check
+        }
+
+        let next_cursor = if has_more && !messages.is_empty() {
+            let last = messages.last().unwrap();
+            Some(format!("{}_{}", last.created_at.timestamp(), last.id))
+        } else {
+            None
+        };
+
+        Ok(PaginatedMessages {
+            messages,
+            has_more,
+            next_cursor,
+        })
+    }
+
+    /// Get a message by ID
+    pub async fn get_by_id(pool: &PgPool, id: Uuid) -> ApiResult<Option<Message>> {
+        let message = sqlx::query_as::<_, Message>(
+            r#"
+            SELECT * FROM messages
+            WHERE id = $1 AND deleted_at IS NULL
+            "#,
+        )
+        .bind(id)
+        .fetch_optional(pool)
+        .await?;
+
+        Ok(message)
+    }
+
+    /// Update a message (edit)
+    pub async fn update(pool: &PgPool, id: Uuid, content: &str) -> ApiResult<Message> {
+        let message = sqlx::query_as::<_, Message>(
+            r#"
+            UPDATE messages
+            SET content = $1,
+                edited_at = NOW()
+            WHERE id = $2 AND deleted_at IS NULL
+            RETURNING *
+            "#,
+        )
+        .bind(content)
+        .bind(id)
+        .fetch_one(pool)
+        .await?;
+
+        Ok(message)
+    }
+
+    /// Soft delete a message
+    pub async fn soft_delete(pool: &PgPool, id: Uuid) -> ApiResult<Message> {
+        let message = sqlx::query_as::<_, Message>(
+            r#"
+            UPDATE messages
+            SET deleted_at = NOW()
+            WHERE id = $1 AND deleted_at IS NULL
+            RETURNING *
+            "#,
+        )
+        .bind(id)
+        .fetch_one(pool)
+        .await?;
+
+        Ok(message)
+    }
+}

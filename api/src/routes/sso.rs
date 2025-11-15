@@ -47,12 +47,12 @@ pub async fn exchange_code(
     let form_params = [
         ("grant_type", "authorization_code"),
         ("code", &payload.code),
-        ("client_id", "openchat-ui"),
+        ("client_id", "openchat-api"),
         ("client_secret", &client_secret),
         ("redirect_uri", &redirect_uri),
     ];
 
-    tracing::debug!("Token request: client_id=openchat-ui, code={}", payload.code);
+    tracing::debug!("Token request: client_id=openchat-api, code={}", payload.code);
 
     let response = client
         .post(&token_endpoint)

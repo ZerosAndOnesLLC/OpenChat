@@ -1,6 +1,6 @@
 [package]
 name = "openchat-api"
-version = "0.13.0"
+version = "0.13.1"
 edition = "2024"
 
 [dependencies]
@@ -10,7 +10,7 @@ actix-ws = "0.3"
 actix-cors = "0.7"
 actix = "0.13"
 actix-web-actors = "4"
-rustls = "0.23"
+rustls = { version = "0.23", features = ["aws-lc-rs"] }
 rustls-pemfile = "2"
 
 # Async Runtime

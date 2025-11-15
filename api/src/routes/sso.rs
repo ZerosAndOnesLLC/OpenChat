@@ -140,7 +140,7 @@ pub async fn get_userinfo(
 
 pub fn configure(cfg: &mut web::ServiceConfig) {
     cfg.service(
-        web::scope("/sso")
+        web::scope("/api/sso")
             .route("/exchange", web::post().to(exchange_code))
             .route("/userinfo", web::post().to(get_userinfo))
     );

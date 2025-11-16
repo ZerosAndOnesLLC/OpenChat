@@ -1,9 +1,24 @@
 use actix_web::{web, HttpRequest, HttpResponse};
 use serde::{Deserialize, Serialize};
 use std::time::Duration;
-use jsonwebtoken::{decode, DecodingKey, Validation, Algorithm};
+use jsonwebtoken::{decode, decode_header, DecodingKey, Validation, Algorithm};
 
 use crate::errors::ApiError;
+
+// JWKS structures for fetching public keys
+#[derive(Debug, Deserialize)]
+struct Jwks {
+    keys: Vec<Jwk>,
+}
+
+#[derive(Debug, Deserialize)]
+struct Jwk {
+    kid: Option<String>,
+    #[allow(dead_code)]
+    kty: String,
+    n: String,
+    e: String,
+}
 
 #[derive(Debug, Deserialize)]
 pub struct ExchangeCodeRequest {
@@ -101,26 +116,17 @@ pub async fn exchange_code(
 
     tracing::info!("Successfully exchanged authorization code for access token");
 
-    // Decode id_token to extract user claims if present (OpenID Connect)
+    // Decode and validate id_token if present (OpenID Connect with proper signature verification)
     let user_claims = if let Some(ref id_token) = token_response.id_token {
-        tracing::debug!("Decoding ID token to extract user claims");
+        tracing::debug!("Validating and decoding ID token with JWKS");
 
-        // For OpenID Connect, we decode without signature verification since the token
-        // came directly from the trusted authorization server
-        let mut validation = Validation::new(Algorithm::RS256);
-        validation.insecure_disable_signature_validation(); // Disable signature check for simplicity
-        validation.validate_exp = false; // We trust the token from TV API
-
-        // Dummy key since we're not validating the signature
-        let key = DecodingKey::from_secret(&[]);
-
-        match decode::<IDTokenClaims>(id_token, &key, &validation) {
-            Ok(token_data) => {
-                tracing::info!("Successfully decoded ID token for user: {}", token_data.claims.sub);
-                Some(token_data.claims)
+        match validate_id_token(id_token, &tv_api_url, &client_id).await {
+            Ok(claims) => {
+                tracing::info!("Successfully validated ID token for user: {}", claims.sub);
+                Some(claims)
             }
             Err(e) => {
-                tracing::warn!("Failed to decode ID token: {}, falling back to userinfo endpoint", e);
+                tracing::warn!("Failed to validate ID token: {}, falling back to userinfo endpoint", e);
                 None
             }
         }
@@ -148,6 +154,61 @@ pub async fn exchange_code(
         id_token: token_response.id_token,
         user_claims,
     }))
+}
+
+/// Validates an ID token by fetching JWKS and verifying the signature
+async fn validate_id_token(
+    id_token: &str,
+    tv_api_url: &str,
+    expected_audience: &str,
+) -> Result<IDTokenClaims, ApiError> {
+    // Decode the header to get the key ID (kid)
+    let header = decode_header(id_token)
+        .map_err(|e| ApiError::Internal(format!("Failed to decode JWT header: {}", e)))?;
+
+    let kid = header.kid
+        .ok_or_else(|| ApiError::Internal("ID token missing 'kid' in header".to_string()))?;
+
+    // Fetch JWKS from TitaniumVault
+    let jwks_url = format!("{}/.well-known/jwks.json", tv_api_url.trim_end_matches('/'));
+    tracing::debug!("Fetching JWKS from: {}", jwks_url);
+
+    let client = reqwest::Client::builder()
+        .timeout(Duration::from_secs(10))
+        .build()
+        .map_err(|e| ApiError::Internal(format!("Failed to create HTTP client: {}", e)))?;
+
+    let jwks: Jwks = client
+        .get(&jwks_url)
+        .send()
+        .await
+        .map_err(|e| ApiError::Internal(format!("Failed to fetch JWKS: {}", e)))?
+        .json()
+        .await
+        .map_err(|e| ApiError::Internal(format!("Failed to parse JWKS: {}", e)))?;
+
+    // Find the matching key
+    let jwk = jwks
+        .keys
+        .iter()
+        .find(|k| k.kid.as_ref() == Some(&kid))
+        .ok_or_else(|| ApiError::Internal(format!("No matching key found for kid: {}", kid)))?;
+
+    // Construct the RSA public key from n and e
+    let decoding_key = DecodingKey::from_rsa_components(&jwk.n, &jwk.e)
+        .map_err(|e| ApiError::Internal(format!("Failed to create decoding key: {}", e)))?;
+
+    // Set up validation
+    let mut validation = Validation::new(Algorithm::RS256);
+    validation.set_audience(&[expected_audience]); // Validate audience matches our client_id
+    validation.set_issuer(&[tv_api_url]); // Validate issuer is TV API
+    validation.validate_exp = true; // Validate expiration
+
+    // Decode and validate the token
+    let token_data = decode::<IDTokenClaims>(id_token, &decoding_key, &validation)
+        .map_err(|e| ApiError::Internal(format!("Failed to validate ID token: {}", e)))?;
+
+    Ok(token_data.claims)
 }
 
 /// POST /api/sso/userinfo

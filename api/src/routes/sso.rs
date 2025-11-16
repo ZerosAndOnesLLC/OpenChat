@@ -36,7 +36,10 @@ pub async fn exchange_code(
     let token_endpoint = format!("{}/oauth/token", tv_api_url.trim_end_matches('/'));
     tracing::debug!("Calling token endpoint: {}", token_endpoint);
 
-    // Get the client secret from environment
+    // Get OAuth configuration from environment
+    let client_id = std::env::var("OAUTH_CLIENT_ID")
+        .unwrap_or_else(|_| "openchat-api".to_string());
+
     let client_secret = std::env::var("OAUTH_CLIENT_SECRET")
         .unwrap_or_else(|_| "web-ui-secret".to_string());
 
@@ -47,12 +50,12 @@ pub async fn exchange_code(
     let form_params = [
         ("grant_type", "authorization_code"),
         ("code", &payload.code),
-        ("client_id", "openchat-api"),
+        ("client_id", &client_id),
         ("client_secret", &client_secret),
         ("redirect_uri", &redirect_uri),
     ];
 
-    tracing::debug!("Token request: client_id=openchat-api, code={}", payload.code);
+    tracing::debug!("Token request: client_id={}, code={}", client_id, payload.code);
 
     let response = client
         .post(&token_endpoint)

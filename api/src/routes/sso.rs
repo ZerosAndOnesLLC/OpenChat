@@ -1,6 +1,7 @@
 use actix_web::{web, HttpRequest, HttpResponse};
 use serde::{Deserialize, Serialize};
 use std::time::Duration;
+use jsonwebtoken::{decode, DecodingKey, Validation, Algorithm};
 
 use crate::errors::ApiError;
 
@@ -15,6 +16,23 @@ pub struct TokenResponse {
     pub token_type: String,
     pub expires_in: i64,
     pub refresh_token: Option<String>,
+    pub id_token: Option<String>,
+}
+
+// OpenID Connect ID Token claims
+#[derive(Debug, Serialize, Deserialize)]
+pub struct IDTokenClaims {
+    pub sub: String,  // User ID
+    pub email: Option<String>,
+    pub name: Option<String>,
+    pub given_name: Option<String>,
+    pub family_name: Option<String>,
+    pub org_id: Option<String>,
+    pub org_name: Option<String>,
+    pub iss: String,
+    pub aud: String,
+    pub exp: i64,
+    pub iat: i64,
 }
 
 /// POST /api/sso/exchange
@@ -83,7 +101,53 @@ pub async fn exchange_code(
 
     tracing::info!("Successfully exchanged authorization code for access token");
 
-    Ok(HttpResponse::Ok().json(token_response))
+    // Decode id_token to extract user claims if present (OpenID Connect)
+    let user_claims = if let Some(ref id_token) = token_response.id_token {
+        tracing::debug!("Decoding ID token to extract user claims");
+
+        // For OpenID Connect, we decode without signature verification since the token
+        // came directly from the trusted authorization server
+        let mut validation = Validation::new(Algorithm::RS256);
+        validation.insecure_disable_signature_validation(); // Disable signature check for simplicity
+        validation.validate_exp = false; // We trust the token from TV API
+
+        // Dummy key since we're not validating the signature
+        let key = DecodingKey::from_secret(&[]);
+
+        match decode::<IDTokenClaims>(id_token, &key, &validation) {
+            Ok(token_data) => {
+                tracing::info!("Successfully decoded ID token for user: {}", token_data.claims.sub);
+                Some(token_data.claims)
+            }
+            Err(e) => {
+                tracing::warn!("Failed to decode ID token: {}, falling back to userinfo endpoint", e);
+                None
+            }
+        }
+    } else {
+        tracing::debug!("No ID token in response, client will need to call /userinfo");
+        None
+    };
+
+    // Return token response with decoded user claims
+    #[derive(Serialize)]
+    struct SSOResponse {
+        access_token: String,
+        token_type: String,
+        expires_in: i64,
+        refresh_token: Option<String>,
+        id_token: Option<String>,
+        user_claims: Option<IDTokenClaims>,
+    }
+
+    Ok(HttpResponse::Ok().json(SSOResponse {
+        access_token: token_response.access_token,
+        token_type: token_response.token_type,
+        expires_in: token_response.expires_in,
+        refresh_token: token_response.refresh_token,
+        id_token: token_response.id_token,
+        user_claims,
+    }))
 }
 
 /// POST /api/sso/userinfo

@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { Message, User, WSClientMessage, WSServerMessage } from './types';
+import type { Message, WSClientMessage, WSServerMessage } from './types';
 
 const WS_URL = process.env.NEXT_PUBLIC_WS_URL || 'ws://localhost:8080/api/ws';
 
@@ -88,7 +88,6 @@ export const useWebSocketStore = create<WebSocketStore>((set, get) => ({
 
           case 'user_typing': {
             const { typing } = get();
-            const key = message.channel_id || message.dm_id;
 
             // Remove old typing indicator for this user in this channel/dm
             const filtered = typing.filter(

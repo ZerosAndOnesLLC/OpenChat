@@ -15,15 +15,6 @@ function generateCodeVerifier(): string {
     .replace(/=/g, '');
 }
 
-async function generateCodeChallenge(verifier: string): Promise<string> {
-  const encoder = new TextEncoder();
-  const data = encoder.encode(verifier);
-  const digest = await crypto.subtle.digest('SHA-256', data);
-  return btoa(String.fromCharCode.apply(null, Array.from(new Uint8Array(digest))))
-    .replace(/\+/g, '-')
-    .replace(/\//g, '_')
-    .replace(/=/g, '');
-}
 
 interface AuthStore {
   user: User | null;
@@ -88,12 +79,25 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
           }
         }
 
-        // No valid token, redirect to TitaniumVault applications page
-        // User must access OpenChat through TitaniumVault's applications portal
-        // which will initiate the proper OAuth flow with authorization code
-        const tvUiUrl = process.env.NEXT_PUBLIC_TV_UI_URL || 'https://titanium-vault.com';
+        // No valid token, initiate OAuth flow with TitaniumVault
+        const tvApiUrl = process.env.NEXT_PUBLIC_TV_API_URL || 'https://api.titanium-vault.com';
+        const clientId = process.env.NEXT_PUBLIC_OAUTH_CLIENT_ID || 'openchat-api';
+        const redirectUri = `${window.location.origin}/sso/callback/`;
 
-        window.location.href = `${tvUiUrl}/applications`;
+        // Build OAuth authorization URL
+        const authUrl = new URL(`${tvApiUrl}/oauth/authorize`);
+        authUrl.searchParams.set('response_type', 'code');
+        authUrl.searchParams.set('client_id', clientId);
+        authUrl.searchParams.set('redirect_uri', redirectUri);
+        authUrl.searchParams.set('scope', 'openid email profile');
+
+        // Generate and store state for CSRF protection
+        const state = generateCodeVerifier();
+        sessionStorage.setItem('oauth_state', state);
+        authUrl.searchParams.set('state', state);
+
+        console.log('Redirecting to OAuth authorization:', authUrl.toString());
+        window.location.href = authUrl.toString();
       }
     } catch (error) {
       console.error('Auth initialization error:', error);

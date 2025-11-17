@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { useAuth } from '@/lib/auth';
 import { apiClient } from '@/lib/api';
-import type { Message, ReactionCount } from '@/lib/types';
+import type { Message } from '@/lib/types';
 
 interface MessageItemProps {
   message: Message;

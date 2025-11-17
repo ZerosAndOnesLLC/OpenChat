@@ -32,12 +32,14 @@ function SSOCallbackContent() {
         console.log('SSO Callback - Search params:', window.location.search);
 
         let code = searchParams.get('code');
+        let state = searchParams.get('state');
         console.log('SSO Callback - Authorization code from searchParams:', code);
 
         // Fallback to reading from window.location.search for S3 static hosting
         if (!code && typeof window !== 'undefined') {
           const urlParams = new URLSearchParams(window.location.search);
           code = urlParams.get('code');
+          state = urlParams.get('state');
           console.log('SSO Callback - Authorization code from window.location:', code);
         }
 
@@ -47,6 +49,17 @@ function SSOCallbackContent() {
           setStatus('error');
           return;
         }
+
+        // Verify state parameter for CSRF protection
+        const savedState = sessionStorage.getItem('oauth_state');
+        if (savedState && state !== savedState) {
+          console.error('SSO Callback - State mismatch (CSRF protection)');
+          setError('Invalid state parameter - possible CSRF attack');
+          setStatus('error');
+          return;
+        }
+        // Clear the saved state
+        sessionStorage.removeItem('oauth_state');
 
         // Exchange authorization code for access token
         console.log('SSO Callback - Exchanging code for access token');

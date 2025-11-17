@@ -15,6 +15,7 @@ Open-source team chat application backend - similar to Slack/Mattermost.
 
 - Multi-tenant architecture with org-level isolation
 - Row Level Security (RLS) for defense-in-depth
+- Role-based access control (openchat and openchat-admin roles)
 - Real-time messaging via WebSockets
 - Public and private channels
 - Direct messages (1-on-1 and groups)
@@ -95,8 +96,11 @@ src/
 ### Health Check
 - `GET /health` - Returns server health status
 
-### Authentication (Phase 3+)
-- `POST /api/auth/verify` - Verify TitaniumVault JWT token
+### SSO Authentication
+- `POST /api/sso/exchange` - Exchange OAuth authorization code for access token
+- `POST /api/sso/userinfo` - Get user info from TitaniumVault (proxy endpoint)
+
+**Note**: All API endpoints except SSO routes require authentication with the "openchat" role.
 
 ### Channels (Phase 5+)
 - `GET /api/channels` - List channels
@@ -136,9 +140,14 @@ src/
 | `DATABASE_URL` | PostgreSQL connection string | Yes |
 | `REDIS_URL` | Redis connection string | Yes |
 | `TV_API_URL` | TitaniumVault API URL | Yes |
-| `JWT_SECRET` | Secret for JWT signing | Yes |
+| `OAUTH_CLIENT_ID` | OAuth client ID for SSO | Yes |
+| `OAUTH_CLIENT_SECRET` | OAuth client secret for SSO | Yes |
+| `OAUTH_REDIRECT_URI` | OAuth redirect URI for SSO callback | Yes |
 | `PORT` | Server port (default: 8080) | No |
 | `HOST` | Server host (default: 0.0.0.0) | No |
+| `ENABLE_TLS` | Enable TLS (default: false) | No |
+| `TLS_CERT_PATH` | Path to TLS certificate | No |
+| `TLS_KEY_PATH` | Path to TLS private key | No |
 | `RUST_LOG` | Logging level | No |
 
 ## Deployment
@@ -172,9 +181,11 @@ Infrastructure is managed via Terraform in `~/dev/terraform/prod/us-east-1/openc
 - ✅ TitaniumVault API integration for token verification
 - ✅ JWT token extraction from Authorization header
 - ✅ Authentication middleware with org_id extraction
+- ✅ Role-based authorization (openchat and openchat-admin roles)
 - ✅ Automatic RLS context setting per request
 - ✅ User model with database operations
 - ✅ User upsert on authentication
+- ✅ Middleware applied to all protected API routes
 
 **Phase 4 Complete** - User & Organization Management
 - ✅ Organization model with CRUD operations
@@ -262,6 +273,15 @@ Infrastructure is managed via Terraform in `~/dev/terraform/prod/us-east-1/openc
 **Next**: Phase 12 - Frontend Setup
 
 ## Version History
+
+### v0.15.1 (Bug Fix Release)
+- Fixed SSO redirect loop where users were redirected back to /applications/ after login
+- Implemented role-based access control with "openchat" and "openchat-admin" roles
+- Applied authentication middleware to all protected API routes
+- Middleware now automatically creates/upserts users in database on first authenticated request
+- Users must have "openchat" role to access the application
+- Fixed SSO callback to use user_claims from token exchange response
+- Updated TypeScript types to include user_claims in SSO responses
 
 ### v0.15.0 (Maintenance Release)
 - Migrated from deprecated `actix-web-actors` to modern `actix-ws` crate

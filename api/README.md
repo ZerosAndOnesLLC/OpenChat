@@ -274,6 +274,13 @@ Infrastructure is managed via Terraform in `~/dev/terraform/prod/us-east-1/openc
 
 ## Version History
 
+### v0.15.4 (Bug Fix Release)
+- Fixed RLS context setting SQL syntax error
+- Removed `SET LOCAL` parameterized query (not supported by PostgreSQL)
+- Changed to use string formatting with validated UUID type
+- Removed unused `with_admin_role` function
+- Removed unused `scope` field from AccessTokenClaims
+
 ### v0.15.1 (Bug Fix Release)
 - Fixed SSO redirect loop where users were redirected back to /applications/ after login
 - Implemented role-based access control with "openchat" and "openchat-admin" roles

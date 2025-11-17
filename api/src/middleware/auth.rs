@@ -36,11 +36,6 @@ impl AuthMiddleware {
     pub fn with_openchat_role(tv_api_url: String) -> Self {
         Self::new(tv_api_url, Some("openchat".to_string()))
     }
-
-    /// Create auth middleware that requires the "openchat-admin" role
-    pub fn with_admin_role(tv_api_url: String) -> Self {
-        Self::new(tv_api_url, Some("openchat-admin".to_string()))
-    }
 }
 
 impl<S, B> Transform<S, ServiceRequest> for AuthMiddleware

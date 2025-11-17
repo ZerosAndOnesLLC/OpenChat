@@ -17,8 +17,7 @@ pub async fn init_pool(database_url: &str) -> ApiResult<PgPool> {
 /// This ensures all queries are automatically filtered by org_id
 #[allow(dead_code)]
 pub async fn set_rls_context(pool: &PgPool, org_id: Uuid) -> ApiResult<()> {
-    sqlx::query("SET LOCAL app.current_org_id = $1")
-        .bind(org_id.to_string())
+    sqlx::query(&format!("SET LOCAL app.current_org_id = '{}'", org_id))
         .execute(pool)
         .await?;
 

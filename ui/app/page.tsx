@@ -9,7 +9,7 @@ export default function Home() {
 
   useEffect(() => {
     initialize();
-  }, []);
+  }, [initialize]);
 
   if (isLoading) {
     return (

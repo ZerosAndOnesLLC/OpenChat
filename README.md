@@ -2,7 +2,7 @@
 
 **Open-source, self-hosted team collaboration platform - Your data, your control**
 
-[![Version](https://img.shields.io/badge/version-0.14.1-blue.svg)](https://github.com/yourusername/openchat)
+[![Version](https://img.shields.io/badge/version-0.14.2-blue.svg)](https://github.com/yourusername/openchat)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 [![Rust](https://img.shields.io/badge/rust-2024-orange.svg)](https://www.rust-lang.org/)
 [![Next.js](https://img.shields.io/badge/next.js-16-black.svg)](https://nextjs.org/)
@@ -78,7 +78,9 @@ OpenChat is a powerful alternative to Slack and Microsoft Teams that you can sel
 - **Docker** - Containerized deployment
 - **AWS ECS** - Scalable container orchestration
 - **CloudFront** - Global CDN for static assets
-- **Application Load Balancer** - High-availability traffic routing
+- **Network Load Balancer (NLB)** - High-availability traffic routing for long-lived WebSocket connections
+  - **Important**: ALB is not suitable for OpenChat due to WebSocket connection timeouts
+  - NLB supports persistent connections required for real-time messaging
 
 ---
 
@@ -279,7 +281,9 @@ OpenChat is built for scale:
 
 ### Scalability
 
-- **Horizontal Scaling**: Add more ECS tasks behind load balancer
+- **Horizontal Scaling**: Add more ECS tasks behind Network Load Balancer (NLB)
+  - NLB required for WebSocket connection persistence
+  - Supports thousands of concurrent long-lived connections per instance
 - **Database**: PostgreSQL supports millions of messages
 - **Redis**: Distributed pub/sub for cross-instance messaging
 - **CDN**: CloudFront delivers static assets globally

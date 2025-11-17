@@ -95,8 +95,13 @@ OpenChat is a powerful alternative to Slack and Microsoft Teams that you can sel
 
 1. **Clone the repository**
    ```bash
-   git clone https://github.com/yourusername/openchat.git
-   cd openchat
+   # HTTPS
+   git clone https://github.com/ZerosAndOnesLLC/OpenChat.git
+   cd OpenChat
+
+   # SSH
+   git clone git@github.com:ZerosAndOnesLLC/OpenChat.git
+   cd OpenChat
    ```
 
 2. **Start PostgreSQL and Redis**
@@ -248,9 +253,16 @@ Even if application code has bugs, the database prevents cross-organization data
 - [ ] Message pinning
 - [ ] Starred messages
 - [ ] Reminders and scheduled messages
-- [ ] Mobile apps (iOS/Android)
 - [ ] Advanced analytics
 - [ ] LDAP/Active Directory sync
+
+### 📱 Phase 4 - Native Applications (Planned)
+- [ ] Android Application
+- [ ] iOS Application
+- [ ] Windows Application
+- [ ] macOS Application
+
+> **Note**: OpenChat is under heavy development and the roadmap is subject to change. Features, timelines, and priorities may be adjusted based on community feedback and project needs.
 
 ---
 

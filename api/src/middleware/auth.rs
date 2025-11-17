@@ -13,7 +13,7 @@ use tracing::error;
 use crate::{
     db,
     errors::ApiError,
-    models::user::User,
+    models::{organization::Organization, user::User},
     services::tv_api::TvApiClient,
 };
 
@@ -118,6 +118,14 @@ where
                 .await
                 .map_err(|e| {
                     error!("Failed to set RLS context: {}", e);
+                    actix_web::error::ErrorInternalServerError(e)
+                })?;
+
+            // Create or update organization first (required foreign key for users)
+            Organization::upsert(pool.get_ref(), claims.org_id, &claims.org_name)
+                .await
+                .map_err(|e| {
+                    error!("Failed to upsert organization: {}", e);
                     actix_web::error::ErrorInternalServerError(e)
                 })?;
 

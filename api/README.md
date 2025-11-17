@@ -274,6 +274,13 @@ Infrastructure is managed via Terraform in `~/dev/terraform/prod/us-east-1/openc
 
 ## Version History
 
+### v0.15.5 (Bug Fix Release)
+- Fixed `SET LOCAL` to `SET` for RLS context (SET LOCAL requires transaction block)
+- Added organization upsert before user upsert to satisfy foreign key constraint
+- Restored Organization model with upsert functionality
+- Added org_name to TokenClaims for proper organization management
+- Fixed foreign key constraint violations on user creation
+
 ### v0.15.4 (Bug Fix Release)
 - Fixed RLS context setting SQL syntax error
 - Removed `SET LOCAL` parameterized query (not supported by PostgreSQL)

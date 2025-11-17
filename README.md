@@ -192,7 +192,7 @@ Even if application code has bugs, the database prevents cross-organization data
 
 | Feature | OpenChat | Slack | Mattermost | Rocket.Chat |
 |---------|----------|-------|------------|-------------|
-| **Open Source** | ✅ MIT | ❌ Proprietary | ✅ MIT | ✅ MIT |
+| **Open Source** | ✅ SSPL | ❌ Proprietary | ✅ MIT | ✅ MIT |
 | **Self-Hosted** | ✅ Full control | ❌ Cloud only | ✅ Available | ✅ Available |
 | **Built with Rust** | ✅ Memory safe | ❌ | ❌ | ❌ |
 | **Modern Tech Stack** | ✅ 2024 | ⚠️ Legacy | ⚠️ Mixed | ⚠️ Mixed |
@@ -200,7 +200,7 @@ Even if application code has bugs, the database prevents cross-organization data
 | **WebSocket Real-time** | ✅ Native | ✅ | ✅ | ✅ |
 | **SSO Integration** | ✅ Built-in | ✅ Paid | ✅ Available | ✅ Available |
 | **Horizontal Scaling** | ✅ Redis Pub/Sub | ✅ | ✅ | ✅ |
-| **Free for Commercial** | ✅ MIT | ❌ Paid | ⚠️ Limits | ⚠️ Limits |
+| **Free for Commercial** | ✅ SSPL | ❌ Paid | ⚠️ Limits | ⚠️ Limits |
 | **Docker Deployment** | ✅ | N/A | ✅ | ✅ |
 
 ### Why Choose OpenChat?

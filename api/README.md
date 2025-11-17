@@ -226,7 +226,7 @@ Infrastructure is managed via Terraform in `~/dev/terraform/prod/us-east-1/openc
 - ✅ UNIQUE constraint prevents duplicate reactions
 
 **Phase 9 Complete** - WebSocket Basic (Single Instance)
-- ✅ WebSocket session management with actix-web-actors
+- ✅ WebSocket session management with actix-ws
 - ✅ In-memory connection registry (user → sessions mapping)
 - ✅ JWT authentication via query parameter
 - ✅ Real-time message broadcasting
@@ -263,6 +263,13 @@ Infrastructure is managed via Terraform in `~/dev/terraform/prod/us-east-1/openc
 
 ## Version History
 
+### v0.15.0 (Maintenance Release)
+- Migrated from deprecated `actix-web-actors` to modern `actix-ws` crate
+- Updated WebSocket implementation to use async task-based approach
+- Removed dependency on deprecated crate for better long-term maintainability
+- No functional changes - WebSocket functionality remains identical
+- Improved code quality and future-proofing
+
 ### v0.11.0 (Phase 11)
 - Redis Pub/Sub for horizontal WebSocket scaling
 - Cross-instance message broadcasting
@@ -288,7 +295,7 @@ Infrastructure is managed via Terraform in `~/dev/terraform/prod/us-east-1/openc
 - Foundation for future REST-to-WebSocket integration
 
 ### v0.9.0 (Phase 9)
-- WebSocket support with actix-web-actors
+- WebSocket support with actix-ws
 - Real-time messaging (single server instance)
 - WebSocket session management with heartbeat
 - In-memory connection registry (user/org/channel mappings)

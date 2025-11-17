@@ -93,7 +93,7 @@ export default function Sidebar({
                       type="radio"
                       value="public"
                       checked={newChannelType === 'public'}
-                      onChange={(e) => setNewChannelType('public')}
+                      onChange={() => setNewChannelType('public')}
                       className="mr-1"
                     />
                     Public
@@ -103,7 +103,7 @@ export default function Sidebar({
                       type="radio"
                       value="private"
                       checked={newChannelType === 'private'}
-                      onChange={(e) => setNewChannelType('private')}
+                      onChange={() => setNewChannelType('private')}
                       className="mr-1"
                     />
                     Private

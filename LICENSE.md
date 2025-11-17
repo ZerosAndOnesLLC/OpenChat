@@ -2,7 +2,7 @@
 
 **Version 1, October 16, 2018**
 
-Copyright (c) 2024 Zeros and Ones LLC, Orlando, FL, USA
+Copyright (c) 2025 Zeros and Ones LLC, Orlando, FL, USA
 
 ---
 
@@ -60,14 +60,14 @@ MongoDB, Inc. may publish revised and/or new versions of the Server Side Public 
 
 ## How to Apply This License to Your Work
 
-To apply the Server Side Public License to your work, attach the following notice, with the fields enclosed by brackets "[]" replaced with your own identifying information:
+To apply the Server Side Public License to your work, attach the following notice to your source files:
 
 ```
-Copyright [yyyy] [name of copyright owner]
+Copyright 2025 Zeros and Ones LLC
 
-This file is part of [name of project].
+This file is part of OpenChat.
 
-[Name of project] is licensed under the Server Side Public License, Version 1,
+OpenChat is licensed under the Server Side Public License, Version 1,
 as published by MongoDB, Inc.
 
 You should have received a copy of the Server Side Public License along with this program.

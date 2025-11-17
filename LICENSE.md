@@ -2,7 +2,7 @@
 
 **Version 1, October 16, 2018**
 
-Copyright (c) 2024 OpenChat Contributors
+Copyright (c) 2024 Zeros and Ones LLC, Orlando, FL, USA
 
 ---
 
@@ -81,7 +81,12 @@ If not, see <https://www.mongodb.com/licensing/server-side-public-license>.
 For more information about the Server Side Public License, please visit:
 https://www.mongodb.com/licensing/server-side-public-license
 
-For questions about this license, contact:
+For questions about OpenChat licensing, contact:
+- **Zeros and Ones LLC**
+- Email: support@zerosandones.us
+- Location: Orlando, FL, USA
+
+For questions about the SSPL license itself, contact:
 - MongoDB, Inc.
 - https://www.mongodb.com/legal/licensing
 

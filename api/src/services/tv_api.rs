@@ -21,8 +21,6 @@ struct AccessTokenClaims {
     sub: String,           // User ID
     #[serde(default)]
     email: Option<String>,
-    #[serde(default)]
-    scope: Option<String>,  // Space-separated scopes
     org_id: Option<String>,
     org_name: Option<String>,
     #[serde(default)]

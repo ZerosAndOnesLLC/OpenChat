@@ -51,12 +51,14 @@ function SSOCallbackContent() {
         // Exchange authorization code for access token
         console.log('SSO Callback - Exchanging code for access token');
         const tokenData = await apiClient.exchangeSSOCode(code);
-        console.log('SSO Callback - Received token data');
+        console.log('SSO Callback - Received token data with user_claims');
 
-        // Get user info from TitaniumVault via OpenChat API proxy
-        console.log('SSO Callback - Fetching user info');
-        const userInfo = await apiClient.getUserInfo(tokenData.access_token);
-        console.log('SSO Callback - Received user info:', userInfo);
+        // Use user_claims from token exchange response (already includes user info from ID token)
+        const userInfo = tokenData.user_claims;
+        if (!userInfo) {
+          throw new Error('No user claims in token response');
+        }
+        console.log('SSO Callback - Using user claims:', userInfo);
 
         // Create user object for OpenChat
         const user: User = {

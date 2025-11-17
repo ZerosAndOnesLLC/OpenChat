@@ -28,6 +28,7 @@ use handlers::{
     reactions as reaction_handlers,
     users as user_handlers,
 };
+use middleware::auth::AuthMiddleware;
 use services::tv_api::TvApiClient;
 
 async fn health_check() -> impl Responder {
@@ -130,6 +131,9 @@ async fn main() -> std::io::Result<()> {
             ])
             .max_age(3600);
 
+        // Create auth middleware that requires "openchat" role
+        let openchat_auth = AuthMiddleware::with_openchat_role(config.tv_api_url.clone());
+
         App::new()
             .wrap(cors)
             .app_data(web::Data::new(db_pool.clone()))
@@ -137,17 +141,19 @@ async fn main() -> std::io::Result<()> {
             .app_data(web::Data::new(tv_api_client.clone()))
             .route("/health", web::get().to(health_check))
             .route("/api/ws", web::get().to(websocket::ws_route))
-            // User routes
+            // User routes - require "openchat" role
             .service(
                 web::scope("/api/users")
+                    .wrap(openchat_auth.clone())
                     .route("", web::get().to(user_handlers::list_users))
                     .route("/{id}", web::get().to(user_handlers::get_user))
                     .route("/{id}", web::put().to(user_handlers::update_user))
                     .route("/{id}/status", web::put().to(user_handlers::update_user_status))
             )
-            // Channel routes
+            // Channel routes - require "openchat" role
             .service(
                 web::scope("/api/channels")
+                    .wrap(openchat_auth.clone())
                     .route("", web::get().to(channel_handlers::list_channels))
                     .route("", web::post().to(channel_handlers::create_channel))
                     .route("/{id}", web::get().to(channel_handlers::get_channel))
@@ -158,9 +164,10 @@ async fn main() -> std::io::Result<()> {
                     .route("/{id}/members/{user_id}", web::delete().to(channel_handlers::remove_member))
                     .route("/{id}/messages", web::get().to(message_handlers::list_channel_messages))
             )
-            // Message routes
+            // Message routes - require "openchat" role
             .service(
                 web::scope("/api/messages")
+                    .wrap(openchat_auth.clone())
                     .route("", web::post().to(message_handlers::send_message))
                     .route("/{id}", web::put().to(message_handlers::update_message))
                     .route("/{id}", web::delete().to(message_handlers::delete_message))
@@ -169,15 +176,16 @@ async fn main() -> std::io::Result<()> {
                     .route("/{id}/reactions/counts", web::get().to(reaction_handlers::get_reaction_counts))
                     .route("/{id}/reactions/{emoji}", web::delete().to(reaction_handlers::remove_reaction))
             )
-            // Direct Message routes
+            // Direct Message routes - require "openchat" role
             .service(
                 web::scope("/api/dms")
+                    .wrap(openchat_auth.clone())
                     .route("", web::get().to(dm_handlers::list_dms))
                     .route("", web::post().to(dm_handlers::create_dm))
                     .route("/{id}", web::get().to(dm_handlers::get_dm))
                     .route("/{id}/messages", web::get().to(dm_handlers::list_dm_messages))
             )
-            // SSO routes
+            // SSO routes - no auth required (they handle authentication themselves)
             .configure(routes::sso::configure)
     });
 

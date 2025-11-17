@@ -225,8 +225,34 @@ class ApiClient {
   }
 
   // SSO endpoints
-  async exchangeSSOCode(code: string): Promise<{ access_token: string; token_type: string; expires_in: number }> {
-    return this.request<{ access_token: string; token_type: string; expires_in: number }>('/api/sso/exchange', {
+  async exchangeSSOCode(code: string): Promise<{
+    access_token: string;
+    token_type: string;
+    expires_in: number;
+    refresh_token?: string;
+    id_token?: string;
+    user_claims?: {
+      sub: string;
+      email?: string;
+      name?: string;
+      org_id?: string;
+      org_name?: string;
+    };
+  }> {
+    return this.request<{
+      access_token: string;
+      token_type: string;
+      expires_in: number;
+      refresh_token?: string;
+      id_token?: string;
+      user_claims?: {
+        sub: string;
+        email?: string;
+        name?: string;
+        org_id?: string;
+        org_name?: string;
+      };
+    }>('/api/sso/exchange', {
       method: 'POST',
       body: JSON.stringify({ code }),
     });

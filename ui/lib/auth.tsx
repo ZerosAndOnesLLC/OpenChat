@@ -88,28 +88,12 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
           }
         }
 
-        // No valid token, redirect to TV-API OAuth authorize
-        const tvApiUrl = process.env.NEXT_PUBLIC_TV_API_URL || 'https://api.titanium-vault.com';
-        const redirectUri = `${window.location.origin}/sso/callback`;
-        const clientId = 'openchat-ui';
+        // No valid token, redirect to TitaniumVault applications page
+        // User must access OpenChat through TitaniumVault's applications portal
+        // which will initiate the proper OAuth flow with authorization code
+        const tvUiUrl = process.env.NEXT_PUBLIC_TV_UI_URL || 'https://titanium-vault.com';
 
-        // OAuth 2.0 PKCE flow parameters
-        const codeVerifier = generateCodeVerifier();
-        const codeChallenge = await generateCodeChallenge(codeVerifier);
-
-        // Store code verifier for later use in callback
-        sessionStorage.setItem('pkce_code_verifier', codeVerifier);
-
-        const authorizeUrl = `${tvApiUrl}/oauth/authorize?` + new URLSearchParams({
-          response_type: 'code',
-          client_id: clientId,
-          redirect_uri: redirectUri,
-          scope: 'openid profile email',
-          code_challenge: codeChallenge,
-          code_challenge_method: 'S256',
-        });
-
-        window.location.href = authorizeUrl;
+        window.location.href = `${tvUiUrl}/applications`;
       }
     } catch (error) {
       console.error('Auth initialization error:', error);

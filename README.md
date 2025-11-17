@@ -291,11 +291,34 @@ OpenChat is built for scale:
 
 ---
 
+## Accessing OpenChat
+
+### Authentication Flow
+
+OpenChat uses **TitaniumVault** for authentication and should be accessed through the TitaniumVault applications portal:
+
+1. **Log in to TitaniumVault** at https://titanium-vault.com
+2. **Navigate to Applications** page
+3. **Click on OpenChat** - this initiates the OAuth flow
+4. OpenChat opens with you automatically authenticated
+
+**Important**: Do not access OpenChat directly. Always go through TitaniumVault's applications portal to ensure proper authentication.
+
+### OAuth Configuration
+
+OpenChat uses OAuth 2.0 with PKCE for secure authentication:
+- **Client ID**: `openchat-api` (registered in TitaniumVault)
+- **Redirect URI**: `https://openchat.zerosandones.us/sso/callback/`
+- **Scopes**: `openid profile email`
+- **Grant Types**: `authorization_code`, `client_credentials`, `refresh_token`
+
+---
+
 ## Security
 
 ### Authentication
 - JWT token-based authentication
-- Single sign-on (SSO) integration
+- Single sign-on (SSO) integration via OAuth 2.0 with PKCE
 - TitaniumVault identity provider support
 - Secure token refresh mechanism
 

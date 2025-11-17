@@ -5,13 +5,12 @@ pub mod session;
 
 use actix::Addr;
 use actix_web::{web, Error, HttpRequest, HttpResponse};
-use actix_web_actors::ws;
 use sqlx::PgPool;
 use std::sync::Arc;
 
 use crate::{errors::ApiError, models::user::User, services::tv_api::TvApiClient};
 use server::WsServer;
-use session::WsSession;
+use session::{handle_ws_session, WsSessionData};
 
 /// WebSocket connection handler
 pub async fn ws_route(
@@ -51,14 +50,19 @@ pub async fn ws_route(
         user.id, user.display_name
     );
 
-    // Create WebSocket session
-    let session = WsSession::new(
+    // Create WebSocket session data
+    let session_data = WsSessionData::new(
         user.id,
         claims.org_id,
         user.display_name,
         server.get_ref().clone(),
     );
 
-    // Start WebSocket
-    ws::start(session, &req, stream)
+    // Upgrade connection to WebSocket
+    let (response, session, msg_stream) = actix_ws::handle(&req, stream)?;
+
+    // Spawn task to handle the WebSocket session (use actix runtime since it's !Send)
+    actix_web::rt::spawn(handle_ws_session(session, msg_stream, session_data));
+
+    Ok(response)
 }

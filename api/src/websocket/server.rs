@@ -3,12 +3,12 @@ use std::collections::{HashMap, HashSet};
 use uuid::Uuid;
 
 use super::messages::ServerMessage;
-use super::session::{WsMessage, WsSession};
+use super::session::{WsSessionHandle, WsSessionMessage};
 
 /// WebSocket server that manages all connections
 pub struct WsServer {
     /// Map of session_id -> session address
-    sessions: HashMap<Uuid, Addr<WsSession>>,
+    sessions: HashMap<Uuid, Addr<WsSessionHandle>>,
     /// Map of user_id -> set of session_ids (for multi-device support)
     user_sessions: HashMap<Uuid, HashSet<Uuid>>,
     /// Map of org_id -> set of session_ids
@@ -30,7 +30,7 @@ impl WsServer {
     /// Send message to a specific session
     fn send_message(&self, session_id: &Uuid, message: ServerMessage) {
         if let Some(addr) = self.sessions.get(session_id) {
-            addr.do_send(WsMessage(message));
+            addr.do_send(WsSessionMessage(message));
         }
     }
 
@@ -69,7 +69,7 @@ pub struct Connect {
     pub session_id: Uuid,
     pub user_id: Uuid,
     pub org_id: Uuid,
-    pub addr: Addr<WsSession>,
+    pub addr: Addr<WsSessionHandle>,
 }
 
 impl Handler<Connect> for WsServer {

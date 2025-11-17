@@ -1,6 +1,6 @@
 [package]
 name = "openchat-api"
-version = "0.14.2"
+version = "0.15.0"
 edition = "2024"
 
 [dependencies]
@@ -9,7 +9,6 @@ actix-web = { version = "4", features = ["rustls-0_23"] }
 actix-ws = "0.3"
 actix-cors = "0.7"
 actix = "0.13"
-actix-web-actors = "4"
 rustls = { version = "0.23", features = ["aws-lc-rs"] }
 rustls-pemfile = "2"
 
@@ -27,7 +26,7 @@ sqlx = { version = "0.8", features = [
 ] }
 
 # Redis (Caching + Pub/Sub)
-redis = { version = "0.27", features = [
+redis = { version = "0.32.7", features = [
     "tokio-comp",
     "connection-manager",
     "streams"
@@ -40,7 +39,7 @@ uuid = { version = "1", features = ["v4", "serde"] }
 chrono = { version = "0.4", features = ["serde"] }
 
 # Authentication
-jsonwebtoken = "9"
+jsonwebtoken = { version = "10.2.0", features = ["aws_lc_rs"] }
 reqwest = { version = "0.12", features = ["json", "rustls-tls"] }
 
 # Error Handling

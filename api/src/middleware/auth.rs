@@ -17,17 +17,29 @@ use crate::{
     services::tv_api::TvApiClient,
 };
 
-#[allow(dead_code)]
+#[derive(Clone)]
 pub struct AuthMiddleware {
     tv_api_client: Rc<TvApiClient>,
+    required_role: Option<String>,
 }
 
 impl AuthMiddleware {
-    #[allow(dead_code)]
-    pub fn new(tv_api_url: String) -> Self {
+    /// Create a new auth middleware that requires a specific role
+    pub fn new(tv_api_url: String, required_role: Option<String>) -> Self {
         Self {
             tv_api_client: Rc::new(TvApiClient::new(tv_api_url)),
+            required_role,
         }
+    }
+
+    /// Create auth middleware that requires the "openchat" role
+    pub fn with_openchat_role(tv_api_url: String) -> Self {
+        Self::new(tv_api_url, Some("openchat".to_string()))
+    }
+
+    /// Create auth middleware that requires the "openchat-admin" role
+    pub fn with_admin_role(tv_api_url: String) -> Self {
+        Self::new(tv_api_url, Some("openchat-admin".to_string()))
     }
 }
 
@@ -47,14 +59,15 @@ where
         ready(Ok(AuthMiddlewareService {
             service: Rc::new(service),
             tv_api_client: self.tv_api_client.clone(),
+            required_role: self.required_role.clone(),
         }))
     }
 }
 
-#[allow(dead_code)]
 pub struct AuthMiddlewareService<S> {
     service: Rc<S>,
     tv_api_client: Rc<TvApiClient>,
+    required_role: Option<String>,
 }
 
 impl<S, B> Service<ServiceRequest> for AuthMiddlewareService<S>
@@ -72,6 +85,7 @@ where
     fn call(&self, req: ServiceRequest) -> Self::Future {
         let service = self.service.clone();
         let tv_api_client = self.tv_api_client.clone();
+        let required_role = self.required_role.clone();
 
         Box::pin(async move {
             // Extract token from Authorization header
@@ -82,6 +96,19 @@ where
                 .verify_token(&token)
                 .await
                 .map_err(|e| actix_web::error::ErrorUnauthorized(e))?;
+
+            // Check if user has the required role
+            if let Some(required) = &required_role {
+                if !claims.roles.contains(required) {
+                    error!(
+                        "User {} does not have required role: {}. User roles: {:?}",
+                        claims.email, required, claims.roles
+                    );
+                    return Err(actix_web::error::ErrorForbidden(ApiError::Authorization(
+                        format!("Missing required role: {}", required),
+                    )));
+                }
+            }
 
             // Get database pool
             let pool = req
@@ -123,7 +150,6 @@ where
 }
 
 /// Extract JWT token from Authorization header
-#[allow(dead_code)]
 fn extract_token(req: &ServiceRequest) -> Result<String, Error> {
     let auth_header = req
         .headers()

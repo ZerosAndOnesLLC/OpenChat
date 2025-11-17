@@ -1,10 +1,10 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { apiClient } from '@/lib/api';
 import { useWebSocketStore } from '@/lib/websocket';
-import type { Channel, DirectMessage, Message } from '@/lib/types';
+import type { Channel, DirectMessage } from '@/lib/types';
 import MessageList from './MessageList';
 import MessageInput from './MessageInput';
 import TypingIndicator from './TypingIndicator';
@@ -17,7 +17,6 @@ interface MessageAreaProps {
 export default function MessageArea({ channel, dm }: MessageAreaProps) {
   const { messages, setMessages, subscribeChannel, unsubscribeChannel, typing } =
     useWebSocketStore();
-  const [localMessages, setLocalMessages] = useState<Message[]>([]);
   const prevChannelRef = useRef<string | null>(null);
 
   const currentKey = channel?.id || dm?.id || '';
@@ -53,26 +52,24 @@ export default function MessageArea({ channel, dm }: MessageAreaProps) {
     };
   }, [channel, subscribeChannel, unsubscribeChannel]);
 
-  // Update local messages when fetched messages or WebSocket messages change
-  useEffect(() => {
-    if (currentKey) {
-      const wsMessages = messages[currentKey] || [];
-      const allMessages = [...fetchedMessages, ...wsMessages];
+  // Compute local messages using useMemo to avoid cascading renders
+  const localMessages = useMemo(() => {
+    if (!currentKey) return [];
 
-      // Deduplicate by ID
-      const uniqueMessages = Array.from(
-        new Map(allMessages.map((msg) => [msg.id, msg])).values()
-      );
+    const wsMessages = messages[currentKey] || [];
+    const allMessages = [...fetchedMessages, ...wsMessages];
 
-      // Sort by created_at
-      uniqueMessages.sort(
-        (a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
-      );
+    // Deduplicate by ID
+    const uniqueMessages = Array.from(
+      new Map(allMessages.map((msg) => [msg.id, msg])).values()
+    );
 
-      setLocalMessages(uniqueMessages);
-    } else {
-      setLocalMessages([]);
-    }
+    // Sort by created_at
+    uniqueMessages.sort(
+      (a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+    );
+
+    return uniqueMessages;
   }, [currentKey, fetchedMessages, messages]);
 
   // Set fetched messages to store
@@ -80,7 +77,7 @@ export default function MessageArea({ channel, dm }: MessageAreaProps) {
     if (currentKey && fetchedMessages.length > 0) {
       setMessages(currentKey, []);
     }
-  }, [currentKey, fetchedMessages]);
+  }, [currentKey, fetchedMessages, setMessages]);
 
   // Get typing indicators for current channel/dm
   const currentTyping = typing.filter(

@@ -11,6 +11,7 @@ pub struct TokenClaims {
     pub user_id: Uuid,
     pub email: String,
     pub org_id: Uuid,
+    pub org_name: String,
     pub display_name: String,
     pub roles: Vec<String>,
 }
@@ -133,6 +134,10 @@ impl TvApiClient {
         let roles: Vec<String> = jwt_claims.roles
             .unwrap_or_default();
 
+        // Use org_name from token, or default to org_id as string
+        let org_name = jwt_claims.org_name.clone()
+            .unwrap_or_else(|| format!("org-{}", org_id));
+
         // Use org_name as display_name if available, otherwise use email prefix
         let display_name = jwt_claims.org_name
             .unwrap_or_else(|| email.split('@').next().unwrap_or("User").to_string());
@@ -141,6 +146,7 @@ impl TvApiClient {
             user_id,
             email,
             org_id,
+            org_name,
             display_name,
             roles,
         };

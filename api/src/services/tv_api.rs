@@ -1,17 +1,55 @@
+use jsonwebtoken::{decode, decode_header, DecodingKey, Validation, Algorithm};
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
+use std::time::Duration;
 use uuid::Uuid;
 
 use crate::errors::{ApiError, ApiResult};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[allow(dead_code)]
 pub struct TokenClaims {
     pub user_id: Uuid,
     pub email: String,
     pub org_id: Uuid,
     pub display_name: String,
     pub roles: Vec<String>,
+}
+
+// JWT payload structure from TitaniumVault access tokens
+#[derive(Debug, Deserialize)]
+struct AccessTokenClaims {
+    sub: String,           // User ID
+    #[serde(default)]
+    email: Option<String>,
+    #[serde(default)]
+    scope: Option<String>,  // Space-separated scopes
+    org_id: Option<String>,
+    org_name: Option<String>,
+    #[serde(default)]
+    roles: Option<Vec<String>>,  // User roles
+    #[allow(dead_code)]
+    exp: i64,
+    #[allow(dead_code)]
+    iat: i64,
+    #[allow(dead_code)]
+    iss: String,
+    #[allow(dead_code)]
+    aud: String,
+}
+
+// JWKS structures for fetching public keys
+#[derive(Debug, Deserialize)]
+struct Jwks {
+    keys: Vec<Jwk>,
+}
+
+#[derive(Debug, Deserialize)]
+struct Jwk {
+    kid: Option<String>,
+    #[allow(dead_code)]
+    kty: String,
+    n: String,
+    e: String,
 }
 
 #[allow(dead_code)]
@@ -29,26 +67,86 @@ impl TvApiClient {
         }
     }
 
-    /// Verify a JWT token with the TitaniumVault API
+    /// Verify a JWT access token by validating its signature with JWKS
     /// Returns the token claims if valid, error otherwise
     pub async fn verify_token(&self, token: &str) -> ApiResult<TokenClaims> {
-        let url = format!("{}/api/auth/verify", self.base_url);
+        // Decode the header to get the key ID (kid)
+        let header = decode_header(token)
+            .map_err(|e| ApiError::Authentication(format!("Failed to decode JWT header: {}", e)))?;
 
-        let response = self
-            .client
-            .get(&url)
-            .header("Authorization", format!("Bearer {}", token))
+        let kid = header.kid
+            .ok_or_else(|| ApiError::Authentication("Access token missing 'kid' in header".to_string()))?;
+
+        // Fetch JWKS from TitaniumVault
+        let jwks_url = format!("{}/.well-known/jwks.json", self.base_url.trim_end_matches('/'));
+
+        let client = Client::builder()
+            .timeout(Duration::from_secs(10))
+            .build()
+            .map_err(|e| ApiError::Internal(format!("Failed to create HTTP client: {}", e)))?;
+
+        let jwks: Jwks = client
+            .get(&jwks_url)
             .send()
-            .await?;
+            .await
+            .map_err(|e| ApiError::Authentication(format!("Failed to fetch JWKS: {}", e)))?
+            .json()
+            .await
+            .map_err(|e| ApiError::Authentication(format!("Failed to parse JWKS: {}", e)))?;
 
-        if !response.status().is_success() {
-            return Err(ApiError::Authentication(format!(
-                "Token verification failed: {}",
-                response.status()
-            )));
-        }
+        // Find the matching key
+        let jwk = jwks
+            .keys
+            .iter()
+            .find(|k| k.kid.as_ref() == Some(&kid))
+            .ok_or_else(|| ApiError::Authentication(format!("No matching key found for kid: {}", kid)))?;
 
-        let claims = response.json::<TokenClaims>().await?;
+        // Construct the RSA public key from n and e
+        let decoding_key = DecodingKey::from_rsa_components(&jwk.n, &jwk.e)
+            .map_err(|e| ApiError::Authentication(format!("Failed to create decoding key: {}", e)))?;
+
+        // Set up validation - we validate issuer but not audience (tokens may be for different apps)
+        let mut validation = Validation::new(Algorithm::RS256);
+        validation.set_issuer(&[&self.base_url]);
+        validation.validate_exp = true;
+        validation.validate_aud = false; // Don't validate audience - allow tokens for any app
+
+        // Decode and validate the token
+        let token_data = decode::<AccessTokenClaims>(token, &decoding_key, &validation)
+            .map_err(|e| ApiError::Authentication(format!("Failed to validate access token: {}", e)))?;
+
+        let jwt_claims = token_data.claims;
+
+        // Parse user_id from sub
+        let user_id = Uuid::parse_str(&jwt_claims.sub)
+            .map_err(|_| ApiError::Authentication("Invalid user ID in token".to_string()))?;
+
+        // Parse org_id from token
+        let org_id = jwt_claims.org_id
+            .ok_or_else(|| ApiError::Authentication("Token missing org_id claim".to_string()))
+            .and_then(|id| Uuid::parse_str(&id)
+                .map_err(|_| ApiError::Authentication("Invalid org_id in token".to_string())))?;
+
+        // Extract email - use email claim if available, otherwise use sub
+        let email = jwt_claims.email
+            .unwrap_or_else(|| format!("{}@unknown", jwt_claims.sub));
+
+        // Extract roles from JWT (now included in token by TV API)
+        let roles: Vec<String> = jwt_claims.roles
+            .unwrap_or_default();
+
+        // Use org_name as display_name if available, otherwise use email prefix
+        let display_name = jwt_claims.org_name
+            .unwrap_or_else(|| email.split('@').next().unwrap_or("User").to_string());
+
+        let claims = TokenClaims {
+            user_id,
+            email,
+            org_id,
+            display_name,
+            roles,
+        };
+
         Ok(claims)
     }
 }

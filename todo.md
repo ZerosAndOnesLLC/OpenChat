@@ -120,26 +120,26 @@ Plan to achieve feature parity with Mattermost/Slack and add end-to-end encrypti
 ## Phase 2: Enhanced UX & Collaboration (Priority 1)
 
 ### 2.1 Message Pinning & Bookmarks
-- [ ] Create migration: `pinned_messages` table
+- [x] Create migration: `pinned_messages` table
   - channel_id, message_id, pinned_by, pinned_at
   - Unique index on (channel_id, message_id)
-- [ ] Create migration: `bookmarks` table
+- [x] Create migration: `bookmarks` table
   - user_id, message_id, bookmarked_at
   - Unique index on (user_id, message_id)
-- [ ] API: POST /api/messages/{id}/pin - Pin message (requires permission)
-- [ ] API: DELETE /api/messages/{id}/pin - Unpin message
-- [ ] API: GET /api/channels/{id}/pins - List pinned messages
-- [ ] API: POST /api/bookmarks - Bookmark message
-- [ ] API: DELETE /api/bookmarks/{message_id} - Remove bookmark
-- [ ] API: GET /api/bookmarks - List user's bookmarks
-- [ ] UI: Pin icon in message hover menu
-- [ ] UI: Pinned messages panel at top of channel
-- [ ] UI: Bookmark icon in message hover menu
-- [ ] UI: Personal bookmarks sidebar section
-- [ ] UI: Toast notification when message pinned
-- [ ] WebSocket: Broadcast pin/unpin events
-- [ ] Update README.md
-- [ ] Increment version to 0.22.0
+- [x] API: POST /api/messages/{id}/pin - Pin message (requires permission)
+- [x] API: DELETE /api/messages/{id}/pin - Unpin message
+- [x] API: GET /api/channels/{id}/pins - List pinned messages
+- [x] API: POST /api/bookmarks - Bookmark message
+- [x] API: DELETE /api/bookmarks/{message_id} - Remove bookmark
+- [x] API: GET /api/bookmarks - List user's bookmarks
+- [ ] UI: Pin icon in message hover menu (deferred)
+- [ ] UI: Pinned messages panel at top of channel (deferred)
+- [ ] UI: Bookmark icon in message hover menu (deferred)
+- [ ] UI: Personal bookmarks sidebar section (deferred)
+- [ ] UI: Toast notification when message pinned (deferred)
+- [x] WebSocket: Broadcast pin/unpin events
+- [x] Update README.md
+- [x] Increment version to 0.24.0
 
 ### 2.2 Rich Text Formatting (Markdown)
 - [ ] Rust: Store messages as markdown in database

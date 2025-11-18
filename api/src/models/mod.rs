@@ -1,10 +1,12 @@
 pub mod attachment;
+pub mod bookmark;
 pub mod channel;
 pub mod direct_message;
 pub mod mention;
 pub mod message;
 pub mod notification;
 pub mod organization;
+pub mod pin;
 pub mod reaction;
 pub mod read_status;
 pub mod user;

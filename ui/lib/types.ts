@@ -47,6 +47,29 @@ export interface Message {
   reactions?: Reaction[];
   reply_count?: number;
   first_reply?: Message;
+  attachments?: Attachment[];
+}
+
+// Attachment types
+export interface Attachment {
+  id: string;
+  message_id: string;
+  file_name: string;
+  file_url: string;
+  file_type?: string;
+  file_size?: number;
+  storage_type: string;
+  storage_path: string;
+  created_at: string;
+}
+
+export interface AttachmentUploadResponse {
+  id: string;
+  file_name: string;
+  file_url: string;
+  file_type?: string;
+  file_size: number;
+  storage_type: string;
 }
 
 // Reaction types

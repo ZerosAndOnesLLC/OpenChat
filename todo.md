@@ -40,37 +40,38 @@ Plan to achieve feature parity with Mattermost/Slack and add end-to-end encrypti
 - [x] Increment version to 0.20.0 (API), 0.4.0 (UI)
 
 ### 1.3 File Attachments with Configurable Storage
-- [ ] Create migration: Update `attachments` table if needed
+- [x] Create migration: Update `attachments` table if needed
   - Add storage_type column (local, s3)
   - Add storage_path column (filesystem path or S3 key)
-- [ ] Create migration: `storage_settings` table
+- [x] Create migration: `storage_settings` table
   - org_id, storage_type (local/s3), s3_bucket, s3_region, s3_access_key_id_encrypted, s3_secret_key_encrypted
-- [ ] Rust: Create FileStorage trait with Local and S3 implementations
-- [ ] Rust: Local storage handler (save to /var/openchat/uploads or configurable path)
-- [ ] Rust: S3 storage handler using aws-sdk-s3
-- [ ] Rust: Storage factory based on org settings (default: local)
-- [ ] API: POST /api/attachments/upload - Get upload URL or initiate upload
-- [ ] API: POST /api/attachments - Save attachment metadata
-- [ ] API: GET /api/attachments/{id} - Download/get attachment URL
-- [ ] API: DELETE /api/attachments/{id} - Delete attachment
-- [ ] API: POST /api/settings/storage - Configure storage settings (admin only)
-- [ ] API: GET /api/settings/storage - Get storage settings (admin only)
-- [ ] Env vars: MAX_FILE_SIZE (default 25MB)
-- [ ] Env vars: ALLOWED_FILE_TYPES (default: images, docs, videos)
-- [ ] Env vars: LOCAL_STORAGE_PATH (default: /var/openchat/uploads)
-- [ ] UI: File upload button in message input
-- [ ] UI: Drag and drop file upload
-- [ ] UI: File upload progress indicator
-- [ ] UI: Image inline preview in messages
-- [ ] UI: Document/video thumbnails
-- [ ] UI: File download button
-- [ ] UI: Admin settings page for storage configuration
-- [ ] UI: Storage type selector (Local/S3)
-- [ ] UI: S3 credentials input form (encrypted storage)
-- [ ] WebSocket: Send attachment notifications
-- [ ] File type validation and size limits
-- [ ] Update README.md with storage configuration docs
-- [ ] Increment version to 0.19.0
+- [x] Rust: Create FileStorage trait with Local and S3 implementations
+- [x] Rust: Local storage handler (save to /var/openchat/uploads or configurable path)
+- [x] Rust: S3 storage handler using aws-sdk-s3
+- [x] Rust: Storage factory based on org settings (default: local)
+- [x] API: POST /api/attachments/upload - Upload file and save metadata
+- [x] API: GET /api/attachments/{id}/download - Download/get attachment
+- [x] API: DELETE /api/attachments/{id} - Delete attachment
+- [x] API: GET /api/messages/{id}/attachments - Get message attachments
+- [ ] API: POST /api/settings/storage - Configure storage settings (admin only) (deferred)
+- [ ] API: GET /api/settings/storage - Get storage settings (admin only) (deferred)
+- [x] Env vars: MAX_FILE_SIZE (default 25MB)
+- [x] Env vars: ALLOWED_FILE_TYPES (default: images, docs, videos)
+- [x] Env vars: LOCAL_STORAGE_PATH (default: /var/openchat/uploads)
+- [x] UI: API client methods for upload/download
+- [ ] UI: File upload button in message input (deferred)
+- [ ] UI: Drag and drop file upload (deferred)
+- [ ] UI: File upload progress indicator (deferred)
+- [ ] UI: Image inline preview in messages (deferred)
+- [ ] UI: Document/video thumbnails (deferred)
+- [ ] UI: File download button (deferred)
+- [ ] UI: Admin settings page for storage configuration (deferred)
+- [ ] UI: Storage type selector (Local/S3) (deferred)
+- [ ] UI: S3 credentials input form (encrypted storage) (deferred)
+- [ ] WebSocket: Send attachment notifications (deferred)
+- [x] File type validation and size limits
+- [x] Update README.md with storage configuration docs
+- [x] Increment version to 0.21.0 (API), 0.5.0 (UI)
 
 ### 1.4 Message Search (Full-Text)
 - [ ] Create migration: Add GIN index on messages.content

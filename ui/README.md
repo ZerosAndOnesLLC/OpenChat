@@ -38,6 +38,12 @@ Modern real-time team chat application built with Next.js 15.
 - ✅ Rich text formatting (Markdown)
 - ✅ Keyboard shortcuts (Cmd+K, Cmd+/, Esc, Cmd+Enter)
 - ✅ Quick channel/DM switcher (Cmd+K)
+- ✅ **Audit Logging** (Admin)
+  - ✅ Comprehensive audit log viewer at /admin/audit-logs
+  - ✅ Filter by user, action, resource type, resource ID, date range
+  - ✅ CSV export for compliance reporting
+  - ✅ Pagination and search functionality
+  - ✅ Detailed metadata inspection per log entry
 - ✅ TitaniumVault SSO integration
 - ✅ Beautiful, responsive UI
 
@@ -242,7 +248,7 @@ npm run build
 
 ## Version
 
-Current version: 0.9.0
+Current version: 0.17.0
 
 Increment version before commits:
 - **Patch** (0.1.x): Bug fixes, small tweaks
@@ -250,6 +256,18 @@ Increment version before commits:
 - **Major** (x.0.0): Breaking changes
 
 ### Recent Changes
+
+**v0.17.0** - Audit Logging UI (Phase 5.3 Complete)
+- Added comprehensive audit log viewer at /admin/audit-logs
+- Advanced filtering: user ID, action, resource type, resource ID, date range
+- Pagination support with configurable page sizes (25/50/100)
+- CSV export functionality for compliance reporting
+- Expandable row details showing full metadata, IP address, user agent
+- Filter dropdowns populated from backend (actions and resource types)
+- Real-time data fetching with loading states
+- Responsive table design with proper overflow handling
+- Error handling and user feedback
+- Protected route requiring admin permissions (org.view_audit_logs)
 
 **v0.9.0** - Unread Message Tracking UI (Phase 1.1 Complete)
 - Implemented unread count badges on channels in sidebar (red pill badges)

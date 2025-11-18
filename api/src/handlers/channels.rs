@@ -9,7 +9,7 @@ use crate::{
     errors::{ApiError, ApiResult},
     models::channel::{Channel, ChannelMember},
     models::user::User,
-    services::tv_api::TokenClaims,
+    services::{audit_logger::AuditLogger, tv_api::TokenClaims},
 };
 
 #[derive(Debug, Deserialize)]
@@ -112,6 +112,19 @@ pub async fn create_channel(
 
     // Add creator as admin member
     ChannelMember::add(pool.get_ref(), channel.id, current_user.id, "admin").await?;
+
+    // Log channel creation in audit log
+    if let Err(e) = AuditLogger::log_channel_created(
+        pool.get_ref(),
+        current_user.id,
+        channel.id,
+        &channel.name,
+        Some(&req),
+    )
+    .await
+    {
+        tracing::warn!("Failed to create audit log for channel creation: {}", e);
+    }
 
     Ok(HttpResponse::Created().json(ChannelResponse::from(channel)))
 }
@@ -227,7 +240,23 @@ pub async fn delete_channel(
         ));
     }
 
+    // Store channel name for audit log before deletion
+    let channel_name = channel.name.clone();
+
     Channel::delete(pool.get_ref(), *channel_id).await?;
+
+    // Log channel deletion in audit log
+    if let Err(e) = AuditLogger::log_channel_deleted(
+        pool.get_ref(),
+        current_user.id,
+        *channel_id,
+        &channel_name,
+        Some(&req),
+    )
+    .await
+    {
+        tracing::warn!("Failed to create audit log for channel deletion: {}", e);
+    }
 
     // Invalidate cache after deletion
     let mut redis_conn = redis.as_ref().clone();
@@ -316,6 +345,19 @@ pub async fn add_member(
     let role = body.role.as_deref().unwrap_or("member");
     let member = ChannelMember::add(pool.get_ref(), *channel_id, body.user_id, role).await?;
 
+    // Log member addition in audit log
+    if let Err(e) = AuditLogger::log_channel_member_added(
+        pool.get_ref(),
+        current_user.id,
+        *channel_id,
+        body.user_id,
+        Some(&req),
+    )
+    .await
+    {
+        tracing::warn!("Failed to create audit log for member addition: {}", e);
+    }
+
     // Invalidate members cache after adding a new member
     let mut redis_conn = redis.as_ref().clone();
     if let Err(e) = channel_cache::invalidate_channel_members_cache(&mut redis_conn, *channel_id).await {
@@ -358,6 +400,19 @@ pub async fn remove_member(
     }
 
     ChannelMember::remove(pool.get_ref(), channel_id, user_id).await?;
+
+    // Log member removal in audit log
+    if let Err(e) = AuditLogger::log_channel_member_removed(
+        pool.get_ref(),
+        current_user.id,
+        channel_id,
+        user_id,
+        Some(&req),
+    )
+    .await
+    {
+        tracing::warn!("Failed to create audit log for member removal: {}", e);
+    }
 
     // Invalidate members cache after removing a member
     let mut redis_conn = redis.as_ref().clone();

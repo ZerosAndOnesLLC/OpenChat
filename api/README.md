@@ -158,6 +158,37 @@ src/
 - Redis caching for emoji lists (5-minute TTL)
 - Usage: Type `:emoji_name:` in messages to render custom emojis
 
+### Audit Logging (Phase 5.3)
+- `GET /api/audit-logs` - List audit logs with filters (admin only, requires `org.view_audit_logs` permission)
+- `GET /api/audit-logs/export` - Export audit logs to CSV (admin only, max 10,000 rows)
+- `GET /api/audit-logs/actions` - Get list of all unique actions for filtering
+- `GET /api/audit-logs/resource-types` - Get list of all unique resource types for filtering
+
+**Features**:
+- Enterprise-grade audit trail for compliance and security monitoring
+- Automatic logging of critical actions: message deletion, channel creation/deletion, member add/remove, role changes, permission updates, settings modifications
+- Stores full context: user ID, action type, resource type, resource ID, metadata (JSON), IP address, user agent, timestamp
+- Partitioned by month for optimal query performance at scale
+- Advanced filtering: by user, action, resource type, resource ID, date range
+- Pagination support with configurable limits (up to 1,000 results per query)
+- CSV export functionality for compliance reporting and data analysis
+- Retention: 7 years (configurable)
+- IP address extraction from X-Forwarded-For header (ALB/CloudFront compatible)
+- Non-blocking audit logging (failures logged as warnings, don't block operations)
+
+**Logged Actions**:
+- **Messages**: message.deleted (includes content)
+- **Channels**: channel.created, channel.deleted, channel.member_added, channel.member_removed
+- **Roles**: role.created, role.updated, role.deleted
+- **Permissions**: permission.granted (includes before/after permission lists)
+- **Settings**: settings.updated (storage settings with before/after values)
+- **Auth** (planned): user.login, user.logout, user.login_failed
+
+**Database Schema**:
+- Table: `audit_logs` (partitioned by timestamp for scalability)
+- Indexes: (user_id, timestamp), (resource_type, resource_id), (action), (timestamp)
+- Metadata stored as JSONB for flexible querying
+
 ### Direct Messages (Phase 7+)
 - `GET /api/dms` - List user's DMs
 - `POST /api/dms` - Create DM (1-on-1 or group)
@@ -713,6 +744,24 @@ Infrastructure is managed via Terraform in `~/dev/terraform/prod/us-east-1/openc
 ```
 
 ## Version History
+
+### v0.39.0 (Phase 5.3 - Audit Logging)
+- Added database migration for audit_logs table with monthly partitioning
+- Implemented AuditLog model with create, list, and count operations
+- Created AuditLogger service with helper methods for all critical actions
+- Integrated audit logging into message, channel, role, and settings handlers
+- Audit logs capture: message deletions (with content), channel creation/deletion, channel member add/remove, role creation/update/deletion, permission changes, storage settings updates
+- GET /api/audit-logs endpoint with advanced filtering (user, action, resource, date range)
+- GET /api/audit-logs/export endpoint for CSV export (max 10,000 rows)
+- GET /api/audit-logs/actions and /api/audit-logs/resource-types endpoints for filter options
+- IP address extraction from X-Forwarded-For header for ALB/CloudFront compatibility
+- User agent capture for device/browser tracking
+- Metadata stored as JSONB for flexible before/after value tracking
+- Non-blocking audit logging (failures logged as warnings)
+- Monthly table partitioning for optimal performance at scale
+- 7-year retention policy (configurable)
+- Admin UI at /admin/audit-logs with search, filter, and export capabilities
+- Protected by org.view_audit_logs permission requirement
 
 ### v0.36.0 (Phase 3.1 - Full Redis Caching Implementation)
 - Implemented cache warming on application startup

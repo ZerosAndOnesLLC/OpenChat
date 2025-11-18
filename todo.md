@@ -206,26 +206,27 @@ Plan to achieve feature parity with Mattermost/Slack and add end-to-end encrypti
 - [x] Increment version to 0.28.0
 
 ### 2.6 Message Drafts
-- [ ] UI: Store drafts in IndexedDB per channel/DM
-- [ ] UI: Auto-save draft every 2 seconds
-- [ ] UI: Restore draft when switching channels
-- [ ] UI: Clear draft on send
-- [ ] Optional: Sync drafts via API for cross-device
-- [ ] Update README.md
+- [x] UI: Store drafts in IndexedDB per channel/DM
+- [x] UI: Auto-save draft every 2 seconds
+- [x] UI: Restore draft when switching channels
+- [x] UI: Clear draft on send
+- [ ] Optional: Sync drafts via API for cross-device (deferred - not needed for now)
+- [x] Update README.md
+- [x] Increment version to 0.7.0 (UI)
 
 ### 2.7 Keyboard Shortcuts
-- [ ] UI: Implement keyboard shortcuts:
-  - Cmd/Ctrl+K: Quick switcher (channels/DMs)
-  - Cmd/Ctrl+F: Search messages (already in 1.4)
-  - Up arrow: Edit last message
-  - Cmd/Ctrl+Enter: Send message
-  - Tab: Navigate channels
-  - Esc: Close modals/panels
-  - Cmd/Ctrl+/: Show keyboard shortcuts help
-- [ ] UI: Keyboard shortcuts help modal
-- [ ] UI: Visual indicator for shortcut hints
-- [ ] Update README.md
-- [ ] Increment version to 0.27.0
+- [x] UI: Implement keyboard shortcuts:
+  - [x] Cmd/Ctrl+K: Quick switcher (channels/DMs)
+  - [ ] Cmd/Ctrl+F: Search messages (deferred - search UI not yet implemented)
+  - [ ] Up arrow: Edit last message (deferred - edit UI not yet implemented)
+  - [x] Cmd/Ctrl+Enter: Send message
+  - [ ] Tab: Navigate channels (deferred - not needed with Cmd+K)
+  - [x] Esc: Close modals/panels
+  - [x] Cmd/Ctrl+/: Show keyboard shortcuts help
+- [x] UI: Keyboard shortcuts help modal
+- [x] UI: Visual indicator for shortcut hints (in help modal and QuickSwitcher)
+- [x] Update README.md
+- [x] Increment version to 0.8.0 (UI)
 
 ---
 
@@ -667,7 +668,7 @@ Following semantic versioning (MAJOR.MINOR.PATCH):
 - **Minor (0.X.0)**: New features (each major feature phase)
 - **Patch (0.0.X)**: Bug fixes, small improvements
 
-Current version: 0.30.0 (API), 0.6.0 (UI)
+Current version: 0.31.0 (API), 0.8.0 (UI)
 Target for 1.0.0: After Phase 7 completion
 
 ---

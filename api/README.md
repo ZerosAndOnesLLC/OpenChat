@@ -273,6 +273,49 @@ src/
   - Channel subscriptions
   - Heartbeat/ping-pong
 
+## Performance & Caching
+
+OpenChat implements a comprehensive Redis caching strategy to optimize performance and reduce database load. All cache layers automatically handle cache misses by fetching from the database and populating the cache for subsequent requests.
+
+### Caching Strategy
+
+**Channel Caching**:
+- Channel details cached with 5-minute TTL
+- Channel members cached with 5-minute TTL
+- Cache invalidation on channel updates, deletions, and member changes
+- Automatic cache population on first access
+
+**Message Caching**:
+- First page of channel messages cached with 2-minute TTL
+- First page of DM messages cached with 2-minute TTL
+- Cache invalidation on new messages, edits, and deletions
+- Only the first page (cursor = null) is cached to optimize memory usage
+
+**Direct Message Caching**:
+- DM details cached with 5-minute TTL
+- Cache invalidation on DM updates
+- Automatic cache population on first access
+
+**Other Cached Data**:
+- Unread counts: 60-second TTL
+- Search results: 1-minute TTL
+- User status: 5-minute TTL
+
+### Cache Implementation Details
+
+- **Cache Miss Handling**: On cache miss, data is fetched from the database and automatically stored in the cache
+- **Cache Invalidation**: All mutations (create, update, delete) automatically invalidate relevant cache entries
+- **Error Handling**: Cache failures are logged as warnings but don't affect API responses
+- **Memory Efficiency**: Only frequently accessed data (first pages, recent items) is cached
+- **TTL Strategy**: Shorter TTLs for frequently changing data, longer TTLs for stable data
+
+### Benefits
+
+- **Reduced Database Load**: Frequent reads hit cache instead of PostgreSQL
+- **Faster Response Times**: Cached data returns immediately without database queries
+- **Scalability**: Cache layer enables horizontal scaling for read-heavy workloads
+- **Real-time Updates**: Cache invalidation ensures users see fresh data after mutations
+
 ## Environment Variables
 
 | Variable | Description | Required |

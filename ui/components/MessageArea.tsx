@@ -54,7 +54,7 @@ export default function MessageArea({ channel, dm }: MessageAreaProps) {
 
   // Set fetched messages to store when they arrive
   useEffect(() => {
-    if (currentKey && fetchedMessages) {
+    if (currentKey && Array.isArray(fetchedMessages)) {
       // Replace store messages with fetched messages (clears any old WebSocket-only messages)
       setMessages(currentKey, fetchedMessages);
     }
@@ -64,7 +64,12 @@ export default function MessageArea({ channel, dm }: MessageAreaProps) {
   const localMessages = useMemo(() => {
     if (!currentKey) return [];
 
-    const storeMessages = messages[currentKey] || [];
+    const storeMessages = messages[currentKey];
+
+    // Ensure storeMessages is an array
+    if (!Array.isArray(storeMessages)) {
+      return [];
+    }
 
     // Sort by created_at
     const sorted = [...storeMessages].sort(

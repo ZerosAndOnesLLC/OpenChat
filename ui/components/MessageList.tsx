@@ -6,9 +6,11 @@ import MessageItem from './MessageItem';
 
 interface MessageListProps {
   messages: Message[];
+  onReply?: (message: Message) => void;
+  onOpenThread?: (message: Message) => void;
 }
 
-export default function MessageList({ messages }: MessageListProps) {
+export default function MessageList({ messages, onReply, onOpenThread }: MessageListProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -29,7 +31,12 @@ export default function MessageList({ messages }: MessageListProps) {
     <div ref={scrollRef} className="flex-1 overflow-y-auto px-6 py-4">
       <div className="space-y-4">
         {messages.map((message) => (
-          <MessageItem key={message.id} message={message} />
+          <MessageItem
+            key={message.id}
+            message={message}
+            onReply={onReply}
+            onOpenThread={onOpenThread}
+          />
         ))}
       </div>
     </div>

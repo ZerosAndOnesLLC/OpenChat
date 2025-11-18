@@ -24,6 +24,20 @@ export default function MessageArea({ channel, dm }: MessageAreaProps) {
 
   const currentKey = channel?.id || dm?.id || '';
 
+  // Fetch unread count before loading messages
+  const { data: unreadCount = 0 } = useQuery({
+    queryKey: ['unread-count', currentKey],
+    queryFn: async () => {
+      if (channel) {
+        return await apiClient.getChannelUnreadCount(channel.id);
+      } else if (dm) {
+        return await apiClient.getDmUnreadCount(dm.id);
+      }
+      return 0;
+    },
+    enabled: !!currentKey,
+  });
+
   // Fetch messages when channel/dm changes
   const { data: fetchedMessages, isError, error, isLoading } = useQuery({
     queryKey: ['messages', currentKey],
@@ -65,15 +79,31 @@ export default function MessageArea({ channel, dm }: MessageAreaProps) {
     };
   }, [channel, subscribeChannel, unsubscribeChannel]);
 
-  // Set fetched messages to store when they arrive
+  // Set fetched messages to store when they arrive and mark as read
   useEffect(() => {
     console.log('Setting messages to store:', { currentKey, fetchedMessages, isArray: Array.isArray(fetchedMessages) });
     if (currentKey && Array.isArray(fetchedMessages)) {
       // Replace store messages with fetched messages (clears any old WebSocket-only messages)
       setMessages(currentKey, fetchedMessages);
       console.log('Messages set to store for key:', currentKey, 'count:', fetchedMessages.length);
+
+      // Mark as read after a short delay (to give user time to see unread indicator)
+      const timer = setTimeout(async () => {
+        try {
+          const lastMessage = fetchedMessages[fetchedMessages.length - 1];
+          if (channel && lastMessage) {
+            await apiClient.markChannelAsRead(channel.id, lastMessage.id);
+          } else if (dm && lastMessage) {
+            await apiClient.markDmAsRead(dm.id, lastMessage.id);
+          }
+        } catch (error) {
+          console.error('Failed to mark as read:', error);
+        }
+      }, 2000); // Wait 2 seconds before marking as read
+
+      return () => clearTimeout(timer);
     }
-  }, [currentKey, fetchedMessages, setMessages]);
+  }, [currentKey, fetchedMessages, setMessages, channel, dm]);
 
   // Get messages from store (includes both fetched and new WebSocket messages)
   const localMessages = useMemo(() => {
@@ -158,6 +188,7 @@ export default function MessageArea({ channel, dm }: MessageAreaProps) {
         <div className="flex flex-1 flex-col overflow-hidden">
           <MessageList
             messages={localMessages}
+            unreadCount={unreadCount}
             onReply={handleReply}
             onOpenThread={handleOpenThread}
           />

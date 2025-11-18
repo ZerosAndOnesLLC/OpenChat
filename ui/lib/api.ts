@@ -402,6 +402,58 @@ class ApiClient {
 
     return response.json();
   }
+
+  // Search endpoints
+  async searchMessages(query: string, scope?: string, channelId?: string, dmId?: string, limit?: number): Promise<{
+    messages: Message[];
+    total_count: number;
+  }> {
+    const params = new URLSearchParams({ q: query });
+    if (scope) params.append('scope', scope);
+    if (channelId) params.append('channel_id', channelId);
+    if (dmId) params.append('dm_id', dmId);
+    if (limit) params.append('limit', limit.toString());
+
+    return this.request<{ messages: Message[]; total_count: number }>(`/api/search/messages?${params}`);
+  }
+
+  // Notification endpoints
+  async listNotifications(limit?: number, offset?: number, unreadOnly?: boolean): Promise<{
+    notifications: Array<{
+      id: string;
+      user_id: string;
+      notification_type: string;
+      message_id?: string;
+      channel_id?: string;
+      dm_id?: string;
+      read: boolean;
+      created_at: string;
+    }>;
+    total: number;
+  }> {
+    const params = new URLSearchParams();
+    if (limit) params.append('limit', limit.toString());
+    if (offset) params.append('offset', offset.toString());
+    if (unreadOnly !== undefined) params.append('unread_only', unreadOnly.toString());
+
+    return this.request(`/api/notifications?${params}`);
+  }
+
+  async getUnreadNotificationCount(): Promise<{ count: number }> {
+    return this.request<{ count: number }>('/api/notifications/unread-count');
+  }
+
+  async markNotificationAsRead(notificationId: string): Promise<void> {
+    return this.request<void>(`/api/notifications/${notificationId}/read`, {
+      method: 'POST',
+    });
+  }
+
+  async markAllNotificationsAsRead(): Promise<{ success: boolean; count: number }> {
+    return this.request<{ success: boolean; count: number }>('/api/notifications/read-all', {
+      method: 'POST',
+    });
+  }
 }
 
 export const apiClient = new ApiClient(API_URL);

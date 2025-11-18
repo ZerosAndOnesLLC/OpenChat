@@ -2,7 +2,7 @@
 
 **Open-source, self-hosted team collaboration platform - Your data, your control**
 
-[![Version](https://img.shields.io/badge/version-0.32.0-blue.svg)](https://github.com/yourusername/openchat)
+[![Version](https://img.shields.io/badge/version-0.33.0-blue.svg)](https://github.com/yourusername/openchat)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 [![Rust](https://img.shields.io/badge/rust-2024-orange.svg)](https://www.rust-lang.org/)
 [![Next.js](https://img.shields.io/badge/next.js-16-black.svg)](https://nextjs.org/)
@@ -31,6 +31,42 @@ OpenChat is a powerful alternative to Slack and Microsoft Teams that you can sel
 ---
 
 ## Recent Updates
+
+### Version 0.33.0 (API) / 0.11.0 (UI) - Advanced Search & Real-time Notifications
+
+**New Features:**
+- **Advanced Message Search**: Powerful full-text search with advanced filters
+  - Filter by user: `from:@username`
+  - Filter by channel: `in:#channel-name`
+  - Filter by date: `before:2025-01-15` or `after:2025-01-01`
+  - Combine multiple filters for precise results
+  - Search across all channels/DMs or within specific conversations
+  - Cached results for improved performance (1 minute TTL)
+- **Real-time Notifications**: Get instant updates for important events
+  - WebSocket-based notification delivery
+  - Notifications for @mentions, DMs, and thread replies
+  - Redis caching for notification counts (5 minute TTL)
+  - Cross-instance notification support via Redis Pub/Sub
+- **Notification Management**:
+  - Unread notification count tracking
+  - Mark individual notifications as read
+  - Mark all notifications as read at once
+  - Automatic cache invalidation on read status changes
+
+**API Endpoints:**
+- `GET /api/search/messages?q={query}` - Search messages with filters
+- `GET /api/notifications` - List user notifications
+- `GET /api/notifications/unread-count` - Get unread notification count
+- `POST /api/notifications/{id}/read` - Mark notification as read
+- `POST /api/notifications/read-all` - Mark all notifications as read
+
+**Technical:**
+- PostgreSQL full-text search with GIN indexes
+- Advanced query parser for filter extraction (regex-based)
+- Dynamic SQL query building for filtered searches
+- Redis caching for search results and notification counts
+- WebSocket server message types: NewNotification, NotificationCountUpdated
+- BroadcastToUser handler for user-specific WebSocket messages
 
 ### Version 0.32.0 (API) / 0.10.0 (UI) - Complete File Attachments & Storage System
 

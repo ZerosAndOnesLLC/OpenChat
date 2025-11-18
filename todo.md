@@ -75,23 +75,23 @@ Plan to achieve feature parity with Mattermost/Slack and add end-to-end encrypti
 - [x] Update README.md with storage configuration docs
 - [x] Increment version to 0.32.0 (API), 0.10.0 (UI)
 
-### 1.4 Message Search (Full-Text)
+### 1.4 Message Search (Full-Text) ✅ COMPLETE
 - [x] Create migration: Add GIN index on messages.content
   - Create tsvector column: content_tsv
   - Create trigger to auto-update tsvector on insert/update
   - Add GIN index on content_tsv
 - [x] API: GET /api/search/messages?q={query}&scope={channel|dm|all}&channel_id={id}
-- [ ] API: Support filters: from:@user, in:#channel, before:date, after:date (deferred to future enhancement)
+- [x] API: Support filters: from:@user, in:#channel, before:date, after:date
 - [x] Cache: Search results in Redis (short TTL, 1 min)
-- [ ] UI: Global search bar in header (deferred)
-- [ ] UI: Keyboard shortcut Cmd/Ctrl+K for search (deferred)
-- [ ] UI: Search results page with filters (deferred)
-- [ ] UI: Jump to message in context from search results (deferred)
-- [ ] UI: Search within channel/DM option (deferred)
+- [x] UI: Global search bar in header (SearchBar.tsx, GlobalSearchModal.tsx)
+- [x] UI: Keyboard shortcut Cmd/Ctrl+K and Cmd/Ctrl+F for search (useKeyboardShortcuts.ts)
+- [x] UI: Search results page with filters (app/search/page.tsx)
+- [x] UI: Jump to message in context from search results (click to navigate)
+- [x] UI: Search within channel/DM option (scope selector: all/channel/dm)
 - [x] Update README.md
-- [x] Increment version to 0.22.0 (API)
+- [x] Increment version to 0.33.0 (API), 0.11.0 (UI)
 
-### 1.5 @Mentions & Notifications
+### 1.5 @Mentions & Notifications ✅ COMPLETE
 - [x] Create migration: `mentions` table
   - message_id, mentioned_user_id, mention_type (user/channel), created_at
   - Indexes on (mentioned_user_id, created_at), (message_id)
@@ -104,18 +104,19 @@ Plan to achieve feature parity with Mattermost/Slack and add end-to-end encrypti
 - [x] API: Create notification records for mentions
 - [x] API: GET /api/mentions - List user's mentions
 - [x] API: GET /api/notifications - List notifications
+- [x] API: GET /api/notifications/unread-count - Get unread count
 - [x] API: POST /api/notifications/{id}/read - Mark as read
 - [x] API: POST /api/notifications/read-all - Mark all as read
-- [ ] WebSocket: Send real-time notifications (deferred to future enhancement)
-- [ ] Cache: Notification counts in Redis (deferred to future enhancement)
-- [ ] UI: @mention autocomplete dropdown in message input (deferred to future work)
-- [ ] UI: Highlight @mentions in messages (deferred to future work)
-- [ ] UI: @channel confirmation dialog (notify all members) (deferred to future work)
-- [ ] UI: Notifications panel/dropdown (deferred to future work)
-- [ ] UI: Notification badge count (deferred to future work)
-- [ ] UI: Notification sound (optional, user preference) (deferred to future work)
+- [x] WebSocket: Send real-time notifications (NewNotification, NotificationCountUpdated events)
+- [x] Cache: Notification counts in Redis (5 minute TTL with increment/decrement)
+- [x] UI: @mention autocomplete dropdown in message input (MentionAutocomplete.tsx)
+- [x] UI: Highlight @mentions in messages (MentionHighlight.tsx)
+- [x] UI: @channel confirmation dialog (ChannelMentionDialog.tsx)
+- [x] UI: Notifications panel/dropdown (NotificationsPanel.tsx)
+- [x] UI: Notification badge count (NotificationBadge.tsx)
+- [x] UI: Notification sound (useNotificationSound.ts hook with localStorage persistence)
 - [x] Update README.md
-- [x] Increment version to 0.23.0
+- [x] Increment version to 0.33.0 (API), 0.11.0 (UI)
 
 ---
 
@@ -134,11 +135,11 @@ Plan to achieve feature parity with Mattermost/Slack and add end-to-end encrypti
 - [x] API: POST /api/bookmarks - Bookmark message
 - [x] API: DELETE /api/bookmarks/{message_id} - Remove bookmark
 - [x] API: GET /api/bookmarks - List user's bookmarks
-- [ ] UI: Pin icon in message hover menu (deferred)
-- [ ] UI: Pinned messages panel at top of channel (deferred)
-- [ ] UI: Bookmark icon in message hover menu (deferred)
-- [ ] UI: Personal bookmarks sidebar section (deferred)
-- [ ] UI: Toast notification when message pinned (deferred)
+- [ ] UI: Pin icon in message hover menu 
+- [ ] UI: Pinned messages panel at top of channel 
+- [ ] UI: Bookmark icon in message hover menu 
+- [ ] UI: Personal bookmarks sidebar section 
+- [ ] UI: Toast notification when message pinned 
 - [x] WebSocket: Broadcast pin/unpin events
 - [x] Update README.md
 - [x] Increment version to 0.24.0
@@ -172,11 +173,11 @@ Plan to achieve feature parity with Mattermost/Slack and add end-to-end encrypti
 - [x] WebSocket: Heartbeat to track activity
 - [x] WebSocket: Broadcast status changes
 - [x] Cache: User status in Redis (5 min TTL)
-- [ ] UI: Status picker dropdown (deferred to future work)
-- [ ] UI: Custom status input with emoji (deferred to future work)
-- [ ] UI: "Clear status after" time selector (deferred to future work)
-- [ ] UI: Status indicator on user avatars (deferred to future work)
-- [ ] UI: User profile shows full status (deferred to future work)
+- [ ] UI: Status picker dropdown 
+- [ ] UI: Custom status input with emoji 
+- [ ] UI: "Clear status after" time selector 
+- [ ] UI: Status indicator on user avatars 
+- [ ] UI: User profile shows full status 
 - [x] Update README.md
 - [x] Increment version to 0.26.0
 
@@ -201,9 +202,9 @@ Plan to achieve feature parity with Mattermost/Slack and add end-to-end encrypti
   - Index on (message_id, edited_at)
 - [x] API: Store edit history when message updated
 - [x] API: GET /api/messages/{id}/history - Get edit history
-- [ ] UI: "Edited" indicator on messages (deferred to future work)
-- [ ] UI: Click to show edit history modal (deferred to future work)
-- [ ] UI: Diff view for edits (show what changed) (deferred to future work)
+- [ ] UI: "Edited" indicator on messages 
+- [ ] UI: Click to show edit history modal 
+- [ ] UI: Diff view for edits (show what changed) 
 - [x] Update README.md
 - [x] Increment version to 0.28.0
 
@@ -276,7 +277,7 @@ Plan to achieve feature parity with Mattermost/Slack and add end-to-end encrypti
   - 100 WebSocket messages/minute
 - [x] API: Return 429 Too Many Requests with Retry-After header
 - [x] API: Rate limit headers on responses (X-RateLimit-Limit, X-RateLimit-Remaining)
-- [ ] UI: Show rate limit error to user (deferred to future work)
+- [ ] UI: Show rate limit error to user 
 - [x] Update README.md
 - [x] Increment version to 0.31.0
 

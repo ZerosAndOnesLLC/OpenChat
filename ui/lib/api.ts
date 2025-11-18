@@ -21,6 +21,8 @@ import type {
   MarkAsReadRequest,
   Attachment,
   AttachmentUploadResponse,
+  CustomEmoji,
+  EmojiUploadResponse,
   PinnedMessage,
   Bookmark,
   LinkPreview,
@@ -389,6 +391,49 @@ class ApiClient {
 
   async getMessageAttachments(messageId: string): Promise<Attachment[]> {
     return this.request<Attachment[]>(`/api/messages/${messageId}/attachments`);
+  }
+
+  // Custom Emoji endpoints
+  async uploadCustomEmoji(name: string, file: File): Promise<EmojiUploadResponse> {
+    const token = this.getToken();
+    const formData = new FormData();
+    formData.append('name', name);
+    formData.append('file', file);
+
+    const response = await fetch(`${this.baseUrl}/api/emojis/upload`, {
+      method: 'POST',
+      headers: {
+        'Authorization': token ? `Bearer ${token}` : '',
+      },
+      body: formData,
+    });
+
+    if (!response.ok) {
+      if (response.status === 401) {
+        this.clearToken();
+        if (typeof window !== 'undefined' && !window.location.pathname.includes('/sso/callback')) {
+          window.location.href = '/';
+        }
+      }
+      const error = await response.text();
+      throw new Error(error || 'Failed to upload emoji');
+    }
+
+    return response.json();
+  }
+
+  async getCustomEmojis(): Promise<CustomEmoji[]> {
+    return this.request<CustomEmoji[]>('/api/emojis');
+  }
+
+  async deleteCustomEmoji(emojiId: string): Promise<void> {
+    return this.request<void>(`/api/emojis/${emojiId}`, {
+      method: 'DELETE',
+    });
+  }
+
+  getEmojiImage(emojiId: string): string {
+    return `${this.baseUrl}/api/emojis/${emojiId}/image`;
   }
 
   // SSO endpoints

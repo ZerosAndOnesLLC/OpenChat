@@ -1,6 +1,7 @@
 pub mod channels;
 pub mod dms;
 pub mod messages;
+pub mod notifications;
 pub mod rate_limit;
 pub mod read_status;
 pub mod search;

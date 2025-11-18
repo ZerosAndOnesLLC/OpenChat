@@ -111,4 +111,17 @@ pub enum ServerMessage {
         user_id: Uuid,
         read_at: String,
     },
+    /// New notification received
+    NewNotification {
+        notification_id: Uuid,
+        notification_type: String, // "mention", "dm", "thread_reply", "channel_invite"
+        message_id: Option<Uuid>,
+        channel_id: Option<Uuid>,
+        dm_id: Option<Uuid>,
+        created_at: String,
+    },
+    /// Notification count updated
+    NotificationCountUpdated {
+        unread_count: i32,
+    },
 }

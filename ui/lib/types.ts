@@ -10,6 +10,7 @@ export interface User {
   created_at: string;
   updated_at: string;
   user_status?: UserStatus;
+  disable_read_receipts?: boolean;
 }
 
 export interface UserStatus {
@@ -173,6 +174,7 @@ export interface AddReactionRequest {
 export interface UpdateUserRequest {
   display_name?: string;
   avatar_url?: string;
+  disable_read_receipts?: boolean;
 }
 
 export interface UpdateUserStatusRequest {
@@ -231,4 +233,39 @@ export interface LinkPreview {
   description?: string;
   image?: string;
   site_name?: string;
+}
+
+// Read Receipt types
+export interface ReadReceipt {
+  id: string;
+  message_id: string;
+  user_id: string;
+  read_at: string;
+}
+
+export interface ReadReceiptWithUser {
+  id: string;
+  message_id: string;
+  user_id: string;
+  read_at: string;
+  display_name: string;
+  avatar_url?: string;
+}
+
+// Message Edit History types
+export interface MessageEdit {
+  id: string;
+  message_id: string;
+  old_content: string;
+  edited_by: string;
+  edited_at: string;
+}
+
+export interface MessageEditWithUser {
+  id: string;
+  message_id: string;
+  old_content: string;
+  edited_by: string;
+  edited_at: string;
+  editor_name: string;
 }

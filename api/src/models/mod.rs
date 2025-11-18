@@ -4,6 +4,7 @@ pub mod channel;
 pub mod direct_message;
 pub mod mention;
 pub mod message;
+pub mod message_draft;
 pub mod message_edit;
 pub mod notification;
 pub mod organization;

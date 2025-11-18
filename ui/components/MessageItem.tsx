@@ -10,6 +10,8 @@ import type { Message } from '@/lib/types';
 import MarkdownRenderer from './MarkdownRenderer';
 import AttachmentDisplay from './AttachmentDisplay';
 import LinkPreview from './LinkPreview';
+import ReadReceiptModal from './ReadReceiptModal';
+import EditHistoryModal from './EditHistoryModal';
 
 // Dynamically import EmojiPicker to avoid SSR issues
 const EmojiPicker = dynamic(() => import('emoji-picker-react'), { ssr: false });
@@ -34,6 +36,8 @@ export default function MessageItem({ message, onReply, onOpenThread, onPin, onB
   const [showActions, setShowActions] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [editContent, setEditContent] = useState(message.content);
+  const [showReadReceiptModal, setShowReadReceiptModal] = useState(false);
+  const [showEditHistoryModal, setShowEditHistoryModal] = useState(false);
   const pickerRef = useRef<HTMLDivElement>(null);
 
   // Close picker when clicking outside
@@ -152,7 +156,13 @@ export default function MessageItem({ message, onReply, onOpenThread, onPin, onB
             </span>
             <span className="text-xs text-gray-400">{formatTime(message.created_at)}</span>
             {message.edited_at && (
-              <span className="text-xs text-gray-500">(edited)</span>
+              <button
+                onClick={() => setShowEditHistoryModal(true)}
+                className="text-xs text-gray-500 hover:text-gray-300 hover:underline"
+                title="View edit history"
+              >
+                (edited)
+              </button>
             )}
           </div>
           {isEditing ? (
@@ -282,8 +292,40 @@ export default function MessageItem({ message, onReply, onOpenThread, onPin, onB
               )}
             </button>
           )}
+
+          {/* Read receipts indicator - show on own messages only */}
+          {isOwnMessage && showActions && (
+            <button
+              onClick={() => setShowReadReceiptModal(true)}
+              className="mt-1 flex items-center gap-1 text-xs text-gray-400 hover:text-gray-300"
+              title="View read receipts"
+            >
+              <svg className="h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M5 13l4 4L19 7"
+                />
+              </svg>
+              <span>Seen by</span>
+            </button>
+          )}
         </div>
       </div>
+
+      {/* Modals */}
+      <ReadReceiptModal
+        messageId={message.id}
+        isOpen={showReadReceiptModal}
+        onClose={() => setShowReadReceiptModal(false)}
+      />
+      <EditHistoryModal
+        messageId={message.id}
+        currentContent={message.content}
+        isOpen={showEditHistoryModal}
+        onClose={() => setShowEditHistoryModal(false)}
+      />
 
       {/* Message actions - Reply, Pin, Bookmark, Edit, and Delete */}
       {showActions && !isEditing && (

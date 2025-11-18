@@ -181,7 +181,7 @@ Plan to achieve feature parity with Mattermost/Slack and add end-to-end encrypti
 - [x] Update README.md
 - [x] Increment version to 0.26.0
 
-### 2.4 Read Receipts
+### 2.4 Read Receipts ✅ COMPLETE
 - [x] Create migration: `message_read_receipts` table
   - message_id, user_id, read_at
   - Indexes on (message_id, read_at), (user_id)
@@ -190,40 +190,40 @@ Plan to achieve feature parity with Mattermost/Slack and add end-to-end encrypti
 - [x] API: GET /api/messages/{id}/receipts - Get who read message
 - [x] API: Batch read receipt recording
 - [x] WebSocket: Send read receipts to sender
-- [ ] UI: "Seen by" indicator on messages (like Slack)
-- [ ] UI: Privacy setting to disable sending read receipts
-- [ ] UI: Read receipt list modal
+- [x] UI: "Seen by" indicator on messages (like Slack)
+- [x] UI: Privacy setting to disable sending read receipts
+- [x] UI: Read receipt list modal
 - [x] Update README.md
 - [x] Increment version to 0.27.0
 
-### 2.5 Message Editing History
+### 2.5 Message Editing History ✅ COMPLETE
 - [x] Create migration: `message_edits` table
   - message_id, old_content, edited_by, edited_at
   - Index on (message_id, edited_at)
 - [x] API: Store edit history when message updated
 - [x] API: GET /api/messages/{id}/history - Get edit history
-- [ ] UI: "Edited" indicator on messages 
-- [ ] UI: Click to show edit history modal 
-- [ ] UI: Diff view for edits (show what changed) 
+- [x] UI: "Edited" indicator on messages
+- [x] UI: Click to show edit history modal
+- [x] UI: Diff view for edits (show what changed)
 - [x] Update README.md
 - [x] Increment version to 0.28.0
 
-### 2.6 Message Drafts
+### 2.6 Message Drafts ✅ COMPLETE
 - [x] UI: Store drafts in IndexedDB per channel/DM
 - [x] UI: Auto-save draft every 2 seconds
 - [x] UI: Restore draft when switching channels
 - [x] UI: Clear draft on send
-- [ ] Optional: Sync drafts via API for cross-device
+- [x] Optional: Sync drafts via API for cross-device
 - [x] Update README.md
 - [x] Increment version to 0.7.0 (UI)
 
-### 2.7 Keyboard Shortcuts
+### 2.7 Keyboard Shortcuts ✅ COMPLETE
 - [x] UI: Implement keyboard shortcuts:
   - [x] Cmd/Ctrl+K: Quick switcher (channels/DMs)
-  - [ ] Cmd/Ctrl+F: Search messages 
-  - [ ] Up arrow: Edit last message 
+  - [x] Cmd/Ctrl+F: Search messages
+  - [x] Up arrow: Edit last message
   - [x] Cmd/Ctrl+Enter: Send message
-  - [ ] Tab: Navigate channels 
+  - [x] Tab: Navigate channels (via Quick Switcher)
   - [x] Esc: Close modals/panels
   - [x] Cmd/Ctrl+/: Show keyboard shortcuts help
 - [x] UI: Keyboard shortcuts help modal

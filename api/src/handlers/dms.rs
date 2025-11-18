@@ -1,9 +1,12 @@
 use actix_web::{web, HttpMessage, HttpRequest, HttpResponse};
+use redis::aio::MultiplexedConnection;
 use serde::{Deserialize, Serialize};
 use sqlx::PgPool;
 use uuid::Uuid;
 
 use crate::{
+    cache::dms as dm_cache,
+    cache::messages as message_cache,
     errors::{ApiError, ApiResult},
     models::direct_message::{DirectMessage, DmParticipant},
     models::message::{Message, PaginatedMessages},
@@ -263,6 +266,7 @@ pub async fn create_dm(
 /// GET /api/dms/:id - Get DM details
 pub async fn get_dm(
     pool: web::Data<PgPool>,
+    redis: web::Data<MultiplexedConnection>,
     dm_id: web::Path<Uuid>,
     req: HttpRequest,
 ) -> ApiResult<HttpResponse> {
@@ -277,10 +281,25 @@ pub async fn get_dm(
         .await?
         .ok_or_else(|| ApiError::NotFound("Current user not found".to_string()))?;
 
-    // Get DM
-    let dm = DirectMessage::get_by_id(pool.get_ref(), *dm_id)
-        .await?
-        .ok_or_else(|| ApiError::NotFound("DM not found".to_string()))?;
+    let mut redis_conn = redis.as_ref().clone();
+
+    // Try to get DM from cache first
+    let dm = match dm_cache::get_dm_from_cache(&mut redis_conn, *dm_id).await? {
+        Some(cached_dm) => cached_dm,
+        None => {
+            // Cache miss - fetch from database
+            let dm = DirectMessage::get_by_id(pool.get_ref(), *dm_id)
+                .await?
+                .ok_or_else(|| ApiError::NotFound("DM not found".to_string()))?;
+
+            // Store in cache for next time
+            if let Err(e) = dm_cache::set_dm_in_cache(&mut redis_conn, &dm).await {
+                tracing::warn!("Failed to cache DM: {}", e);
+            }
+
+            dm
+        }
+    };
 
     // Verify user is a participant
     let is_participant = DirectMessage::is_participant(pool.get_ref(), *dm_id, current_user.id).await?;
@@ -290,7 +309,7 @@ pub async fn get_dm(
         ));
     }
 
-    // Get participants
+    // Get participants (could also be cached, but it's fast enough for now)
     let participants = DmParticipant::list_by_dm(pool.get_ref(), dm.id).await?;
     let participant_ids: Vec<Uuid> = participants.into_iter().map(|p| p.user_id).collect();
 
@@ -306,6 +325,7 @@ pub async fn get_dm(
 /// GET /api/dms/:id/messages - List messages in a DM
 pub async fn list_dm_messages(
     pool: web::Data<PgPool>,
+    redis: web::Data<MultiplexedConnection>,
     dm_id: web::Path<Uuid>,
     query: web::Query<ListMessagesQuery>,
     req: HttpRequest,
@@ -336,13 +356,41 @@ pub async fn list_dm_messages(
 
     // Get messages with pagination
     let limit = query.limit.unwrap_or(50);
-    let paginated = Message::list_by_dm(
-        pool.get_ref(),
-        *dm_id,
-        limit,
-        query.cursor.clone(),
-    )
-    .await?;
+
+    // Try to get from cache if this is the first page
+    let paginated = if query.cursor.is_none() {
+        let mut redis_conn = redis.as_ref().clone();
+
+        match message_cache::get_dm_messages_from_cache(&mut redis_conn, *dm_id).await? {
+            Some(cached) => cached,
+            None => {
+                // Cache miss - fetch from database
+                let paginated = Message::list_by_dm(
+                    pool.get_ref(),
+                    *dm_id,
+                    limit,
+                    query.cursor.clone(),
+                )
+                .await?;
+
+                // Store in cache for next time
+                if let Err(e) = message_cache::set_dm_messages_in_cache(&mut redis_conn, *dm_id, &paginated).await {
+                    tracing::warn!("Failed to cache DM messages: {}", e);
+                }
+
+                paginated
+            }
+        }
+    } else {
+        // Not first page - don't use cache
+        Message::list_by_dm(
+            pool.get_ref(),
+            *dm_id,
+            limit,
+            query.cursor.clone(),
+        )
+        .await?
+    };
 
     // Fetch users for all messages
     let user_ids: Vec<Uuid> = paginated.messages.iter().map(|m| m.user_id).collect();

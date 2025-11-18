@@ -121,6 +121,26 @@ src/
 - `GET /api/messages/:id/reactions/counts` - Get reaction counts
 - `DELETE /api/messages/:id/reactions/:emoji` - Remove reaction
 
+### File Attachments
+- `POST /api/attachments/upload` - Upload file attachment (multipart/form-data with message_id and file)
+- `GET /api/attachments/:id/download` - Download attachment
+- `DELETE /api/attachments/:id` - Delete attachment (only message owner)
+- `GET /api/messages/:id/attachments` - List message attachments
+
+**Features**:
+- Configurable storage backend (Local filesystem or S3)
+- Per-organization storage settings in `storage_settings` table
+- File type validation (images, documents, videos, audio)
+- File size limits (configurable, default: 25MB)
+- Support for S3-compatible storage providers
+- Automatic file path generation with UUID and timestamp
+- Storage metadata tracked in `attachments` table
+
+**Storage Configuration**:
+- **Local Storage**: Files stored in `LOCAL_STORAGE_PATH` (default: `/var/openchat/uploads`)
+- **S3 Storage**: Configure per-org S3 bucket, region, and credentials in `storage_settings` table
+- Default storage type: Local (no additional configuration required)
+
 ### Direct Messages (Phase 7+)
 - `GET /api/dms` - List user's DMs
 - `POST /api/dms` - Create DM (1-on-1 or group)
@@ -164,6 +184,9 @@ src/
 | `TLS_CERT_PATH` | Path to TLS certificate | No |
 | `TLS_KEY_PATH` | Path to TLS private key | No |
 | `RUST_LOG` | Logging level | No |
+| `LOCAL_STORAGE_PATH` | Local file storage path (default: /var/openchat/uploads) | No |
+| `MAX_FILE_SIZE` | Maximum file upload size in bytes (default: 26214400 / 25MB) | No |
+| `ALLOWED_FILE_TYPES` | Comma-separated allowed file types (default: images,documents,videos,audio) | No |
 
 ## Deployment
 
@@ -304,9 +327,35 @@ Infrastructure is managed via Terraform in `~/dev/terraform/prod/us-east-1/openc
 - ✅ Batch fetching of first replies for performance
 - ✅ Thread count badge on parent messages
 
-**Next**: Phase 1.3 - File Attachments with Configurable Storage
+**Phase 1.3 Complete** - File Attachments with Configurable Storage
+- ✅ Database migrations for attachments and storage_settings tables
+- ✅ FileStorage trait with Local and S3 implementations
+- ✅ Local storage handler (configurable path)
+- ✅ S3 storage handler using aws-sdk-s3
+- ✅ Storage factory based on org settings (default: local)
+- ✅ API endpoints: POST /attachments/upload, GET /attachments/:id/download, DELETE /attachments/:id
+- ✅ API endpoint: GET /messages/:id/attachments
+- ✅ File type validation (images, documents, videos, audio)
+- ✅ File size limits (configurable, default: 25MB)
+- ✅ Environment variables for storage configuration
+- ✅ UI API client methods for upload/download
+
+**Next**: Phase 1.4 - Message Search (Full-Text)
 
 ## Version History
+
+### v0.21.0 (Phase 1.3 - File Attachments with Configurable Storage)
+- Added database migrations for attachments and storage_settings tables
+- Implemented FileStorage trait with Local and S3 implementations
+- Added storage factory with per-org configuration support
+- Created attachment upload, download, and delete endpoints
+- Added multipart/form-data file upload support
+- Implemented file type and size validation
+- Added support for local filesystem storage (default)
+- Added support for S3 and S3-compatible object storage
+- Environment variables: LOCAL_STORAGE_PATH, MAX_FILE_SIZE, ALLOWED_FILE_TYPES
+- UI API client methods for attachment operations
+- Crates added: aws-sdk-s3, aws-config, mime, mime_guess, tokio-util, bytes, actix-multipart, async-trait
 
 ### v0.20.0 (Phase 1.2 - Thread Display UI)
 - Added `get_first_replies_batch` method to Message model for efficient first reply fetching

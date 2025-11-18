@@ -32,6 +32,31 @@ OpenChat is a powerful alternative to Slack and Microsoft Teams that you can sel
 
 ## Recent Updates
 
+### Version 0.25.0 (API) / 0.6.0 (UI) - Rich Text Formatting with Markdown
+
+**New Features:**
+- **Markdown Support**: Full markdown formatting in messages
+  - **Bold** (`**text**`), *italic* (`*text*`), `inline code` (`` `code` ``)
+  - Code blocks with syntax highlighting (` ```language ````)
+  - Lists (ordered and unordered)
+  - Links, blockquotes, headings
+- **Markdown Toolbar**: Quick formatting buttons for common markdown syntax
+- **Live Preview**: Toggle between edit and preview mode to see rendered markdown
+- **Syntax Highlighting**: Beautiful code syntax highlighting for 100+ languages
+- **XSS Protection**: Sanitized HTML output prevents security vulnerabilities
+
+**UI Components:**
+- Markdown toolbar with formatting buttons (bold, italic, code, links, lists, quotes)
+- Live preview toggle to see how your message will look
+- Syntax-highlighted code blocks using Prism themes
+- Support for GitHub Flavored Markdown (tables, strikethrough, task lists)
+
+**Technical:**
+- `react-markdown` for rendering with `remark-gfm` for GitHub features
+- `rehype-sanitize` for secure HTML output (XSS protection)
+- `react-syntax-highlighter` with VS Code Dark+ theme
+- Messages stored as markdown-compatible text (no schema changes required)
+
 ### Version 0.24.0 (API) - Message Pinning & Bookmarks
 
 **New Features:**
@@ -73,6 +98,7 @@ OpenChat is a powerful alternative to Slack and Microsoft Teams that you can sel
 - **@Mentions & Notifications** - @user and @channel notifications with real-time alerts
 - **Message Pinning** - Pin important messages to channels for easy reference
 - **Personal Bookmarks** - Save messages for later with private bookmarks
+- **Rich Text Formatting** - Full markdown support with live preview and syntax highlighting
 
 ### Enterprise Features
 - **Multi-Organization Support** - Host multiple teams on one instance
@@ -270,9 +296,9 @@ Even if application code has bugs, the database prevents cross-organization data
 - [x] @Mentions & notifications
 - [x] Message pinning
 - [x] Bookmarked messages (personal starred messages)
+- [x] Markdown formatting
+- [x] Code syntax highlighting
 - [ ] Push notifications
-- [ ] Markdown formatting
-- [ ] Code syntax highlighting
 
 ### 🔮 Phase 3 - Enterprise (Future)
 - [ ] Voice and video calls

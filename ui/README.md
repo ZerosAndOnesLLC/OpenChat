@@ -19,7 +19,12 @@ Modern real-time team chat application built with Next.js 15.
 - ✅ Direct messages (1-on-1 and group)
 - ✅ Threaded conversations with inline previews
 - ✅ Thread side panel with breadcrumb navigation
-- ✅ Unread message tracking (API support)
+- ✅ **Unread message tracking with visual indicators**
+  - ✅ Unread count badges on channels and DMs
+  - ✅ Bold text for channels/DMs with unread messages
+  - ✅ "New messages" separator in message list
+  - ✅ Auto-scroll to first unread message
+  - ✅ Auto-mark as read after viewing
 - ✅ Typing indicators
 - ✅ User presence (online/offline/away)
 - ✅ Message reactions (emoji)
@@ -232,7 +237,7 @@ npm run build
 
 ## Version
 
-Current version: 0.8.0
+Current version: 0.9.0
 
 Increment version before commits:
 - **Patch** (0.1.x): Bug fixes, small tweaks
@@ -240,6 +245,21 @@ Increment version before commits:
 - **Major** (x.0.0): Breaking changes
 
 ### Recent Changes
+
+**v0.9.0** - Unread Message Tracking UI (Phase 1.1 Complete)
+- Implemented unread count badges on channels in sidebar (red pill badges)
+- Implemented unread count badges on DMs in sidebar (red pill badges)
+- Added bold text styling for channels/DMs with unread messages
+- Implemented "New messages" separator line in message list
+- Auto-scroll to first unread message when opening a channel/DM
+- Smart scroll behavior: stays at unread marker or maintains scroll position
+- Auto-mark messages as read after 2 seconds of viewing
+- Real-time unread count updates (30-second polling + WebSocket support)
+- Unread badges hide when channel/DM is active
+- Badges show "99+" for counts over 99
+- Enhanced ChannelList and DirectMessageList with per-item unread tracking
+- Updated MessageList to display visual unread separator
+- Integrated unread count fetching in MessageArea
 
 **v0.8.0** - Keyboard Shortcuts (Phase 2.7)
 - Implemented global keyboard shortcuts manager
@@ -282,13 +302,12 @@ Increment version before commits:
 - Enhanced ThreadPanel header layout with multi-line support for breadcrumbs
 - API client updated to support first_reply in message responses
 
-**v0.3.0** - Unread message tracking (API support)
+**v0.3.0** - Unread message tracking (API support) - SUPERSEDED BY v0.9.0
 - Added UnreadCountResponse and MarkAsReadRequest types
 - Implemented markChannelAsRead() and getChannelUnreadCount() API methods
 - Implemented markDmAsRead() and getDmUnreadCount() API methods
 - Added WebSocket message type for unread count updates
-- API foundation ready for UI implementation of unread badges
-- Prepared for future unread count display in sidebar
+- API foundation for UI implementation (completed in v0.9.0)
 
 **v0.2.2** - Fix reaction removal (toggle functionality)
 - Fixed API client to handle empty responses (204 No Content)

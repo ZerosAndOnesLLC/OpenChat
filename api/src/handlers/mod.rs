@@ -7,6 +7,7 @@ pub mod messages;
 pub mod notifications;
 pub mod pins;
 pub mod reactions;
+pub mod read_receipts;
 pub mod read_status;
 pub mod search;
 pub mod user_status;

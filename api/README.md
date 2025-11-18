@@ -217,6 +217,27 @@ src/
 - Activity tracking via WebSocket heartbeat
 - Background task for auto-away and expired status cleanup
 
+### Read Receipts
+- `POST /api/messages/:id/read` - Record read receipt for a message
+- `GET /api/messages/:id/receipts` - Get all read receipts for a message (includes user details)
+- `POST /api/read-receipts/batch` - Record read receipts for multiple messages at once
+
+**Features**:
+- Track who has read each message (Slack-style "seen by" feature)
+- Privacy setting: users can disable sending read receipts (`disable_read_receipts` field in users table)
+- Batch read receipt recording for marking multiple messages as read efficiently
+- Read receipts include user details (display name, avatar) for UI display
+- WebSocket broadcasting of read receipts to message senders in real-time
+- Row Level Security (RLS) ensures users can only see receipts for messages they have access to
+- Unique constraint prevents duplicate receipts (automatically updates timestamp on conflict)
+- Efficient database indexes for querying receipts by message or user
+- Supports both channel messages and direct messages
+
+**Privacy**:
+- Users who disable read receipts (`disable_read_receipts = true`) will not send receipts
+- Read receipt API calls for users with disabled receipts return 204 No Content
+- Other users can still see read receipts from users who haven't disabled the feature
+
 ### WebSocket (Phase 9+)
 - `WS /api/ws?token=<jwt>` - WebSocket connection for real-time messaging
   - Real-time message delivery
@@ -451,9 +472,39 @@ Infrastructure is managed via Terraform in `~/dev/terraform/prod/us-east-1/openc
 - ✅ Background tasks for auto-away and expired status cleanup
 - ✅ Custom status messages with emoji and auto-clear time
 
-**Next**: Phase 2.4 - Read Receipts
+**Phase 2.4 Complete** - Read Receipts
+- ✅ Database migration for message_read_receipts table with indexes
+- ✅ Database migration: Add disable_read_receipts to users table
+- ✅ MessageReadReceipt model with CRUD operations
+- ✅ API endpoint: POST /api/messages/:id/read - Record read receipt
+- ✅ API endpoint: GET /api/messages/:id/receipts - Get receipts with user details
+- ✅ API endpoint: POST /api/read-receipts/batch - Batch read receipt recording
+- ✅ Privacy setting: users can disable sending read receipts
+- ✅ WebSocket broadcasting of read receipts to message senders
+- ✅ Row Level Security (RLS) for read receipts
+- ✅ Efficient database indexes for message and user queries
+- ✅ Support for both channel messages and direct messages
+- ✅ Unique constraint with automatic timestamp updates on conflicts
+
+**Next**: Phase 2.5 - Message Editing History
 
 ## Version History
+
+### v0.27.0 (Phase 2.4 - Read Receipts)
+- Added database migration for message_read_receipts table
+- Added database migration for disable_read_receipts column in users table
+- Implemented MessageReadReceipt model with record, batch, and query operations
+- API endpoint: POST /api/messages/:id/read - Record read receipt for a message
+- API endpoint: GET /api/messages/:id/receipts - Get all receipts with user details
+- API endpoint: POST /api/read-receipts/batch - Batch record multiple read receipts
+- Privacy feature: users can disable sending read receipts via disable_read_receipts field
+- WebSocket support: ReadReceipt message type for real-time receipt broadcasting
+- Row Level Security (RLS) policies for read receipts (users can only see receipts for accessible messages)
+- Efficient database indexes: message_id, user_id, and composite indexes for performance
+- Unique constraint on (message_id, user_id) with automatic timestamp updates on conflict
+- Read receipts work for both channel messages and direct messages
+- Handler includes authorization checks for channel membership and DM participation
+- Read receipts include user details (display_name, avatar_url) for UI rendering
 
 ### v0.26.0 (Phase 2.3 - Advanced Status & Presence)
 - Added database migration for user_status table

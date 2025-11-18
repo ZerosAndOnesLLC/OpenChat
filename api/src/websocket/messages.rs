@@ -105,4 +105,10 @@ pub enum ServerMessage {
         dm_id: Option<Uuid>,
         unread_count: i32,
     },
+    /// Read receipt recorded for a message
+    ReadReceipt {
+        message_id: Uuid,
+        user_id: Uuid,
+        read_at: String,
+    },
 }

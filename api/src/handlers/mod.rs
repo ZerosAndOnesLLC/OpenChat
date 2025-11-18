@@ -2,6 +2,7 @@ pub mod attachment;
 pub mod bookmarks;
 pub mod channels;
 pub mod dms;
+pub mod drafts;
 pub mod link_preview;
 pub mod mentions;
 pub mod messages;

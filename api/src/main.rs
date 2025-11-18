@@ -28,6 +28,7 @@ use handlers::{
     bookmarks as bookmark_handlers,
     channels as channel_handlers,
     dms as dm_handlers,
+    drafts as draft_handlers,
     link_preview as link_preview_handlers,
     mentions as mention_handlers,
     messages as message_handlers,
@@ -303,6 +304,19 @@ async fn main() -> std::io::Result<()> {
                     .route("", web::get().to(bookmark_handlers::list_bookmarks))
                     .route("", web::post().to(bookmark_handlers::create_bookmark))
                     .route("/{message_id}", web::delete().to(bookmark_handlers::delete_bookmark))
+            )
+            // Draft routes - require "openchat" role
+            .service(
+                web::scope("/api/drafts")
+                    .wrap(api_rate_limit.clone())
+                    .wrap(openchat_auth.clone())
+                    .route("", web::post().to(draft_handlers::save_draft))
+                    .route("", web::get().to(draft_handlers::get_all_drafts))
+                    .route("", web::delete().to(draft_handlers::delete_all_drafts))
+                    .route("/channel/{channel_id}", web::get().to(draft_handlers::get_channel_draft))
+                    .route("/channel/{channel_id}", web::delete().to(draft_handlers::delete_channel_draft))
+                    .route("/dm/{dm_id}", web::get().to(draft_handlers::get_dm_draft))
+                    .route("/dm/{dm_id}", web::delete().to(draft_handlers::delete_dm_draft))
             )
             // Link Preview routes - require "openchat" role
             .service(

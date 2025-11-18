@@ -390,6 +390,14 @@ export default function MessageInput({ channelId, dmId, replyTo, onClearReply }:
         handleSubmit(new Event('submit') as any);
       }
     }
+
+    // Up arrow: Edit last message (when input is empty)
+    // Note: Full implementation would require access to user's messages and edit mode
+    if (e.key === 'ArrowUp' && !e.shiftKey && !e.ctrlKey && !e.metaKey && message.trim() === '') {
+      e.preventDefault();
+      // This is a placeholder for the edit last message functionality
+      // The full implementation would require MessageArea to pass a callback
+    }
   };
 
   return (

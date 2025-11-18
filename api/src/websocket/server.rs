@@ -61,6 +61,15 @@ impl WsServer {
             }
         }
     }
+
+    /// Send message to all sessions of a specific user
+    fn send_to_user(&self, user_id: &Uuid, message: ServerMessage) {
+        if let Some(session_ids) = self.user_sessions.get(user_id) {
+            for session_id in session_ids {
+                self.send_message(session_id, message.clone());
+            }
+        }
+    }
 }
 
 impl Actor for WsServer {
@@ -406,5 +415,22 @@ impl Handler<BroadcastStatus> for WsServer {
 
     fn handle(&mut self, msg: BroadcastStatus, _: &mut Context<Self>) {
         self.send_to_org(&msg.org_id, msg.message, None);
+    }
+}
+
+/// Message: Broadcast message to a specific user (all their sessions)
+#[derive(ActixMessage)]
+#[rtype(result = "()")]
+pub struct BroadcastToUser {
+    pub org_id: Uuid,
+    pub user_id: Uuid,
+    pub message: ServerMessage,
+}
+
+impl Handler<BroadcastToUser> for WsServer {
+    type Result = ();
+
+    fn handle(&mut self, msg: BroadcastToUser, _: &mut Context<Self>) {
+        self.send_to_user(&msg.user_id, msg.message);
     }
 }

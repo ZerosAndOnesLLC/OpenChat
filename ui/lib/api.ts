@@ -148,7 +148,8 @@ class ApiClient {
   async listChannelMessages(channelId: string, limit = 50, before?: string): Promise<Message[]> {
     const params = new URLSearchParams({ limit: limit.toString() });
     if (before) params.append('before', before);
-    return this.request<Message[]>(`/api/channels/${channelId}/messages?${params}`);
+    const response = await this.request<{ messages: Message[]; has_more: boolean; next_cursor?: string }>(`/api/channels/${channelId}/messages?${params}`);
+    return response.messages;
   }
 
   // Direct Message endpoints
@@ -170,7 +171,8 @@ class ApiClient {
   async listDmMessages(dmId: string, limit = 50, before?: string): Promise<Message[]> {
     const params = new URLSearchParams({ limit: limit.toString() });
     if (before) params.append('before', before);
-    return this.request<Message[]>(`/api/dms/${dmId}/messages?${params}`);
+    const response = await this.request<{ messages: Message[]; has_more: boolean; next_cursor?: string }>(`/api/dms/${dmId}/messages?${params}`);
+    return response.messages;
   }
 
   // Message endpoints

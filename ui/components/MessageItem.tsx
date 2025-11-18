@@ -5,9 +5,11 @@ import dynamic from 'next/dynamic';
 import { useAuth } from '@/lib/auth';
 import { apiClient } from '@/lib/api';
 import { useWebSocketStore } from '@/lib/websocket';
+import { extractUrls } from '@/lib/url-utils';
 import type { Message } from '@/lib/types';
 import MarkdownRenderer from './MarkdownRenderer';
 import AttachmentDisplay from './AttachmentDisplay';
+import LinkPreview from './LinkPreview';
 
 // Dynamically import EmojiPicker to avoid SSR issues
 const EmojiPicker = dynamic(() => import('emoji-picker-react'), { ssr: false });
@@ -195,6 +197,11 @@ export default function MessageItem({ message, onReply, onOpenThread, onPin, onB
 
           {/* Attachments */}
           <AttachmentDisplay messageId={message.id} />
+
+          {/* Link Previews */}
+          {!isEditing && extractUrls(message.content).map((url) => (
+            <LinkPreview key={url} url={url} />
+          ))}
 
           {/* Reactions - Mattermost style with inline + button */}
           <div className="relative mt-1 flex flex-wrap items-center gap-1">

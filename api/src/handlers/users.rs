@@ -70,6 +70,7 @@ pub async fn list_users(
 /// GET /api/users/:id - Get user profile
 pub async fn get_user(
     pool: web::Data<PgPool>,
+    redis_conn: web::Data<redis::aio::MultiplexedConnection>,
     user_id: web::Path<Uuid>,
     req: HttpRequest,
 ) -> ApiResult<HttpResponse> {
@@ -80,10 +81,24 @@ pub async fn get_user(
         .ok_or_else(|| ApiError::Authentication("Missing authentication".to_string()))?
         .clone();
 
-    // Get user (RLS ensures same org)
-    let user = User::get_by_id(pool.get_ref(), *user_id)
-        .await?
-        .ok_or_else(|| ApiError::NotFound("User not found".to_string()))?;
+    // Try to get user from cache first
+    let mut redis = redis_conn.get_ref().clone();
+    let cached_user = crate::cache::users::get_user_from_cache(&mut redis, *user_id).await?;
+
+    let user = match cached_user {
+        Some(user) => user,
+        None => {
+            // Cache miss - get from database
+            let user = User::get_by_id(pool.get_ref(), *user_id)
+                .await?
+                .ok_or_else(|| ApiError::NotFound("User not found".to_string()))?;
+
+            // Store in cache for next time
+            crate::cache::users::set_user_in_cache(&mut redis, &user).await?;
+
+            user
+        }
+    };
 
     Ok(HttpResponse::Ok().json(UserResponse::from(user)))
 }
@@ -91,6 +106,7 @@ pub async fn get_user(
 /// PUT /api/users/:id - Update user profile
 pub async fn update_user(
     pool: web::Data<PgPool>,
+    redis_conn: web::Data<redis::aio::MultiplexedConnection>,
     user_id: web::Path<Uuid>,
     body: web::Json<UpdateUserRequest>,
     req: HttpRequest,
@@ -137,6 +153,10 @@ pub async fn update_user(
     .bind(*user_id)
     .fetch_one(pool.get_ref())
     .await?;
+
+    // Invalidate user cache
+    let mut redis = redis_conn.get_ref().clone();
+    crate::cache::users::invalidate_user_cache(&mut redis, *user_id).await?;
 
     Ok(HttpResponse::Ok().json(UserResponse::from(user)))
 }

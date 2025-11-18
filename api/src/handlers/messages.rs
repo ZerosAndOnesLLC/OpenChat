@@ -13,7 +13,7 @@ use crate::{
     models::notification::{CreateNotification, Notification, NotificationType},
     models::reaction::Reaction,
     models::user::User,
-    services::{mention_parser, tv_api::TokenClaims},
+    services::{audit_logger::AuditLogger, mention_parser, tv_api::TokenClaims},
 };
 
 #[derive(Debug, Deserialize)]
@@ -570,8 +570,24 @@ pub async fn delete_message(
         ));
     }
 
+    // Store message content for audit log before deletion
+    let message_content = message.content.clone();
+
     // Soft delete the message
     Message::soft_delete(pool.get_ref(), *message_id).await?;
+
+    // Log the deletion in audit log
+    if let Err(e) = AuditLogger::log_message_deleted(
+        pool.get_ref(),
+        current_user.id,
+        *message_id,
+        &message_content,
+        Some(&req),
+    )
+    .await
+    {
+        tracing::warn!("Failed to create audit log for message deletion: {}", e);
+    }
 
     // Invalidate message cache after deleting
     let mut redis_conn = redis.as_ref().clone();

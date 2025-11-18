@@ -1,12 +1,13 @@
-use actix_web::{web, HttpResponse};
+use actix_web::{web, HttpRequest, HttpResponse};
 use serde::{Deserialize, Serialize};
+use serde_json::json;
 use sqlx::PgPool;
 use uuid::Uuid;
 
 use crate::{
     errors::ApiResult,
-    models::role::{Permission, Role},
-    services::tv_api::TokenClaims,
+    models::{audit_log::actions, role::{Permission, Role}, user::User},
+    services::{audit_logger::AuditLogger, tv_api::TokenClaims},
 };
 
 // Request/Response DTOs
@@ -84,15 +85,39 @@ pub async fn get_role(
 pub async fn create_role(
     pool: web::Data<PgPool>,
     claims: web::ReqData<TokenClaims>,
-    req: web::Json<CreateRoleRequest>,
+    body: web::Json<CreateRoleRequest>,
+    http_req: HttpRequest,
 ) -> ApiResult<HttpResponse> {
+    // Get current user for audit logging
+    let current_user = User::get_by_tv_user_id(pool.get_ref(), claims.user_id)
+        .await?
+        .ok_or_else(|| crate::errors::ApiError::NotFound("Current user not found".to_string()))?;
+
     let role = Role::create(
         pool.get_ref(),
         Some(claims.org_id),
-        &req.role_name,
-        req.description.as_deref(),
+        &body.role_name,
+        body.description.as_deref(),
     )
     .await?;
+
+    // Log role creation in audit log
+    if let Err(e) = AuditLogger::log(
+        pool.get_ref(),
+        Some(current_user.id),
+        actions::ROLE_CREATED,
+        "role",
+        Some(role.id),
+        json!({
+            "role_name": &role.role_name,
+            "description": &role.description,
+        }),
+        Some(&http_req),
+    )
+    .await
+    {
+        tracing::warn!("Failed to create audit log for role creation: {}", e);
+    }
 
     Ok(HttpResponse::Created().json(role))
 }
@@ -101,9 +126,16 @@ pub async fn create_role(
 /// Note: This endpoint is protected by PermissionMiddleware with "org.manage_roles" permission
 pub async fn update_role(
     pool: web::Data<PgPool>,
+    claims: web::ReqData<TokenClaims>,
     role_id: web::Path<Uuid>,
-    req: web::Json<UpdateRoleRequest>,
+    body: web::Json<UpdateRoleRequest>,
+    http_req: HttpRequest,
 ) -> ApiResult<HttpResponse> {
+    // Get current user for audit logging
+    let current_user = User::get_by_tv_user_id(pool.get_ref(), claims.user_id)
+        .await?
+        .ok_or_else(|| crate::errors::ApiError::NotFound("Current user not found".to_string()))?;
+
     // Check if role exists and is not a system role
     let existing_role = Role::get_by_id(pool.get_ref(), *role_id)
         .await?
@@ -118,10 +150,30 @@ pub async fn update_role(
     let role = Role::update(
         pool.get_ref(),
         *role_id,
-        &req.role_name,
-        req.description.as_deref(),
+        &body.role_name,
+        body.description.as_deref(),
     )
     .await?;
+
+    // Log role update in audit log
+    if let Err(e) = AuditLogger::log(
+        pool.get_ref(),
+        Some(current_user.id),
+        actions::ROLE_UPDATED,
+        "role",
+        Some(role.id),
+        json!({
+            "old_name": &existing_role.role_name,
+            "new_name": &role.role_name,
+            "old_description": &existing_role.description,
+            "new_description": &role.description,
+        }),
+        Some(&http_req),
+    )
+    .await
+    {
+        tracing::warn!("Failed to create audit log for role update: {}", e);
+    }
 
     Ok(HttpResponse::Ok().json(role))
 }
@@ -130,8 +182,15 @@ pub async fn update_role(
 /// Note: This endpoint is protected by PermissionMiddleware with "org.manage_roles" permission
 pub async fn delete_role(
     pool: web::Data<PgPool>,
+    claims: web::ReqData<TokenClaims>,
     role_id: web::Path<Uuid>,
+    http_req: HttpRequest,
 ) -> ApiResult<HttpResponse> {
+    // Get current user for audit logging
+    let current_user = User::get_by_tv_user_id(pool.get_ref(), claims.user_id)
+        .await?
+        .ok_or_else(|| crate::errors::ApiError::NotFound("Current user not found".to_string()))?;
+
     // Check if role exists and is not a system role
     let existing_role = Role::get_by_id(pool.get_ref(), *role_id)
         .await?
@@ -143,7 +202,27 @@ pub async fn delete_role(
         ));
     }
 
+    // Store role name for audit log before deletion
+    let role_name = existing_role.role_name.clone();
+
     Role::delete(pool.get_ref(), *role_id).await?;
+
+    // Log role deletion in audit log
+    if let Err(e) = AuditLogger::log(
+        pool.get_ref(),
+        Some(current_user.id),
+        actions::ROLE_DELETED,
+        "role",
+        Some(*role_id),
+        json!({
+            "role_name": &role_name,
+        }),
+        Some(&http_req),
+    )
+    .await
+    {
+        tracing::warn!("Failed to create audit log for role deletion: {}", e);
+    }
 
     Ok(HttpResponse::NoContent().finish())
 }
@@ -152,9 +231,16 @@ pub async fn delete_role(
 /// Note: This endpoint is protected by PermissionMiddleware with "org.manage_roles" permission
 pub async fn assign_permissions(
     pool: web::Data<PgPool>,
+    claims: web::ReqData<TokenClaims>,
     role_id: web::Path<Uuid>,
-    req: web::Json<AssignPermissionsRequest>,
+    body: web::Json<AssignPermissionsRequest>,
+    http_req: HttpRequest,
 ) -> ApiResult<HttpResponse> {
+    // Get current user for audit logging
+    let current_user = User::get_by_tv_user_id(pool.get_ref(), claims.user_id)
+        .await?
+        .ok_or_else(|| crate::errors::ApiError::NotFound("Current user not found".to_string()))?;
+
     // Check if role exists and is not a system role
     let existing_role = Role::get_by_id(pool.get_ref(), *role_id)
         .await?
@@ -166,7 +252,32 @@ pub async fn assign_permissions(
         ));
     }
 
-    Role::assign_permissions(pool.get_ref(), *role_id, req.permission_ids.clone()).await?;
+    // Get old permissions for audit log
+    let old_permissions = Role::get_permissions(pool.get_ref(), *role_id).await?;
+
+    Role::assign_permissions(pool.get_ref(), *role_id, body.permission_ids.clone()).await?;
+
+    // Get new permissions for audit log
+    let new_permissions = Role::get_permissions(pool.get_ref(), *role_id).await?;
+
+    // Log permission assignment in audit log
+    if let Err(e) = AuditLogger::log(
+        pool.get_ref(),
+        Some(current_user.id),
+        actions::PERMISSION_GRANTED,
+        "role",
+        Some(*role_id),
+        json!({
+            "role_name": &existing_role.role_name,
+            "old_permissions": old_permissions.iter().map(|p| &p.permission_name).collect::<Vec<_>>(),
+            "new_permissions": new_permissions.iter().map(|p| &p.permission_name).collect::<Vec<_>>(),
+        }),
+        Some(&http_req),
+    )
+    .await
+    {
+        tracing::warn!("Failed to create audit log for permission assignment: {}", e);
+    }
 
     // Note: Permission cache will automatically expire after TTL (5 minutes)
     // For immediate effect, admins can restart the service or wait for cache to expire

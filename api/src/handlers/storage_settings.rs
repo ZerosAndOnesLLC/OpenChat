@@ -1,12 +1,13 @@
 use actix_web::{web, HttpMessage, HttpRequest, HttpResponse};
+use serde_json::json;
 use sqlx::PgPool;
 use uuid::Uuid;
 
 use crate::errors::ApiError;
-use crate::models::storage_settings::{
+use crate::models::{storage_settings::{
     StorageSettings, StorageSettingsResponse, UpdateStorageSettingsRequest,
-};
-use crate::services::tv_api::TokenClaims;
+}, user::User};
+use crate::services::{audit_logger::AuditLogger, tv_api::TokenClaims};
 
 // Simple encryption/decryption for credentials (in production, use proper encryption)
 // TODO: Implement proper encryption with a secure key management system
@@ -76,6 +77,21 @@ pub async fn update_storage_settings(
     // For now, we'll allow any authenticated user to update their org's settings
     let org_id = claims.org_id;
 
+    // Get current user for audit logging
+    let current_user = User::get_by_tv_user_id(db.get_ref(), claims.user_id)
+        .await
+        .map_err(|e| ApiError::Internal(format!("Failed to get current user: {}", e)))?
+        .ok_or_else(|| ApiError::NotFound("Current user not found".to_string()))?;
+
+    // Get old settings for audit log
+    let old_settings: Option<StorageSettings> = sqlx::query_as(
+        "SELECT * FROM storage_settings WHERE org_id = $1",
+    )
+    .bind(org_id)
+    .fetch_optional(db.get_ref())
+    .await
+    .map_err(|e| ApiError::Internal(format!("Failed to fetch old storage settings: {}", e)))?;
+
     // Validate storage_type
     if payload.storage_type != "local" && payload.storage_type != "s3" {
         return Err(ApiError::BadRequest(
@@ -135,6 +151,28 @@ pub async fn update_storage_settings(
     .fetch_one(db.get_ref())
     .await
     .map_err(|e| ApiError::Internal(format!("Failed to update storage settings: {}", e)))?;
+
+    // Log storage settings update in audit log
+    if let Err(e) = AuditLogger::log_settings_updated(
+        db.get_ref(),
+        current_user.id,
+        "storage",
+        json!({
+            "storage_type": old_settings.as_ref().map(|s| &s.storage_type),
+            "s3_bucket": old_settings.as_ref().and_then(|s| s.s3_bucket.as_ref()),
+            "s3_region": old_settings.as_ref().and_then(|s| s.s3_region.as_ref()),
+        }),
+        json!({
+            "storage_type": &settings.storage_type,
+            "s3_bucket": &settings.s3_bucket,
+            "s3_region": &settings.s3_region,
+        }),
+        Some(&req),
+    )
+    .await
+    {
+        tracing::warn!("Failed to create audit log for storage settings update: {}", e);
+    }
 
     // Invalidate storage factory cache so it picks up new settings
     // TODO: Implement cache invalidation

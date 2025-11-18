@@ -99,7 +99,7 @@ async fn main() -> std::io::Result<()> {
 
     // Start WebSocket server
     info!("Starting WebSocket server...");
-    let ws_server = websocket::server::WsServer::new().start();
+    let ws_server = websocket::server::WsServer::new(db_pool.clone()).start();
     info!("WebSocket server started");
 
     // Start Redis Pub/Sub for WebSocket scaling

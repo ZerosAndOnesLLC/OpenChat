@@ -179,19 +179,19 @@ Plan to achieve feature parity with Mattermost/Slack and add end-to-end encrypti
 - [x] Increment version to 0.26.0
 
 ### 2.4 Read Receipts
-- [ ] Create migration: `message_read_receipts` table
+- [x] Create migration: `message_read_receipts` table
   - message_id, user_id, read_at
   - Indexes on (message_id, read_at), (user_id)
-- [ ] Create migration: Add `disable_read_receipts` to users table (privacy option)
-- [ ] API: POST /api/messages/{id}/read - Record read receipt
-- [ ] API: GET /api/messages/{id}/receipts - Get who read message
-- [ ] API: Batch read receipt recording
-- [ ] WebSocket: Send read receipts to sender
+- [x] Create migration: Add `disable_read_receipts` to users table (privacy option)
+- [x] API: POST /api/messages/{id}/read - Record read receipt
+- [x] API: GET /api/messages/{id}/receipts - Get who read message
+- [x] API: Batch read receipt recording
+- [x] WebSocket: Send read receipts to sender
 - [ ] UI: "Seen by" indicator on messages (like Slack)
 - [ ] UI: Privacy setting to disable sending read receipts
 - [ ] UI: Read receipt list modal
-- [ ] Update README.md
-- [ ] Increment version to 0.25.0
+- [x] Update README.md
+- [x] Increment version to 0.27.0
 
 ### 2.5 Message Editing History
 - [ ] Create migration: `message_edits` table

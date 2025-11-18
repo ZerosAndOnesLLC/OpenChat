@@ -10,5 +10,6 @@ pub mod reactions;
 pub mod read_receipts;
 pub mod read_status;
 pub mod search;
+pub mod storage_settings;
 pub mod user_status;
 pub mod users;

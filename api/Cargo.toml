@@ -1,6 +1,6 @@
 [package]
 name = "openchat-api"
-version = "0.31.0"
+version = "0.32.0"
 edition = "2024"
 
 [dependencies]
@@ -65,3 +65,4 @@ mime = "0.3"
 mime_guess = "2"
 tokio-util = { version = "0.7", features = ["io"] }
 bytes = "1"
+base64 = "0.22"

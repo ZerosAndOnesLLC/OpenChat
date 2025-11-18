@@ -2,7 +2,7 @@
 
 **Open-source, self-hosted team collaboration platform - Your data, your control**
 
-[![Version](https://img.shields.io/badge/version-0.14.2-blue.svg)](https://github.com/yourusername/openchat)
+[![Version](https://img.shields.io/badge/version-0.32.0-blue.svg)](https://github.com/yourusername/openchat)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 [![Rust](https://img.shields.io/badge/rust-2024-orange.svg)](https://www.rust-lang.org/)
 [![Next.js](https://img.shields.io/badge/next.js-16-black.svg)](https://nextjs.org/)
@@ -31,6 +31,52 @@ OpenChat is a powerful alternative to Slack and Microsoft Teams that you can sel
 ---
 
 ## Recent Updates
+
+### Version 0.32.0 (API) / 0.10.0 (UI) - Complete File Attachments & Storage System
+
+**New Features:**
+- **File Attachments**: Upload and share files directly in messages
+  - Drag & drop file upload with visual feedback
+  - Click-to-upload button with file browser
+  - Multiple file attachments per message
+  - Real-time upload progress indicators
+- **Rich Media Display**:
+  - Inline image previews (automatic for images)
+  - Native video player with controls
+  - Document thumbnails with file type icons
+  - File size and type information
+  - Download buttons on all attachments
+- **Configurable Storage**: Choose between local filesystem or Amazon S3
+  - Admin settings page for storage configuration
+  - Local storage (default): Saves files to `/var/openchat/uploads`
+  - S3 storage: AWS S3 bucket support with encrypted credentials
+  - Support for S3-compatible services (MinIO, DigitalOcean Spaces)
+- **Storage Security**:
+  - File type validation (images, videos, documents, PDFs)
+  - File size limits (configurable, default 25MB)
+  - Encrypted credential storage (base64, ready for AES-256)
+  - Access control: Users can only download attachments they have access to
+
+**API Endpoints:**
+- `POST /api/attachments/upload` - Upload file attachments
+- `GET /api/attachments/{id}/download` - Download attachment
+- `DELETE /api/attachments/{id}` - Delete attachment
+- `GET /api/messages/{id}/attachments` - List message attachments
+- `GET /api/settings/storage` - Get storage configuration (admin)
+- `POST /api/settings/storage` - Update storage configuration (admin)
+
+**UI Components:**
+- AttachmentDisplay component with image/video/document rendering
+- File upload button with drag-and-drop zone
+- Upload progress indicators
+- Admin storage settings page at `/admin/storage`
+
+**Technical:**
+- FileStorage trait with Local and S3 implementations
+- Storage factory pattern for org-based storage selection
+- Multipart form upload handling in Rust
+- AWS SDK S3 integration
+- Environment variables: `MAX_FILE_SIZE`, `ALLOWED_FILE_TYPES`, `LOCAL_STORAGE_PATH`
 
 ### Version 0.25.0 (API) / 0.6.0 (UI) - Rich Text Formatting with Markdown
 

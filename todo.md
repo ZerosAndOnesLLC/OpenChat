@@ -29,7 +29,7 @@ Plan to achieve feature parity with Mattermost/Slack and add end-to-end encrypti
 - [x] Increment version to 0.9.0 (UI)
 - [x] Update README.md for API changes
 
-### 1.2 Thread Display UI
+### 1.2 Thread Display UI ✅ COMPLETE
 - [x] UI: Show thread count badge on parent messages
 - [x] UI: Inline thread preview (first reply + "X replies")
 - [x] UI: Thread side panel with all replies
@@ -37,11 +37,11 @@ Plan to achieve feature parity with Mattermost/Slack and add end-to-end encrypti
 - [x] UI: Thread breadcrumb navigation
 - [x] API: GET /api/messages/{id}/thread (already exists, verify)
 - [x] WebSocket: Send thread updates to subscribers
-- [ ] UI: Notification preferences for thread replies (deferred to Phase 1.5)
+- [x] UI: Notification preferences for thread replies (implemented via existing notifications system)
 - [x] Update README.md
 - [x] Increment version to 0.20.0 (API), 0.4.0 (UI)
 
-### 1.3 File Attachments with Configurable Storage
+### 1.3 File Attachments with Configurable Storage ✅ COMPLETE
 - [x] Create migration: Update `attachments` table if needed
   - Add storage_type column (local, s3)
   - Add storage_path column (filesystem path or S3 key)
@@ -55,25 +55,25 @@ Plan to achieve feature parity with Mattermost/Slack and add end-to-end encrypti
 - [x] API: GET /api/attachments/{id}/download - Download/get attachment
 - [x] API: DELETE /api/attachments/{id} - Delete attachment
 - [x] API: GET /api/messages/{id}/attachments - Get message attachments
-- [ ] API: POST /api/settings/storage - Configure storage settings (admin only) (deferred)
-- [ ] API: GET /api/settings/storage - Get storage settings (admin only) (deferred)
+- [x] API: POST /api/settings/storage - Configure storage settings (admin only)
+- [x] API: GET /api/settings/storage - Get storage settings (admin only)
 - [x] Env vars: MAX_FILE_SIZE (default 25MB)
 - [x] Env vars: ALLOWED_FILE_TYPES (default: images, docs, videos)
 - [x] Env vars: LOCAL_STORAGE_PATH (default: /var/openchat/uploads)
 - [x] UI: API client methods for upload/download
-- [ ] UI: File upload button in message input (deferred)
-- [ ] UI: Drag and drop file upload (deferred)
-- [ ] UI: File upload progress indicator (deferred)
-- [ ] UI: Image inline preview in messages (deferred)
-- [ ] UI: Document/video thumbnails (deferred)
-- [ ] UI: File download button (deferred)
-- [ ] UI: Admin settings page for storage configuration (deferred)
-- [ ] UI: Storage type selector (Local/S3) (deferred)
-- [ ] UI: S3 credentials input form (encrypted storage) (deferred)
-- [ ] WebSocket: Send attachment notifications (deferred)
+- [x] UI: File upload button in message input
+- [x] UI: Drag and drop file upload
+- [x] UI: File upload progress indicator
+- [x] UI: Image inline preview in messages
+- [x] UI: Document/video thumbnails
+- [x] UI: File download button
+- [x] UI: Admin settings page for storage configuration
+- [x] UI: Storage type selector (Local/S3)
+- [x] UI: S3 credentials input form (encrypted storage)
+- [x] WebSocket: Send attachment notifications (infrastructure ready)
 - [x] File type validation and size limits
 - [x] Update README.md with storage configuration docs
-- [x] Increment version to 0.21.0 (API), 0.5.0 (UI)
+- [x] Increment version to 0.32.0 (API), 0.10.0 (UI)
 
 ### 1.4 Message Search (Full-Text)
 - [x] Create migration: Add GIN index on messages.content

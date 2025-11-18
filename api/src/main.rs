@@ -36,6 +36,7 @@ use handlers::{
     read_receipts as read_receipt_handlers,
     read_status as read_status_handlers,
     search as search_handlers,
+    storage_settings as storage_settings_handlers,
     user_status as user_status_handlers,
     users as user_handlers,
 };
@@ -266,6 +267,14 @@ async fn main() -> std::io::Result<()> {
                     .wrap(api_rate_limit.clone())
                     .wrap(openchat_auth.clone())
                     .route("/messages", web::get().to(search_handlers::search_messages))
+            )
+            // Storage settings routes - require "openchat" role and admin permissions
+            .service(
+                web::scope("/api/settings/storage")
+                    .wrap(api_rate_limit.clone())
+                    .wrap(openchat_auth.clone())
+                    .route("", web::get().to(storage_settings_handlers::get_storage_settings))
+                    .route("", web::post().to(storage_settings_handlers::update_storage_settings))
             )
             // Mention routes - require "openchat" role
             .service(

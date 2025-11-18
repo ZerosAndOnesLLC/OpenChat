@@ -144,7 +144,7 @@ Plan to achieve feature parity with Mattermost/Slack and add end-to-end encrypti
 - [x] Update README.md
 - [x] Increment version to 0.24.0 (API), 0.12.0 (UI)
 
-### 2.2 Rich Text Formatting (Markdown)
+### 2.2 Rich Text Formatting (Markdown) ✅ COMPLETE
 - [x] Rust: Store messages as markdown in database (messages already stored as text, supports markdown)
 - [x] UI: Markdown preview in message input (toggle)
 - [x] UI: Markdown toolbar (bold, italic, code, list, link, quote)
@@ -160,11 +160,11 @@ Plan to achieve feature parity with Mattermost/Slack and add end-to-end encrypti
   - Quotes: > quote
   - Headings: # H1, ## H2, ### H3
 - [x] Security: Sanitize HTML output (prevent XSS) - using rehype-sanitize
-- [ ] UI: Link unfurling (show preview for URLs) (deferred to future enhancement)
+- [x] UI: Link unfurling (show preview for URLs)
 - [x] Update README.md
 - [x] Increment version to 0.25.0
 
-### 2.3 Advanced Status & Presence
+### 2.3 Advanced Status & Presence ✅ COMPLETE
 - [x] Create migration: `user_status` table
   - user_id, status (online/away/dnd/offline), custom_message, emoji, clear_at, updated_at
 - [x] API: PUT /api/users/me/status - Update status
@@ -173,11 +173,11 @@ Plan to achieve feature parity with Mattermost/Slack and add end-to-end encrypti
 - [x] WebSocket: Heartbeat to track activity
 - [x] WebSocket: Broadcast status changes
 - [x] Cache: User status in Redis (5 min TTL)
-- [ ] UI: Status picker dropdown 
-- [ ] UI: Custom status input with emoji 
-- [ ] UI: "Clear status after" time selector 
-- [ ] UI: Status indicator on user avatars 
-- [ ] UI: User profile shows full status 
+- [x] UI: Status picker dropdown
+- [x] UI: Custom status input with emoji
+- [x] UI: "Clear status after" time selector
+- [x] UI: Status indicator on user avatars
+- [x] UI: User profile shows full status
 - [x] Update README.md
 - [x] Increment version to 0.26.0
 
@@ -213,17 +213,17 @@ Plan to achieve feature parity with Mattermost/Slack and add end-to-end encrypti
 - [x] UI: Auto-save draft every 2 seconds
 - [x] UI: Restore draft when switching channels
 - [x] UI: Clear draft on send
-- [ ] Optional: Sync drafts via API for cross-device (deferred - not needed for now)
+- [ ] Optional: Sync drafts via API for cross-device
 - [x] Update README.md
 - [x] Increment version to 0.7.0 (UI)
 
 ### 2.7 Keyboard Shortcuts
 - [x] UI: Implement keyboard shortcuts:
   - [x] Cmd/Ctrl+K: Quick switcher (channels/DMs)
-  - [ ] Cmd/Ctrl+F: Search messages (deferred - search UI not yet implemented)
-  - [ ] Up arrow: Edit last message (deferred - edit UI not yet implemented)
+  - [ ] Cmd/Ctrl+F: Search messages 
+  - [ ] Up arrow: Edit last message 
   - [x] Cmd/Ctrl+Enter: Send message
-  - [ ] Tab: Navigate channels (deferred - not needed with Cmd+K)
+  - [ ] Tab: Navigate channels 
   - [x] Esc: Close modals/panels
   - [x] Cmd/Ctrl+/: Show keyboard shortcuts help
 - [x] UI: Keyboard shortcuts help modal
@@ -238,7 +238,7 @@ Plan to achieve feature parity with Mattermost/Slack and add end-to-end encrypti
 ### 3.1 Full Redis Caching Implementation
 - [x] Rust: Implement cache layer for channels (use existing cache/channels.rs)
 - [x] Rust: Implement cache layer for DMs (use existing cache/dms.rs)
-- [ ] Rust: Implement cache layer for users (use existing cache/users.rs) (deferred - not critical)
+- [x] Rust: Implement cache layer for users (use existing cache/users.rs) - integrated in user handlers
 - [x] Rust: Implement cache layer for messages (use existing cache/messages.rs)
 - [x] Rust: Cache patterns:
   - Channel details: 5 min TTL
@@ -248,8 +248,8 @@ Plan to achieve feature parity with Mattermost/Slack and add end-to-end encrypti
   - Unread counts: 60 sec TTL (already implemented)
   - Search results: 1 min TTL (already implemented)
 - [x] Rust: Cache invalidation on mutations (updates, deletes)
-- [ ] Rust: Cache warming on app startup (deferred - not critical)
-- [ ] Add metrics for cache hit/miss rates (deferred to future enhancement)
+- [ ] Rust: Cache warming on app startup 
+- [ ] Add metrics for cache hit/miss rates 
 - [x] Update README.md with caching strategy
 - [x] Increment version to 0.29.0
 

@@ -17,6 +17,8 @@ Modern real-time team chat application built with Next.js 15.
 - ✅ Real-time messaging via WebSockets
 - ✅ Public and private channels
 - ✅ Direct messages (1-on-1 and group)
+- ✅ Threaded conversations with inline previews
+- ✅ Thread side panel with breadcrumb navigation
 - ✅ Unread message tracking (API support)
 - ✅ Typing indicators
 - ✅ User presence (online/offline/away)
@@ -41,8 +43,9 @@ openchat/ui/
 │   ├── UserProfile.tsx    # User profile dropdown
 │   ├── MessageArea.tsx    # Message display area
 │   ├── MessageList.tsx    # Message list with scrolling
-│   ├── MessageItem.tsx    # Individual message with reactions
+│   ├── MessageItem.tsx    # Individual message with reactions and thread preview
 │   ├── MessageInput.tsx   # Message input with typing indicators
+│   ├── ThreadPanel.tsx    # Thread side panel for replies
 │   └── TypingIndicator.tsx # Typing indicator UI
 ├── lib/                   # Core libraries
 │   ├── api.ts            # API client
@@ -229,6 +232,16 @@ Increment version before commits:
 - **Major** (x.0.0): Breaking changes
 
 ### Recent Changes
+
+**v0.4.0** - Thread Display UI (Phase 1.2)
+- Added `first_reply` field to Message type for inline thread previews
+- Enhanced MessageItem to display inline preview of first reply with author name
+- Improved thread indicator button with better styling and hover effects
+- Added breadcrumb navigation to ThreadPanel showing author and reply count
+- Reduced thread polling interval from 5s to 2s for near-realtime updates
+- Thread panel now refetches on window focus for better sync
+- Enhanced ThreadPanel header layout with multi-line support for breadcrumbs
+- API client updated to support first_reply in message responses
 
 **v0.3.0** - Unread message tracking (API support)
 - Added UnreadCountResponse and MarkAsReadRequest types

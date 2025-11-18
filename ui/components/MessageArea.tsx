@@ -52,34 +52,27 @@ export default function MessageArea({ channel, dm }: MessageAreaProps) {
     };
   }, [channel, subscribeChannel, unsubscribeChannel]);
 
-  // Compute local messages using useMemo to avoid cascading renders
-  const localMessages = useMemo(() => {
-    if (!currentKey) return [];
-
-    const wsMessages = messages[currentKey] || [];
-    // Safely handle fetchedMessages being undefined
-    const fetchedArray = Array.isArray(fetchedMessages) ? fetchedMessages : [];
-    const allMessages = [...fetchedArray, ...wsMessages];
-
-    // Deduplicate by ID
-    const uniqueMessages = Array.from(
-      new Map(allMessages.map((msg) => [msg.id, msg])).values()
-    );
-
-    // Sort by created_at
-    uniqueMessages.sort(
-      (a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
-    );
-
-    return uniqueMessages;
-  }, [currentKey, fetchedMessages, messages]);
-
-  // Set fetched messages to store
+  // Set fetched messages to store when they arrive
   useEffect(() => {
-    if (currentKey && fetchedMessages && fetchedMessages.length > 0) {
+    if (currentKey && fetchedMessages) {
+      // Replace store messages with fetched messages (clears any old WebSocket-only messages)
       setMessages(currentKey, fetchedMessages);
     }
   }, [currentKey, fetchedMessages, setMessages]);
+
+  // Get messages from store (includes both fetched and new WebSocket messages)
+  const localMessages = useMemo(() => {
+    if (!currentKey) return [];
+
+    const storeMessages = messages[currentKey] || [];
+
+    // Sort by created_at
+    const sorted = [...storeMessages].sort(
+      (a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+    );
+
+    return sorted;
+  }, [currentKey, messages]);
 
   // Get typing indicators for current channel/dm
   const currentTyping = typing.filter(

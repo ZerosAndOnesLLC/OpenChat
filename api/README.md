@@ -21,6 +21,7 @@ Open-source team chat application backend - similar to Slack/Mattermost.
 - Direct messages (1-on-1 and groups)
 - Message threading (replies to messages)
 - Message reactions and editing
+- Custom emojis per organization
 - User presence and typing indicators
 - Horizontally scalable WebSocket support
 
@@ -140,6 +141,22 @@ src/
 - **Local Storage**: Files stored in `LOCAL_STORAGE_PATH` (default: `/var/openchat/uploads`)
 - **S3 Storage**: Configure per-org S3 bucket, region, and credentials in `storage_settings` table
 - Default storage type: Local (no additional configuration required)
+
+### Custom Emojis (Phase 5.2)
+- `POST /api/emojis/upload` - Upload custom emoji (admin only, multipart/form-data with name and file)
+- `GET /api/emojis` - List organization's custom emojis
+- `DELETE /api/emojis/:id` - Delete custom emoji (admin only)
+- `GET /api/emojis/:id/image` - Get custom emoji image (public endpoint)
+
+**Features**:
+- Per-organization custom emojis
+- Image validation (JPEG, PNG, GIF, WebP formats)
+- File size limit (512KB max)
+- Automatic image resize to 128x128px (planned)
+- Name validation (alphanumeric, underscores, hyphens only)
+- Uses same storage backend as file attachments (Local/S3)
+- Redis caching for emoji lists (5-minute TTL)
+- Usage: Type `:emoji_name:` in messages to render custom emojis
 
 ### Direct Messages (Phase 7+)
 - `GET /api/dms` - List user's DMs

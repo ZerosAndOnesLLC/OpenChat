@@ -28,6 +28,11 @@ Modern real-time team chat application built with Next.js 15.
 - ✅ Typing indicators
 - ✅ User presence (online/offline/away)
 - ✅ Message reactions (emoji)
+- ✅ Custom emojis per organization
+  - ✅ Admin upload dialog for custom emojis
+  - ✅ Emoji picker with custom and standard emojis
+  - ✅ Emoji autocomplete in message input
+  - ✅ Render custom emojis in messages
 - ✅ Message editing and deletion
 - ✅ Message drafts (auto-save to IndexedDB)
 - ✅ Rich text formatting (Markdown)

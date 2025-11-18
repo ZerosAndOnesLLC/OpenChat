@@ -14,7 +14,9 @@ class ToastManager {
 
   subscribe(listener: ToastListener) {
     this.listeners.add(listener);
-    return () => this.listeners.delete(listener);
+    return () => {
+      this.listeners.delete(listener);
+    };
   }
 
   show(message: string, type: ToastType = 'info') {

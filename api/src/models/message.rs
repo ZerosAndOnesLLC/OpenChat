@@ -283,4 +283,72 @@ impl Message {
 
         Ok(message)
     }
+
+    /// Get thread messages (replies) for a parent message
+    pub async fn list_thread_messages(
+        pool: &PgPool,
+        parent_message_id: Uuid,
+    ) -> ApiResult<Vec<Message>> {
+        let messages = sqlx::query_as::<_, Message>(
+            r#"
+            SELECT * FROM messages
+            WHERE parent_message_id = $1 AND deleted_at IS NULL
+            ORDER BY created_at ASC
+            "#,
+        )
+        .bind(parent_message_id)
+        .fetch_all(pool)
+        .await?;
+
+        Ok(messages)
+    }
+
+    /// Count replies for a message
+    pub async fn count_replies(pool: &PgPool, message_id: Uuid) -> ApiResult<i64> {
+        let result = sqlx::query_scalar::<_, i64>(
+            r#"
+            SELECT COUNT(*)
+            FROM messages
+            WHERE parent_message_id = $1 AND deleted_at IS NULL
+            "#,
+        )
+        .bind(message_id)
+        .fetch_one(pool)
+        .await?;
+
+        Ok(result)
+    }
+
+    /// Count replies for multiple messages (batch operation)
+    pub async fn count_replies_batch(
+        pool: &PgPool,
+        message_ids: &[Uuid],
+    ) -> ApiResult<std::collections::HashMap<Uuid, i64>> {
+        if message_ids.is_empty() {
+            return Ok(std::collections::HashMap::new());
+        }
+
+        #[derive(sqlx::FromRow)]
+        struct ReplyCount {
+            parent_message_id: Uuid,
+            count: i64,
+        }
+
+        let results = sqlx::query_as::<_, ReplyCount>(
+            r#"
+            SELECT parent_message_id, COUNT(*) as count
+            FROM messages
+            WHERE parent_message_id = ANY($1) AND deleted_at IS NULL
+            GROUP BY parent_message_id
+            "#,
+        )
+        .bind(message_ids)
+        .fetch_all(pool)
+        .await?;
+
+        Ok(results
+            .into_iter()
+            .map(|r| (r.parent_message_id, r.count))
+            .collect())
+    }
 }

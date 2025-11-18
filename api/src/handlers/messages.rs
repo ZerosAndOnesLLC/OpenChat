@@ -91,6 +91,7 @@ pub struct MessageResponse {
     pub edited_at: Option<String>,
     pub user: Option<UserResponse>,
     pub reactions: Vec<ReactionResponse>,
+    pub reply_count: i64,
 }
 
 impl From<Message> for MessageResponse {
@@ -106,6 +107,7 @@ impl From<Message> for MessageResponse {
             edited_at: message.edited_at.map(|dt| dt.to_rfc3339()),
             user: None,
             reactions: vec![],
+            reply_count: 0,
         }
     }
 }
@@ -118,6 +120,11 @@ impl MessageResponse {
 
     pub fn with_reactions(mut self, reactions: Vec<Reaction>) -> Self {
         self.reactions = reactions.into_iter().map(ReactionResponse::from).collect();
+        self
+    }
+
+    pub fn with_reply_count(mut self, reply_count: i64) -> Self {
+        self.reply_count = reply_count;
         self
     }
 }
@@ -299,7 +306,10 @@ pub async fn list_channel_messages(
             .push(reaction);
     }
 
-    // Enrich messages with user data and reactions
+    // Fetch reply counts for all messages
+    let reply_counts = Message::count_replies_batch(pool.get_ref(), &message_ids).await?;
+
+    // Enrich messages with user data, reactions, and reply counts
     let messages_with_users: Vec<MessageResponse> = paginated.messages
         .into_iter()
         .map(|msg| {
@@ -309,6 +319,9 @@ pub async fn list_channel_messages(
             }
             if let Some(reactions) = reaction_map.get(&msg.id) {
                 response = response.with_reactions(reactions.clone());
+            }
+            if let Some(&reply_count) = reply_counts.get(&msg.id) {
+                response = response.with_reply_count(reply_count);
             }
             response
         })
@@ -395,4 +408,131 @@ pub async fn delete_message(
     Message::soft_delete(pool.get_ref(), *message_id).await?;
 
     Ok(HttpResponse::NoContent().finish())
+}
+
+/// GET /api/messages/:id/thread - Get thread messages (replies to a message)
+pub async fn get_message_thread(
+    pool: web::Data<PgPool>,
+    message_id: web::Path<Uuid>,
+    req: HttpRequest,
+) -> ApiResult<HttpResponse> {
+    let claims = req
+        .extensions()
+        .get::<TokenClaims>()
+        .cloned()
+        .ok_or_else(|| ApiError::Authentication("Missing authentication".to_string()))?;
+
+    // Get current user
+    let current_user = User::get_by_tv_user_id(pool.get_ref(), claims.user_id)
+        .await?
+        .ok_or_else(|| ApiError::NotFound("Current user not found".to_string()))?;
+
+    // Verify parent message exists
+    let parent_message = Message::get_by_id(pool.get_ref(), *message_id)
+        .await?
+        .ok_or_else(|| ApiError::NotFound("Message not found".to_string()))?;
+
+    // Verify user has access to the message (is member of channel or DM)
+    if let Some(channel_id) = parent_message.channel_id {
+        let is_member = ChannelMember::is_member(pool.get_ref(), channel_id, current_user.id).await?;
+        if !is_member {
+            return Err(ApiError::Authorization(
+                "You are not a member of this channel".to_string(),
+            ));
+        }
+    }
+    // TODO: Add DM permission check in Phase 7
+
+    // Get thread messages (replies)
+    let thread_messages = Message::list_thread_messages(pool.get_ref(), *message_id).await?;
+
+    // Fetch users for all messages (including parent)
+    let mut all_messages = vec![parent_message.clone()];
+    all_messages.extend(thread_messages.clone());
+
+    let user_ids: Vec<Uuid> = all_messages.iter().map(|m| m.user_id).collect();
+    let users = if !user_ids.is_empty() {
+        sqlx::query_as::<_, User>(
+            "SELECT * FROM users WHERE id = ANY($1)"
+        )
+        .bind(&user_ids)
+        .fetch_all(pool.get_ref())
+        .await?
+    } else {
+        vec![]
+    };
+
+    // Create a map of user_id -> User for quick lookup
+    let user_map: std::collections::HashMap<Uuid, User> = users
+        .into_iter()
+        .map(|u| (u.id, u))
+        .collect();
+
+    // Fetch reactions for all messages
+    let message_ids: Vec<Uuid> = all_messages.iter().map(|m| m.id).collect();
+    let reactions = if !message_ids.is_empty() {
+        sqlx::query_as::<_, Reaction>(
+            "SELECT * FROM reactions WHERE message_id = ANY($1) ORDER BY created_at"
+        )
+        .bind(&message_ids)
+        .fetch_all(pool.get_ref())
+        .await?
+    } else {
+        vec![]
+    };
+
+    // Create a map of message_id -> Vec<Reaction> for quick lookup
+    let mut reaction_map: std::collections::HashMap<Uuid, Vec<Reaction>> = std::collections::HashMap::new();
+    for reaction in reactions {
+        reaction_map
+            .entry(reaction.message_id)
+            .or_insert_with(Vec::new)
+            .push(reaction);
+    }
+
+    // Fetch reply counts for all messages (including nested replies)
+    let reply_counts = Message::count_replies_batch(pool.get_ref(), &message_ids).await?;
+
+    // Build parent message response
+    let mut parent_response = MessageResponse::from(parent_message.clone());
+    if let Some(user) = user_map.get(&parent_message.user_id) {
+        parent_response = parent_response.with_user(user.clone());
+    }
+    if let Some(reactions) = reaction_map.get(&parent_message.id) {
+        parent_response = parent_response.with_reactions(reactions.clone());
+    }
+    if let Some(&reply_count) = reply_counts.get(&parent_message.id) {
+        parent_response = parent_response.with_reply_count(reply_count);
+    }
+
+    // Build thread message responses
+    let thread_responses: Vec<MessageResponse> = thread_messages
+        .into_iter()
+        .map(|msg| {
+            let mut response = MessageResponse::from(msg.clone());
+            if let Some(user) = user_map.get(&msg.user_id) {
+                response = response.with_user(user.clone());
+            }
+            if let Some(reactions) = reaction_map.get(&msg.id) {
+                response = response.with_reactions(reactions.clone());
+            }
+            if let Some(&reply_count) = reply_counts.get(&msg.id) {
+                response = response.with_reply_count(reply_count);
+            }
+            response
+        })
+        .collect();
+
+    #[derive(Debug, Serialize)]
+    struct ThreadResponse {
+        parent: MessageResponse,
+        replies: Vec<MessageResponse>,
+    }
+
+    let response = ThreadResponse {
+        parent: parent_response,
+        replies: thread_responses,
+    };
+
+    Ok(HttpResponse::Ok().json(response))
 }

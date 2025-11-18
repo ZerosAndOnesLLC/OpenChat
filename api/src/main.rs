@@ -171,6 +171,7 @@ async fn main() -> std::io::Result<()> {
                     .route("", web::post().to(message_handlers::send_message))
                     .route("/{id}", web::put().to(message_handlers::update_message))
                     .route("/{id}", web::delete().to(message_handlers::delete_message))
+                    .route("/{id}/thread", web::get().to(message_handlers::get_message_thread))
                     .route("/{id}/reactions", web::post().to(reaction_handlers::add_reaction))
                     .route("/{id}/reactions", web::get().to(reaction_handlers::list_reactions))
                     .route("/{id}/reactions/counts", web::get().to(reaction_handlers::get_reaction_counts))

@@ -250,18 +250,20 @@ Plan to achieve feature parity with Mattermost/Slack and add end-to-end encrypti
 - [x] Increment version to 0.29.0
 
 ### 3.2 Database Optimization
-- [ ] Create migration: Add performance indexes
+- [x] Create migration: Add performance indexes
   - messages(channel_id, created_at DESC)
   - messages(dm_id, created_at DESC)
   - messages(user_id, created_at DESC)
+  - messages(parent_message_id, created_at ASC)
   - channel_members(user_id, channel_id)
-  - mentions(user_id, created_at DESC)
-  - notifications(user_id, read, created_at DESC)
-- [ ] Analyze query patterns with EXPLAIN ANALYZE
-- [ ] Consider partitioning messages table by created_at (if > 1M messages)
-- [ ] Optimize pagination queries (use cursor-based, already implemented)
-- [ ] Update README.md
-- [ ] Increment version to 0.29.0
+  - dm_participants(user_id, dm_id)
+  - mentions(user_id, created_at DESC) - Already exists
+  - notifications(user_id, read, created_at DESC) - Already exists
+- [x] Analyze query patterns with EXPLAIN ANALYZE
+- [ ] Consider partitioning messages table by created_at (if > 1M messages) (deferred - not needed yet)
+- [x] Optimize pagination queries (use cursor-based, already implemented)
+- [x] Update README.md
+- [x] Increment version to 0.30.0
 
 ### 3.3 Rate Limiting
 - [ ] Rust: Redis-based rate limiting middleware
@@ -665,7 +667,7 @@ Following semantic versioning (MAJOR.MINOR.PATCH):
 - **Minor (0.X.0)**: New features (each major feature phase)
 - **Patch (0.0.X)**: Bug fixes, small improvements
 
-Current version: 0.29.0 (API), 0.6.0 (UI)
+Current version: 0.30.0 (API), 0.6.0 (UI)
 Target for 1.0.0: After Phase 7 completion
 
 ---

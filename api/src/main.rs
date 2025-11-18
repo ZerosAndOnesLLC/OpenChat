@@ -28,6 +28,7 @@ use handlers::{
     bookmarks as bookmark_handlers,
     channels as channel_handlers,
     dms as dm_handlers,
+    link_preview as link_preview_handlers,
     mentions as mention_handlers,
     messages as message_handlers,
     notifications as notification_handlers,
@@ -302,6 +303,13 @@ async fn main() -> std::io::Result<()> {
                     .route("", web::get().to(bookmark_handlers::list_bookmarks))
                     .route("", web::post().to(bookmark_handlers::create_bookmark))
                     .route("/{message_id}", web::delete().to(bookmark_handlers::delete_bookmark))
+            )
+            // Link Preview routes - require "openchat" role
+            .service(
+                web::scope("/api/links")
+                    .wrap(api_rate_limit.clone())
+                    .wrap(openchat_auth.clone())
+                    .route("/preview", web::get().to(link_preview_handlers::get_link_preview))
             )
             // SSO routes - no auth required (they handle authentication themselves)
             .configure(routes::sso::configure)

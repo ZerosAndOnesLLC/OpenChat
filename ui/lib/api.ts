@@ -13,6 +13,7 @@ import type {
   ReactionCount,
   AddReactionRequest,
   User,
+  UserStatus,
   UpdateUserRequest,
   UpdateUserStatusRequest,
   ThreadResponse,
@@ -22,6 +23,7 @@ import type {
   AttachmentUploadResponse,
   PinnedMessage,
   Bookmark,
+  LinkPreview,
 } from './types';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080';
@@ -284,6 +286,17 @@ class ApiClient {
     });
   }
 
+  async getUserStatus(userId: string): Promise<UserStatus> {
+    return this.request<UserStatus>(`/api/users/${userId}/status`);
+  }
+
+  async updateMyStatus(data: UpdateUserStatusRequest): Promise<UserStatus> {
+    return this.request<UserStatus>('/api/users/me/status', {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+  }
+
   // Attachment endpoints
   async uploadAttachment(messageId: string, file: File): Promise<AttachmentUploadResponse[]> {
     const token = this.getToken();
@@ -490,6 +503,12 @@ class ApiClient {
 
   async getUserBookmarks(): Promise<Bookmark[]> {
     return this.request<Bookmark[]>('/api/bookmarks');
+  }
+
+  // Link Preview endpoints
+  async getLinkPreview(url: string): Promise<LinkPreview> {
+    const encodedUrl = encodeURIComponent(url);
+    return this.request<LinkPreview>(`/api/links/preview?url=${encodedUrl}`);
   }
 }
 

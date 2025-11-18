@@ -28,15 +28,16 @@ Plan to achieve feature parity with Mattermost/Slack and add end-to-end encrypti
 - [x] Update README.md for API changes
 
 ### 1.2 Thread Display UI
-- [ ] UI: Show thread count badge on parent messages
-- [ ] UI: Inline thread preview (first reply + "X replies")
-- [ ] UI: Thread side panel with all replies
-- [ ] UI: "Reply in thread" button on messages
-- [ ] UI: Thread breadcrumb navigation
-- [ ] API: GET /api/messages/{id}/thread (already exists, verify)
-- [ ] WebSocket: Send thread updates to subscribers
-- [ ] UI: Notification preferences for thread replies
-- [ ] Update README.md
+- [x] UI: Show thread count badge on parent messages
+- [x] UI: Inline thread preview (first reply + "X replies")
+- [x] UI: Thread side panel with all replies
+- [x] UI: "Reply in thread" button on messages
+- [x] UI: Thread breadcrumb navigation
+- [x] API: GET /api/messages/{id}/thread (already exists, verify)
+- [x] WebSocket: Send thread updates to subscribers
+- [ ] UI: Notification preferences for thread replies (deferred to Phase 1.5)
+- [x] Update README.md
+- [x] Increment version to 0.20.0 (API), 0.4.0 (UI)
 
 ### 1.3 File Attachments with Configurable Storage
 - [ ] Create migration: Update `attachments` table if needed

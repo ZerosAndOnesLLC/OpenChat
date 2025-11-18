@@ -7,7 +7,7 @@ Plan to achieve feature parity with Mattermost/Slack and add end-to-end encrypti
 
 ## Phase 1: Critical UX Features (Priority 1)
 
-### 1.1 Unread Message Tracking
+### 1.1 Unread Message Tracking ✅ COMPLETE
 - [x] Create migration: `channel_read_status` table
   - user_id, channel_id, last_read_message_id, last_read_at, unread_count
   - Indexes on (user_id, channel_id), (channel_id)
@@ -21,10 +21,12 @@ Plan to achieve feature parity with Mattermost/Slack and add end-to-end encrypti
 - [x] WebSocket: Send unread count updates on new messages
 - [x] Cache: Unread counts in Redis with TTL
 - [x] UI: API client methods for unread endpoints (infrastructure ready)
-- [ ] UI: Unread badges on channels in sidebar (future work)
-- [ ] UI: Unread badges on DMs in sidebar (future work)
-- [ ] UI: Bold unread items in sidebar (future work)
-- [ ] UI: Scroll to first unread message indicator (future work)
+- [x] UI: Unread badges on channels in sidebar (red pill badges with count)
+- [x] UI: Unread badges on DMs in sidebar (red pill badges with count)
+- [x] UI: Bold unread items in sidebar
+- [x] UI: Scroll to first unread message indicator ("New messages" separator)
+- [x] UI: Auto-mark as read after viewing (2 second delay)
+- [x] Increment version to 0.9.0 (UI)
 - [x] Update README.md for API changes
 
 ### 1.2 Thread Display UI

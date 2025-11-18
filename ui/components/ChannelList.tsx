@@ -1,11 +1,58 @@
 'use client';
 
+import { useQuery } from '@tanstack/react-query';
+import { apiClient } from '@/lib/api';
 import type { Channel } from '@/lib/types';
 
 interface ChannelListProps {
   channels: Channel[];
   activeChannel: Channel | null;
   onSelectChannel: (channel: Channel) => void;
+}
+
+function ChannelItem({
+  channel,
+  isActive,
+  onSelect
+}: {
+  channel: Channel;
+  isActive: boolean;
+  onSelect: () => void;
+}) {
+  const { data: unreadCount = 0 } = useQuery({
+    queryKey: ['channel-unread', channel.id],
+    queryFn: () => apiClient.getChannelUnreadCount(channel.id),
+    refetchInterval: 30000, // Refetch every 30 seconds
+  });
+
+  const hasUnread = unreadCount > 0;
+
+  return (
+    <button
+      onClick={onSelect}
+      className={`w-full rounded px-2 py-1.5 text-left text-sm transition-colors ${
+        isActive
+          ? 'bg-blue-600 text-white'
+          : 'text-gray-300 hover:bg-gray-800'
+      }`}
+    >
+      <div className="flex items-center justify-between">
+        <div className="flex items-center min-w-0 flex-1">
+          <span className="mr-1.5">
+            {channel.channel_type === 'private' ? '🔒' : '#'}
+          </span>
+          <span className={`truncate ${hasUnread && !isActive ? 'font-bold' : ''}`}>
+            {channel.name}
+          </span>
+        </div>
+        {hasUnread && !isActive && (
+          <span className="ml-2 flex-shrink-0 rounded-full bg-red-500 px-2 py-0.5 text-xs font-semibold text-white">
+            {unreadCount > 99 ? '99+' : unreadCount}
+          </span>
+        )}
+      </div>
+    </button>
+  );
 }
 
 export default function ChannelList({
@@ -16,22 +63,12 @@ export default function ChannelList({
   return (
     <div className="space-y-1">
       {channels.map((channel) => (
-        <button
+        <ChannelItem
           key={channel.id}
-          onClick={() => onSelectChannel(channel)}
-          className={`w-full rounded px-2 py-1.5 text-left text-sm transition-colors ${
-            activeChannel?.id === channel.id
-              ? 'bg-blue-600 text-white'
-              : 'text-gray-300 hover:bg-gray-800'
-          }`}
-        >
-          <div className="flex items-center">
-            <span className="mr-1.5">
-              {channel.channel_type === 'private' ? '🔒' : '#'}
-            </span>
-            <span className="truncate">{channel.name}</span>
-          </div>
-        </button>
+          channel={channel}
+          isActive={activeChannel?.id === channel.id}
+          onSelect={() => onSelectChannel(channel)}
+        />
       ))}
       {channels.length === 0 && (
         <p className="px-2 py-2 text-xs text-gray-500">No channels yet</p>

@@ -142,12 +142,12 @@ Plan to achieve feature parity with Mattermost/Slack and add end-to-end encrypti
 - [x] Increment version to 0.24.0
 
 ### 2.2 Rich Text Formatting (Markdown)
-- [ ] Rust: Store messages as markdown in database
-- [ ] UI: Markdown preview in message input (toggle)
-- [ ] UI: Markdown toolbar (bold, italic, code, list, link, quote)
-- [ ] UI: Render markdown in messages using react-markdown
-- [ ] UI: Syntax highlighting for code blocks (prism.js)
-- [ ] UI: Support for:
+- [x] Rust: Store messages as markdown in database (messages already stored as text, supports markdown)
+- [x] UI: Markdown preview in message input (toggle)
+- [x] UI: Markdown toolbar (bold, italic, code, list, link, quote)
+- [x] UI: Render markdown in messages using react-markdown
+- [x] UI: Syntax highlighting for code blocks (react-syntax-highlighter)
+- [x] UI: Support for:
   - Bold: **text** or __text__
   - Italic: *text* or _text_
   - Code inline: `code`
@@ -156,10 +156,10 @@ Plan to achieve feature parity with Mattermost/Slack and add end-to-end encrypti
   - Links: [text](url)
   - Quotes: > quote
   - Headings: # H1, ## H2, ### H3
-- [ ] Security: Sanitize HTML output (prevent XSS)
-- [ ] UI: Link unfurling (show preview for URLs)
-- [ ] Update README.md
-- [ ] Increment version to 0.23.0
+- [x] Security: Sanitize HTML output (prevent XSS) - using rehype-sanitize
+- [ ] UI: Link unfurling (show preview for URLs) (deferred to future enhancement)
+- [x] Update README.md
+- [x] Increment version to 0.25.0
 
 ### 2.3 Advanced Status & Presence
 - [ ] Create migration: `user_status` table
@@ -664,7 +664,7 @@ Following semantic versioning (MAJOR.MINOR.PATCH):
 - **Minor (0.X.0)**: New features (each major feature phase)
 - **Patch (0.0.X)**: Bug fixes, small improvements
 
-Current version: 0.18.0 (API), 0.14.2 (UI)
+Current version: 0.25.0 (API), 0.6.0 (UI)
 Target for 1.0.0: After Phase 7 completion
 
 ---

@@ -15,6 +15,7 @@ import type {
   User,
   UpdateUserRequest,
   UpdateUserStatusRequest,
+  ThreadResponse,
 } from './types';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080';
@@ -200,6 +201,10 @@ class ApiClient {
     return this.request<void>(`/api/messages/${id}`, {
       method: 'DELETE',
     });
+  }
+
+  async getMessageThread(id: string): Promise<ThreadResponse> {
+    return this.request<ThreadResponse>(`/api/messages/${id}/thread`);
   }
 
   // Reaction endpoints

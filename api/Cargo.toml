@@ -1,6 +1,6 @@
 [package]
 name = "openchat-api"
-version = "0.20.0"
+version = "0.21.0"
 edition = "2024"
 
 [dependencies]
@@ -9,12 +9,14 @@ actix-web = { version = "4", features = ["rustls-0_23"] }
 actix-ws = "0.3"
 actix-cors = "0.7"
 actix = "0.13"
+actix-multipart = "0.7"
 rustls = { version = "0.23", features = ["aws-lc-rs"] }
 rustls-pemfile = "2"
 
 # Async Runtime
 tokio = { version = "1", features = ["full"] }
 futures-util = "0.3"
+async-trait = "0.1"
 
 # Database
 sqlx = { version = "0.8", features = [
@@ -52,3 +54,11 @@ tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 
 # Configuration
 dotenvy = "0.15"
+
+# File Storage
+aws-sdk-s3 = "1"
+aws-config = "1"
+mime = "0.3"
+mime_guess = "2"
+tokio-util = { version = "0.7", features = ["io"] }
+bytes = "1"

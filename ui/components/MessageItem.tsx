@@ -19,9 +19,13 @@ interface MessageItemProps {
   message: Message;
   onReply?: (message: Message) => void;
   onOpenThread?: (message: Message) => void;
+  onPin?: (message: Message) => void;
+  onBookmark?: (message: Message) => void;
+  isPinned?: boolean;
+  isBookmarked?: boolean;
 }
 
-export default function MessageItem({ message, onReply, onOpenThread }: MessageItemProps) {
+export default function MessageItem({ message, onReply, onOpenThread, onPin, onBookmark, isPinned = false, isBookmarked = false }: MessageItemProps) {
   const { user } = useAuth();
   const { addReaction: addReactionToStore, removeReaction: removeReactionFromStore } = useWebSocketStore();
   const [showReactionPicker, setShowReactionPicker] = useState(false);
@@ -274,7 +278,7 @@ export default function MessageItem({ message, onReply, onOpenThread }: MessageI
         </div>
       </div>
 
-      {/* Message actions - Reply, Edit, and Delete */}
+      {/* Message actions - Reply, Pin, Bookmark, Edit, and Delete */}
       {showActions && !isEditing && (
         <div className="absolute right-0 top-0 flex gap-1 rounded-lg border border-gray-700 bg-gray-900 p-1 shadow-sm">
           <button
@@ -293,6 +297,44 @@ export default function MessageItem({ message, onReply, onOpenThread }: MessageI
                 strokeLinejoin="round"
                 strokeWidth={2}
                 d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6"
+              />
+            </svg>
+          </button>
+          <button
+            onClick={() => onPin?.(message)}
+            className="rounded p-1 hover:bg-gray-800"
+            title={isPinned ? "Unpin message" : "Pin message"}
+          >
+            <svg
+              className={`h-4 w-4 ${isPinned ? 'text-yellow-400' : 'text-gray-300'}`}
+              fill={isPinned ? "currentColor" : "none"}
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z"
+              />
+            </svg>
+          </button>
+          <button
+            onClick={() => onBookmark?.(message)}
+            className="rounded p-1 hover:bg-gray-800"
+            title={isBookmarked ? "Remove bookmark" : "Bookmark message"}
+          >
+            <svg
+              className={`h-4 w-4 ${isBookmarked ? 'text-blue-400' : 'text-gray-300'}`}
+              fill={isBookmarked ? "currentColor" : "none"}
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z"
               />
             </svg>
           </button>

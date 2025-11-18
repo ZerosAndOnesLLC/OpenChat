@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useMemo, useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { apiClient } from '@/lib/api';
 import { useWebSocketStore } from '@/lib/websocket';
 import type { Channel, DirectMessage, Message } from '@/lib/types';
@@ -9,6 +9,8 @@ import MessageList from './MessageList';
 import MessageInput from './MessageInput';
 import TypingIndicator from './TypingIndicator';
 import ThreadPanel from './ThreadPanel';
+import PinnedMessagesPanel from './PinnedMessagesPanel';
+import Toast from './Toast';
 
 interface MessageAreaProps {
   channel: Channel | null;
@@ -21,6 +23,8 @@ export default function MessageArea({ channel, dm }: MessageAreaProps) {
   const prevChannelRef = useRef<string | null>(null);
   const [replyTo, setReplyTo] = useState<Message | undefined>(undefined);
   const [openThread, setOpenThread] = useState<string | null>(null);
+  const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
+  const queryClient = useQueryClient();
 
   const currentKey = channel?.id || dm?.id || '';
 
@@ -152,6 +156,82 @@ export default function MessageArea({ channel, dm }: MessageAreaProps) {
     setOpenThread(null);
   };
 
+  // Fetch pinned messages for current channel
+  const { data: pinnedMessages = [] } = useQuery({
+    queryKey: ['pinned-messages', channel?.id],
+    queryFn: () => channel ? apiClient.getChannelPins(channel.id) : Promise.resolve([]),
+    enabled: !!channel,
+  });
+
+  // Fetch user bookmarks
+  const { data: bookmarks = [] } = useQuery({
+    queryKey: ['bookmarks'],
+    queryFn: () => apiClient.getUserBookmarks(),
+  });
+
+  // Create sets for fast lookup
+  const pinnedMessageIds = useMemo(() => {
+    return new Set(pinnedMessages.map(p => p.message_id));
+  }, [pinnedMessages]);
+
+  const bookmarkedMessageIds = useMemo(() => {
+    return new Set(bookmarks.map(b => b.message_id));
+  }, [bookmarks]);
+
+  // Handle pin/unpin
+  const handlePin = async (message: Message) => {
+    if (!channel) return;
+
+    try {
+      const isPinned = pinnedMessageIds.has(message.id);
+      if (isPinned) {
+        await apiClient.unpinMessage(message.id);
+        setToast({ message: 'Message unpinned', type: 'success' });
+      } else {
+        await apiClient.pinMessage(message.id);
+        setToast({ message: 'Message pinned', type: 'success' });
+      }
+      // Refresh pinned messages
+      queryClient.invalidateQueries({ queryKey: ['pinned-messages', channel.id] });
+    } catch (error) {
+      console.error('Failed to pin/unpin message:', error);
+      setToast({ message: 'Failed to update pin', type: 'error' });
+    }
+  };
+
+  // Handle bookmark/unbookmark
+  const handleBookmark = async (message: Message) => {
+    try {
+      const isBookmarked = bookmarkedMessageIds.has(message.id);
+      if (isBookmarked) {
+        await apiClient.unbookmarkMessage(message.id);
+        setToast({ message: 'Bookmark removed', type: 'success' });
+      } else {
+        await apiClient.bookmarkMessage(message.id);
+        setToast({ message: 'Message bookmarked', type: 'success' });
+      }
+      // Refresh bookmarks
+      queryClient.invalidateQueries({ queryKey: ['bookmarks'] });
+    } catch (error) {
+      console.error('Failed to bookmark/unbookmark message:', error);
+      setToast({ message: 'Failed to update bookmark', type: 'error' });
+    }
+  };
+
+  // Handle unpin from panel
+  const handleUnpinFromPanel = async (messageId: string) => {
+    if (!channel) return;
+
+    try {
+      await apiClient.unpinMessage(messageId);
+      setToast({ message: 'Message unpinned', type: 'success' });
+      queryClient.invalidateQueries({ queryKey: ['pinned-messages', channel.id] });
+    } catch (error) {
+      console.error('Failed to unpin message:', error);
+      setToast({ message: 'Failed to unpin message', type: 'error' });
+    }
+  };
+
   if (!channel && !dm) {
     return (
       <div className="flex flex-1 items-center justify-center bg-black">
@@ -165,53 +245,71 @@ export default function MessageArea({ channel, dm }: MessageAreaProps) {
   }
 
   return (
-    <div className="flex flex-1 overflow-hidden">
-      <div className="flex flex-1 flex-col bg-black">
-        <div className="flex h-14 items-center border-b border-gray-800 px-6">
-          <div className="flex items-center">
-            <span className="mr-2 text-xl">
-              {channel
-                ? channel.channel_type === 'private'
-                  ? '🔒'
-                  : '#'
-                : '💬'}
-            </span>
-            <h2 className="text-lg font-semibold text-white">
-              {channel?.name || (dm && 'Direct Message')}
-            </h2>
+    <>
+      <div className="flex flex-1 overflow-hidden">
+        <div className="flex flex-1 flex-col bg-black">
+          <div className="flex h-14 items-center border-b border-gray-800 px-6">
+            <div className="flex items-center">
+              <span className="mr-2 text-xl">
+                {channel
+                  ? channel.channel_type === 'private'
+                    ? '🔒'
+                    : '#'
+                  : '💬'}
+              </span>
+              <h2 className="text-lg font-semibold text-white">
+                {channel?.name || (dm && 'Direct Message')}
+              </h2>
+            </div>
+            {channel?.description && (
+              <p className="ml-4 text-sm text-gray-400">{channel.description}</p>
+            )}
           </div>
-          {channel?.description && (
-            <p className="ml-4 text-sm text-gray-400">{channel.description}</p>
-          )}
-        </div>
 
-        <div className="flex flex-1 flex-col overflow-hidden">
-          <MessageList
-            messages={localMessages}
-            unreadCount={unreadCount}
-            onReply={handleReply}
-            onOpenThread={handleOpenThread}
+          {/* Pinned messages panel - only show for channels */}
+          {channel && <PinnedMessagesPanel channelId={channel.id} onUnpin={handleUnpinFromPanel} />}
+
+          <div className="flex flex-1 flex-col overflow-hidden">
+            <MessageList
+              messages={localMessages}
+              unreadCount={unreadCount}
+              onReply={handleReply}
+              onOpenThread={handleOpenThread}
+              onPin={handlePin}
+              onBookmark={handleBookmark}
+              pinnedMessageIds={pinnedMessageIds}
+              bookmarkedMessageIds={bookmarkedMessageIds}
+            />
+            {currentTyping.length > 0 && (
+              <TypingIndicator users={currentTyping.map((t) => t.userName)} />
+            )}
+          </div>
+
+          <MessageInput
+            channelId={channel?.id}
+            dmId={dm?.id}
+            replyTo={replyTo}
+            onClearReply={handleClearReply}
           />
-          {currentTyping.length > 0 && (
-            <TypingIndicator users={currentTyping.map((t) => t.userName)} />
-          )}
         </div>
 
-        <MessageInput
-          channelId={channel?.id}
-          dmId={dm?.id}
-          replyTo={replyTo}
-          onClearReply={handleClearReply}
-        />
+        {/* Thread panel */}
+        {openThread && (
+          <ThreadPanel
+            messageId={openThread}
+            onClose={handleCloseThread}
+          />
+        )}
       </div>
 
-      {/* Thread panel */}
-      {openThread && (
-        <ThreadPanel
-          messageId={openThread}
-          onClose={handleCloseThread}
+      {/* Toast notification */}
+      {toast && (
+        <Toast
+          message={toast.message}
+          type={toast.type}
+          onClose={() => setToast(null)}
         />
       )}
-    </div>
+    </>
   );
 }

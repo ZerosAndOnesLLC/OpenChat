@@ -122,7 +122,7 @@ Plan to achieve feature parity with Mattermost/Slack and add end-to-end encrypti
 
 ## Phase 2: Enhanced UX & Collaboration (Priority 1)
 
-### 2.1 Message Pinning & Bookmarks
+### 2.1 Message Pinning & Bookmarks ✅ COMPLETE
 - [x] Create migration: `pinned_messages` table
   - channel_id, message_id, pinned_by, pinned_at
   - Unique index on (channel_id, message_id)
@@ -135,14 +135,14 @@ Plan to achieve feature parity with Mattermost/Slack and add end-to-end encrypti
 - [x] API: POST /api/bookmarks - Bookmark message
 - [x] API: DELETE /api/bookmarks/{message_id} - Remove bookmark
 - [x] API: GET /api/bookmarks - List user's bookmarks
-- [ ] UI: Pin icon in message hover menu 
-- [ ] UI: Pinned messages panel at top of channel 
-- [ ] UI: Bookmark icon in message hover menu 
-- [ ] UI: Personal bookmarks sidebar section 
-- [ ] UI: Toast notification when message pinned 
+- [x] UI: Pin icon in message hover menu
+- [x] UI: Pinned messages panel at top of channel
+- [x] UI: Bookmark icon in message hover menu
+- [x] UI: Personal bookmarks sidebar section
+- [x] UI: Toast notification when message pinned
 - [x] WebSocket: Broadcast pin/unpin events
 - [x] Update README.md
-- [x] Increment version to 0.24.0
+- [x] Increment version to 0.24.0 (API), 0.12.0 (UI)
 
 ### 2.2 Rich Text Formatting (Markdown)
 - [x] Rust: Store messages as markdown in database (messages already stored as text, supports markdown)

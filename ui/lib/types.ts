@@ -191,3 +191,22 @@ export interface UnreadCountResponse {
 export interface MarkAsReadRequest {
   last_message_id?: string;
 }
+
+// Pinned message types
+export interface PinnedMessage {
+  id: string;
+  channel_id: string;
+  message_id: string;
+  pinned_by: string;
+  pinned_at: string;
+  message?: Message;
+}
+
+// Bookmark types
+export interface Bookmark {
+  id: string;
+  user_id: string;
+  message_id: string;
+  bookmarked_at: string;
+  message?: Message;
+}

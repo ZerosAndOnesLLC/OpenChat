@@ -274,6 +274,13 @@ Infrastructure is managed via Terraform in `~/dev/terraform/prod/us-east-1/openc
 
 ## Version History
 
+### v0.17.0 (Feature Release)
+- Added reactions to message responses when listing channel and DM messages
+- Messages now include `reactions` array with full reaction details
+- Efficient bulk fetching of reactions for all messages in a single query
+- ReactionResponse includes id, message_id, user_id, emoji, and created_at
+- Reactions persist across page refreshes and are included in all message endpoints
+
 ### v0.15.5 (Bug Fix Release)
 - Fixed `SET LOCAL` to `SET` for RLS context (SET LOCAL requires transaction block)
 - Added organization upsert before user upsert to satisfy foreign key constraint

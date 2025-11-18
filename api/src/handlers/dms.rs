@@ -7,6 +7,7 @@ use crate::{
     errors::{ApiError, ApiResult},
     models::direct_message::{DirectMessage, DmParticipant},
     models::message::{Message, PaginatedMessages},
+    models::reaction::Reaction,
     models::user::User,
     services::tv_api::TokenClaims,
 };
@@ -65,6 +66,27 @@ pub struct PaginatedMessagesResponse {
     pub next_cursor: Option<String>,
 }
 
+#[derive(Debug, Serialize, Clone)]
+pub struct ReactionResponse {
+    pub id: Uuid,
+    pub message_id: Uuid,
+    pub user_id: Uuid,
+    pub emoji: String,
+    pub created_at: String,
+}
+
+impl From<Reaction> for ReactionResponse {
+    fn from(reaction: Reaction) -> Self {
+        Self {
+            id: reaction.id,
+            message_id: reaction.message_id,
+            user_id: reaction.user_id,
+            emoji: reaction.emoji,
+            created_at: reaction.created_at.to_rfc3339(),
+        }
+    }
+}
+
 #[derive(Debug, Serialize)]
 pub struct MessageResponse {
     pub id: Uuid,
@@ -76,6 +98,7 @@ pub struct MessageResponse {
     pub created_at: String,
     pub edited_at: Option<String>,
     pub user: Option<UserResponse>,
+    pub reactions: Vec<ReactionResponse>,
 }
 
 impl From<crate::models::message::Message> for MessageResponse {
@@ -90,6 +113,7 @@ impl From<crate::models::message::Message> for MessageResponse {
             created_at: message.created_at.to_rfc3339(),
             edited_at: message.edited_at.map(|dt| dt.to_rfc3339()),
             user: None,
+            reactions: vec![],
         }
     }
 }
@@ -97,6 +121,11 @@ impl From<crate::models::message::Message> for MessageResponse {
 impl MessageResponse {
     pub fn with_user(mut self, user: User) -> Self {
         self.user = Some(UserResponse::from(user));
+        self
+    }
+
+    pub fn with_reactions(mut self, reactions: Vec<Reaction>) -> Self {
+        self.reactions = reactions.into_iter().map(ReactionResponse::from).collect();
         self
     }
 }
@@ -334,13 +363,38 @@ pub async fn list_dm_messages(
         .map(|u| (u.id, u))
         .collect();
 
-    // Enrich messages with user data
+    // Fetch reactions for all messages
+    let message_ids: Vec<Uuid> = paginated.messages.iter().map(|m| m.id).collect();
+    let reactions = if !message_ids.is_empty() {
+        sqlx::query_as::<_, Reaction>(
+            "SELECT * FROM reactions WHERE message_id = ANY($1) ORDER BY created_at"
+        )
+        .bind(&message_ids)
+        .fetch_all(pool.get_ref())
+        .await?
+    } else {
+        vec![]
+    };
+
+    // Create a map of message_id -> Vec<Reaction> for quick lookup
+    let mut reaction_map: std::collections::HashMap<Uuid, Vec<Reaction>> = std::collections::HashMap::new();
+    for reaction in reactions {
+        reaction_map
+            .entry(reaction.message_id)
+            .or_insert_with(Vec::new)
+            .push(reaction);
+    }
+
+    // Enrich messages with user data and reactions
     let messages_with_users: Vec<MessageResponse> = paginated.messages
         .into_iter()
         .map(|msg| {
             let mut response = MessageResponse::from(msg.clone());
             if let Some(user) = user_map.get(&msg.user_id) {
                 response = response.with_user(user.clone());
+            }
+            if let Some(reactions) = reaction_map.get(&msg.id) {
+                response = response.with_reactions(reactions.clone());
             }
             response
         })

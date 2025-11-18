@@ -194,16 +194,16 @@ Plan to achieve feature parity with Mattermost/Slack and add end-to-end encrypti
 - [x] Increment version to 0.27.0
 
 ### 2.5 Message Editing History
-- [ ] Create migration: `message_edits` table
+- [x] Create migration: `message_edits` table
   - message_id, old_content, edited_by, edited_at
   - Index on (message_id, edited_at)
-- [ ] API: Store edit history when message updated
-- [ ] API: GET /api/messages/{id}/history - Get edit history
-- [ ] UI: "Edited" indicator on messages
-- [ ] UI: Click to show edit history modal
-- [ ] UI: Diff view for edits (show what changed)
-- [ ] Update README.md
-- [ ] Increment version to 0.26.0
+- [x] API: Store edit history when message updated
+- [x] API: GET /api/messages/{id}/history - Get edit history
+- [ ] UI: "Edited" indicator on messages (deferred to future work)
+- [ ] UI: Click to show edit history modal (deferred to future work)
+- [ ] UI: Diff view for edits (show what changed) (deferred to future work)
+- [x] Update README.md
+- [x] Increment version to 0.28.0
 
 ### 2.6 Message Drafts
 - [ ] UI: Store drafts in IndexedDB per channel/DM
@@ -664,7 +664,7 @@ Following semantic versioning (MAJOR.MINOR.PATCH):
 - **Minor (0.X.0)**: New features (each major feature phase)
 - **Patch (0.0.X)**: Bug fixes, small improvements
 
-Current version: 0.25.0 (API), 0.6.0 (UI)
+Current version: 0.28.0 (API), 0.6.0 (UI)
 Target for 1.0.0: After Phase 7 completion
 
 ---

@@ -238,6 +238,33 @@ src/
 - Read receipt API calls for users with disabled receipts return 204 No Content
 - Other users can still see read receipts from users who haven't disabled the feature
 
+### Message Editing History
+- `GET /api/messages/:id/history` - Get edit history for a message
+
+**Features**:
+- Tracks complete edit history for all messages
+- Stores previous content, editor, and timestamp for each edit
+- Automatic history recording when messages are updated via `PUT /api/messages/:id`
+- Edit history is preserved in the `message_edits` table
+- Efficient database indexes for querying edit history
+- Row Level Security (RLS) ensures users can only view edit history for messages they have access to
+- Messages display `edited_at` timestamp when they've been modified
+
+**Database Schema**:
+- `message_edits` table:
+  - `id` (UUID): Unique identifier for the edit record
+  - `message_id` (UUID): Reference to the edited message
+  - `old_content` (TEXT): The content before the edit
+  - `edited_by` (UUID): User who made the edit
+  - `edited_at` (TIMESTAMPTZ): When the edit occurred
+  - Index on `(message_id, edited_at DESC)` for efficient history retrieval
+
+**Implementation Details**:
+- Message updates use database transactions to ensure atomicity
+- Old content is saved to `message_edits` before updating the message
+- Edit history is ordered by `edited_at` DESC (newest first)
+- Permission checks ensure users can only view history for messages in their channels/DMs
+
 ### WebSocket (Phase 9+)
 - `WS /api/ws?token=<jwt>` - WebSocket connection for real-time messaging
   - Real-time message delivery

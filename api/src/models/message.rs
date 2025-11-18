@@ -249,7 +249,36 @@ impl Message {
     }
 
     /// Update a message (edit)
-    pub async fn update(pool: &PgPool, id: Uuid, content: &str) -> ApiResult<Message> {
+    /// This function saves the old content to message_edits table before updating
+    pub async fn update(pool: &PgPool, id: Uuid, content: &str, user_id: Uuid) -> ApiResult<Message> {
+        // Start a transaction to ensure atomicity
+        let mut tx = pool.begin().await?;
+
+        // Fetch the current message content before updating
+        let old_message = sqlx::query_as::<_, Message>(
+            r#"
+            SELECT * FROM messages
+            WHERE id = $1 AND deleted_at IS NULL
+            "#,
+        )
+        .bind(id)
+        .fetch_one(&mut *tx)
+        .await?;
+
+        // Save the old content to message_edits table
+        sqlx::query(
+            r#"
+            INSERT INTO message_edits (message_id, old_content, edited_by)
+            VALUES ($1, $2, $3)
+            "#,
+        )
+        .bind(id)
+        .bind(&old_message.content)
+        .bind(user_id)
+        .execute(&mut *tx)
+        .await?;
+
+        // Update the message with new content
         let message = sqlx::query_as::<_, Message>(
             r#"
             UPDATE messages
@@ -261,8 +290,11 @@ impl Message {
         )
         .bind(content)
         .bind(id)
-        .fetch_one(pool)
+        .fetch_one(&mut *tx)
         .await?;
+
+        // Commit the transaction
+        tx.commit().await?;
 
         Ok(message)
     }

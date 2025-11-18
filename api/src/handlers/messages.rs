@@ -479,7 +479,7 @@ pub async fn update_message(
     }
 
     // Update the message
-    let updated_message = Message::update(pool.get_ref(), *message_id, &body.content).await?;
+    let updated_message = Message::update(pool.get_ref(), *message_id, &body.content, current_user.id).await?;
 
     Ok(HttpResponse::Ok().json(MessageResponse::from(updated_message)))
 }
@@ -643,4 +643,43 @@ pub async fn get_message_thread(
     };
 
     Ok(HttpResponse::Ok().json(response))
+}
+
+/// GET /api/messages/:id/history - Get edit history for a message
+pub async fn get_message_history(
+    pool: web::Data<PgPool>,
+    message_id: web::Path<Uuid>,
+    req: HttpRequest,
+) -> ApiResult<HttpResponse> {
+    let claims = req
+        .extensions()
+        .get::<TokenClaims>()
+        .cloned()
+        .ok_or_else(|| ApiError::Authentication("Missing authentication".to_string()))?;
+
+    // Get current user
+    let current_user = User::get_by_tv_user_id(pool.get_ref(), claims.user_id)
+        .await?
+        .ok_or_else(|| ApiError::NotFound("Current user not found".to_string()))?;
+
+    // Verify message exists
+    let message = Message::get_by_id(pool.get_ref(), *message_id)
+        .await?
+        .ok_or_else(|| ApiError::NotFound("Message not found".to_string()))?;
+
+    // Verify user has access to the message (is member of channel or DM)
+    if let Some(channel_id) = message.channel_id {
+        let is_member = ChannelMember::is_member(pool.get_ref(), channel_id, current_user.id).await?;
+        if !is_member {
+            return Err(ApiError::Authorization(
+                "You are not a member of this channel".to_string(),
+            ));
+        }
+    }
+    // TODO: Add DM permission check when DM functionality is fully implemented
+
+    // Get edit history
+    let edits = crate::models::message_edit::MessageEdit::list_by_message(pool.get_ref(), *message_id).await?;
+
+    Ok(HttpResponse::Ok().json(edits))
 }

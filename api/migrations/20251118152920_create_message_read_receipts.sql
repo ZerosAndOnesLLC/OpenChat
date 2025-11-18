@@ -35,9 +35,8 @@ CREATE POLICY message_read_receipts_select_policy ON message_read_receipts
 
             -- Messages in DMs the user is part of
             SELECT m.id FROM messages m
-            INNER JOIN direct_messages dm ON m.dm_id = dm.id
-            WHERE dm.user1_id = current_setting('app.user_id')::UUID
-               OR dm.user2_id = current_setting('app.user_id')::UUID
+            INNER JOIN dm_participants dp ON m.dm_id = dp.dm_id
+            WHERE dp.user_id = current_setting('app.user_id')::UUID
         )
     );
 
@@ -56,9 +55,8 @@ CREATE POLICY message_read_receipts_insert_policy ON message_read_receipts
 
             -- Messages in DMs the user is part of
             SELECT m.id FROM messages m
-            INNER JOIN direct_messages dm ON m.dm_id = dm.id
-            WHERE dm.user1_id = current_setting('app.user_id')::UUID
-               OR dm.user2_id = current_setting('app.user_id')::UUID
+            INNER JOIN dm_participants dp ON m.dm_id = dp.dm_id
+            WHERE dp.user_id = current_setting('app.user_id')::UUID
         )
     );
 

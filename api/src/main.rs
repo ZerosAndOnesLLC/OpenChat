@@ -34,6 +34,7 @@ use handlers::{
     reactions as reaction_handlers,
     read_status as read_status_handlers,
     search as search_handlers,
+    user_status as user_status_handlers,
     users as user_handlers,
 };
 use middleware::auth::AuthMiddleware;
@@ -173,6 +174,13 @@ async fn main() -> std::io::Result<()> {
                     .route("/{id}", web::get().to(user_handlers::get_user))
                     .route("/{id}", web::put().to(user_handlers::update_user))
                     .route("/{id}/status", web::put().to(user_handlers::update_user_status))
+                    // Advanced status endpoints
+                    .route("/me/status", web::put().to(user_status_handlers::update_my_status))
+                    .route("/me/status/online", web::post().to(user_status_handlers::set_online))
+                    .route("/me/status/away", web::post().to(user_status_handlers::set_away))
+                    .route("/me/status/offline", web::post().to(user_status_handlers::set_offline))
+                    .route("/{id}/status", web::get().to(user_status_handlers::get_user_status))
+                    .route("/status/active", web::get().to(user_status_handlers::get_active_users))
             )
             // Channel routes - require "openchat" role
             .service(

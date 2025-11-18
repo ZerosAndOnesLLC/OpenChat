@@ -70,6 +70,13 @@ pub enum ServerMessage {
         user_id: Uuid,
         status: String,
     },
+    /// Advanced user status changed (with custom message and emoji)
+    StatusUpdate {
+        user_id: Uuid,
+        status: String,
+        custom_message: Option<String>,
+        emoji: Option<String>,
+    },
     /// Reaction added to message
     ReactionAdded {
         message_id: Uuid,

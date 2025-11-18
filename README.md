@@ -2,7 +2,7 @@
 
 **Open-source, self-hosted team collaboration platform - Your data, your control**
 
-[![Version](https://img.shields.io/badge/version-0.33.0-blue.svg)](https://github.com/yourusername/openchat)
+[![Version](https://img.shields.io/badge/version-0.36.0-blue.svg)](https://github.com/yourusername/openchat)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 [![Rust](https://img.shields.io/badge/rust-2024-orange.svg)](https://www.rust-lang.org/)
 [![Next.js](https://img.shields.io/badge/next.js-16-black.svg)](https://nextjs.org/)
@@ -321,12 +321,60 @@ See [DEPLOYMENT.md](docs/DEPLOYMENT.md) for detailed production setup instructio
 
 OpenChat implements **defense-in-depth** security:
 
-1. **Application Layer** - JWT token validation, role-based access control
+1. **Application Layer** - JWT token validation, role-based access control with fine-grained permissions
 2. **Database Layer** - PostgreSQL Row Level Security (RLS) enforces organization isolation
 3. **Network Layer** - TLS encryption, private VPC networking
 4. **Authentication** - SSO integration with enterprise identity providers
 
 Even if application code has bugs, the database prevents cross-organization data access.
+
+### Role-Based Permissions (v0.36.0)
+
+OpenChat implements a comprehensive role-based permission system integrated with SSO:
+
+**SSO Roles**:
+- `openchat-admin` - Full administrative access to all features
+- `openchat` - Standard user access with basic permissions
+
+**Permission System**:
+- **Granular Permissions**: Fine-grained control over channel, organization, and DM operations
+- **SSO Integration**: Roles are provided by your SSO provider (TitaniumVault)
+- **Redis Caching**: Permission checks are cached for 5 minutes for optimal performance
+- **Automatic Mapping**: SSO roles automatically map to permission sets
+
+**Available Permissions**:
+
+**Channel Permissions**:
+- `channel.read` - Read messages and view channel details
+- `channel.write` - Send messages in channels
+- `channel.delete` - Delete channels
+- `channel.invite_users` - Invite users to channels
+- `channel.manage_members` - Add/remove channel members
+- `channel.delete_messages` - Delete any message in channel
+- `channel.pin_messages` - Pin messages in channels
+- `channel.edit_details` - Edit channel name, description, etc.
+
+**Organization Permissions**:
+- `org.create_channels` - Create new channels
+- `org.manage_users` - Manage organization users
+- `org.manage_roles` - Manage roles and permissions
+- `org.view_audit_logs` - View organization audit logs
+- `org.manage_settings` - Manage organization settings
+- `org.manage_integrations` - Manage webhooks and integrations
+
+**DM Permissions**:
+- `dm.read` - Read direct messages
+- `dm.write` - Send direct messages
+- `dm.delete_own_messages` - Delete own messages in DM
+
+**API Endpoints**:
+- `GET /api/roles` - List all roles for organization
+- `GET /api/roles/{id}` - Get role with permissions
+- `GET /api/permissions` - List all available permissions
+
+**Default Permission Sets**:
+- **openchat-admin**: All permissions
+- **openchat**: Basic channel read/write, DM access, create channels
 
 ---
 

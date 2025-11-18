@@ -46,6 +46,7 @@ export interface Message {
   user?: User;
   reactions?: Reaction[];
   reply_count?: number;
+  first_reply?: Message;
 }
 
 // Reaction types

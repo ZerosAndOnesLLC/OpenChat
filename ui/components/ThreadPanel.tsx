@@ -20,7 +20,8 @@ export default function ThreadPanel({ messageId, onClose }: ThreadPanelProps) {
   const { data: threadData, isLoading, error } = useQuery<ThreadResponse>({
     queryKey: ['thread', messageId],
     queryFn: () => apiClient.getMessageThread(messageId),
-    refetchInterval: 5000, // Refresh every 5 seconds
+    refetchInterval: 2000, // Refresh every 2 seconds for near-realtime updates
+    refetchOnWindowFocus: true, // Refetch when window regains focus
   });
 
   // Auto-scroll to bottom when new replies arrive
@@ -89,17 +90,29 @@ export default function ThreadPanel({ messageId, onClose }: ThreadPanelProps) {
   return (
     <div className="flex h-full w-96 flex-col border-l border-gray-800 bg-black">
       {/* Header */}
-      <div className="flex h-14 items-center justify-between border-b border-gray-800 px-4">
-        <h2 className="text-lg font-semibold text-white">Thread</h2>
-        <button
-          onClick={onClose}
-          className="text-gray-400 hover:text-white"
-          title="Close thread"
-        >
-          <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-          </svg>
-        </button>
+      <div className="flex h-14 flex-col justify-center border-b border-gray-800 px-4">
+        <div className="flex items-center justify-between">
+          <h2 className="text-lg font-semibold text-white">Thread</h2>
+          <button
+            onClick={onClose}
+            className="text-gray-400 hover:text-white"
+            title="Close thread"
+          >
+            <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+        {/* Breadcrumb */}
+        <div className="mt-1 flex items-center gap-1 text-xs text-gray-400">
+          <span className="truncate">
+            {threadData.parent.user?.display_name || 'Unknown'}
+          </span>
+          <span>•</span>
+          <span className="truncate">
+            {threadData.replies.length} {threadData.replies.length === 1 ? 'reply' : 'replies'}
+          </span>
+        </div>
       </div>
 
       {/* Thread messages */}

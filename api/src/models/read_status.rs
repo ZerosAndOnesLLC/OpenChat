@@ -90,60 +90,6 @@ impl ChannelReadStatus {
 
         Ok(result)
     }
-
-    /// Get read status for a channel
-    pub async fn get_for_channel(
-        pool: &PgPool,
-        user_id: Uuid,
-        channel_id: Uuid,
-    ) -> ApiResult<Option<ChannelReadStatus>> {
-        let read_status = sqlx::query_as::<_, ChannelReadStatus>(
-            r#"
-            SELECT * FROM channel_read_status
-            WHERE user_id = $1 AND channel_id = $2
-            "#,
-        )
-        .bind(user_id)
-        .bind(channel_id)
-        .fetch_optional(pool)
-        .await?;
-
-        Ok(read_status)
-    }
-
-    /// Get all channels with unread counts for a user
-    pub async fn get_all_for_user(
-        pool: &PgPool,
-        user_id: Uuid,
-    ) -> ApiResult<Vec<(Uuid, i32)>> {
-        let results = sqlx::query_as::<_, (Uuid, i32)>(
-            r#"
-            SELECT
-                c.id,
-                COALESCE(
-                    (SELECT COUNT(*)::int
-                    FROM messages m
-                    WHERE m.channel_id = c.id
-                        AND m.deleted_at IS NULL
-                        AND (
-                            NOT EXISTS (SELECT 1 FROM channel_read_status crs WHERE crs.user_id = $1 AND crs.channel_id = c.id)
-                            OR m.created_at > (SELECT last_read_at FROM channel_read_status WHERE user_id = $1 AND channel_id = c.id)
-                        )
-                        AND m.user_id != $1
-                    ),
-                    0
-                ) as unread_count
-            FROM channels c
-            INNER JOIN channel_members cm ON cm.channel_id = c.id
-            WHERE cm.user_id = $1
-            "#,
-        )
-        .bind(user_id)
-        .fetch_all(pool)
-        .await?;
-
-        Ok(results)
-    }
 }
 
 impl DmReadStatus {
@@ -206,59 +152,5 @@ impl DmReadStatus {
         .await?;
 
         Ok(result)
-    }
-
-    /// Get read status for a DM
-    pub async fn get_for_dm(
-        pool: &PgPool,
-        user_id: Uuid,
-        dm_id: Uuid,
-    ) -> ApiResult<Option<DmReadStatus>> {
-        let read_status = sqlx::query_as::<_, DmReadStatus>(
-            r#"
-            SELECT * FROM dm_read_status
-            WHERE user_id = $1 AND dm_id = $2
-            "#,
-        )
-        .bind(user_id)
-        .bind(dm_id)
-        .fetch_optional(pool)
-        .await?;
-
-        Ok(read_status)
-    }
-
-    /// Get all DMs with unread counts for a user
-    pub async fn get_all_for_user(
-        pool: &PgPool,
-        user_id: Uuid,
-    ) -> ApiResult<Vec<(Uuid, i32)>> {
-        let results = sqlx::query_as::<_, (Uuid, i32)>(
-            r#"
-            SELECT
-                dm.id,
-                COALESCE(
-                    (SELECT COUNT(*)::int
-                    FROM messages m
-                    WHERE m.dm_id = dm.id
-                        AND m.deleted_at IS NULL
-                        AND (
-                            NOT EXISTS (SELECT 1 FROM dm_read_status drs WHERE drs.user_id = $1 AND drs.dm_id = dm.id)
-                            OR m.created_at > (SELECT last_read_at FROM dm_read_status WHERE user_id = $1 AND dm_id = dm.id)
-                        )
-                        AND m.user_id != $1
-                    ),
-                    0
-                ) as unread_count
-            FROM direct_messages dm
-            INNER JOIN dm_participants dp ON dp.dm_id = dm.id
-            WHERE dp.user_id = $1
-            "#,
-        )
-        .bind(user_id)
-        .fetch_all(pool)
-        .await?;
-
-        Ok(results)
     }
 }

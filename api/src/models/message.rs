@@ -303,22 +303,6 @@ impl Message {
         Ok(messages)
     }
 
-    /// Count replies for a message
-    pub async fn count_replies(pool: &PgPool, message_id: Uuid) -> ApiResult<i64> {
-        let result = sqlx::query_scalar::<_, i64>(
-            r#"
-            SELECT COUNT(*)
-            FROM messages
-            WHERE parent_message_id = $1 AND deleted_at IS NULL
-            "#,
-        )
-        .bind(message_id)
-        .fetch_one(pool)
-        .await?;
-
-        Ok(result)
-    }
-
     /// Count replies for multiple messages (batch operation)
     pub async fn count_replies_batch(
         pool: &PgPool,
@@ -349,6 +333,35 @@ impl Message {
         Ok(results
             .into_iter()
             .map(|r| (r.parent_message_id, r.count))
+            .collect())
+    }
+
+    /// Get first reply for multiple messages (batch operation)
+    /// Returns a map of parent_message_id -> first_reply
+    pub async fn get_first_replies_batch(
+        pool: &PgPool,
+        message_ids: &[Uuid],
+    ) -> ApiResult<std::collections::HashMap<Uuid, Message>> {
+        if message_ids.is_empty() {
+            return Ok(std::collections::HashMap::new());
+        }
+
+        // Use DISTINCT ON to get the first reply for each parent message
+        let results = sqlx::query_as::<_, Message>(
+            r#"
+            SELECT DISTINCT ON (parent_message_id) *
+            FROM messages
+            WHERE parent_message_id = ANY($1) AND deleted_at IS NULL
+            ORDER BY parent_message_id, created_at ASC
+            "#,
+        )
+        .bind(message_ids)
+        .fetch_all(pool)
+        .await?;
+
+        Ok(results
+            .into_iter()
+            .filter_map(|msg| msg.parent_message_id.map(|pid| (pid, msg)))
             .collect())
     }
 }

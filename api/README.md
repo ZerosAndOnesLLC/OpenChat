@@ -295,9 +295,29 @@ Infrastructure is managed via Terraform in `~/dev/terraform/prod/us-east-1/openc
 - ✅ WebSocket message type for unread count updates
 - ✅ UI API client methods for unread endpoints
 
-**Next**: Phase 1.2 - Thread Display UI
+**Phase 1.2 Complete** - Thread Display UI
+- ✅ Inline thread preview showing first reply with user name
+- ✅ Thread side panel with all replies
+- ✅ Thread breadcrumb navigation showing author and reply count
+- ✅ "Reply in thread" button in message hover actions
+- ✅ Real-time thread updates via polling (2-second interval)
+- ✅ Batch fetching of first replies for performance
+- ✅ Thread count badge on parent messages
+
+**Next**: Phase 1.3 - File Attachments with Configurable Storage
 
 ## Version History
+
+### v0.20.0 (Phase 1.2 - Thread Display UI)
+- Added `get_first_replies_batch` method to Message model for efficient first reply fetching
+- Extended MessageResponse to include `first_reply` field
+- Enhanced list_channel_messages endpoint to include first reply for messages with threads
+- Batch fetching of first reply users for optimal performance
+- Removed unused functions: count_replies, get_for_channel, get_all_for_user (ChannelReadStatus), get_for_dm, get_all_for_user (DmReadStatus)
+- UI: Inline thread preview displaying first reply content and author
+- UI: Thread panel with breadcrumb navigation showing author and reply count
+- UI: Improved thread side panel with 2-second polling for near-realtime updates
+- UI: Enhanced thread indicator button styling with hover effects
 
 ### v0.19.0 (Phase 1.1 - Unread Message Tracking)
 - Added channel_read_status and dm_read_status database tables

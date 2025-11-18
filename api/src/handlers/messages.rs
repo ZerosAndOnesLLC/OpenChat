@@ -92,6 +92,7 @@ pub struct MessageResponse {
     pub user: Option<UserResponse>,
     pub reactions: Vec<ReactionResponse>,
     pub reply_count: i64,
+    pub first_reply: Option<Box<MessageResponse>>,
 }
 
 impl From<Message> for MessageResponse {
@@ -108,6 +109,7 @@ impl From<Message> for MessageResponse {
             user: None,
             reactions: vec![],
             reply_count: 0,
+            first_reply: None,
         }
     }
 }
@@ -125,6 +127,11 @@ impl MessageResponse {
 
     pub fn with_reply_count(mut self, reply_count: i64) -> Self {
         self.reply_count = reply_count;
+        self
+    }
+
+    pub fn with_first_reply(mut self, first_reply: MessageResponse) -> Self {
+        self.first_reply = Some(Box::new(first_reply));
         self
     }
 }
@@ -309,7 +316,29 @@ pub async fn list_channel_messages(
     // Fetch reply counts for all messages
     let reply_counts = Message::count_replies_batch(pool.get_ref(), &message_ids).await?;
 
-    // Enrich messages with user data, reactions, and reply counts
+    // Fetch first replies for messages with reply_count > 0
+    let first_replies = Message::get_first_replies_batch(pool.get_ref(), &message_ids).await?;
+
+    // Fetch users for first replies
+    let first_reply_user_ids: Vec<Uuid> = first_replies.values().map(|m| m.user_id).collect();
+    let first_reply_users = if !first_reply_user_ids.is_empty() {
+        sqlx::query_as::<_, User>(
+            "SELECT * FROM users WHERE id = ANY($1)"
+        )
+        .bind(&first_reply_user_ids)
+        .fetch_all(pool.get_ref())
+        .await?
+    } else {
+        vec![]
+    };
+
+    // Create a map of user_id -> User for first reply users
+    let first_reply_user_map: std::collections::HashMap<Uuid, User> = first_reply_users
+        .into_iter()
+        .map(|u| (u.id, u))
+        .collect();
+
+    // Enrich messages with user data, reactions, reply counts, and first replies
     let messages_with_users: Vec<MessageResponse> = paginated.messages
         .into_iter()
         .map(|msg| {
@@ -322,6 +351,16 @@ pub async fn list_channel_messages(
             }
             if let Some(&reply_count) = reply_counts.get(&msg.id) {
                 response = response.with_reply_count(reply_count);
+                // If there's a reply count, include the first reply
+                if reply_count > 0 {
+                    if let Some(first_reply) = first_replies.get(&msg.id) {
+                        let mut first_reply_response = MessageResponse::from(first_reply.clone());
+                        if let Some(user) = first_reply_user_map.get(&first_reply.user_id) {
+                            first_reply_response = first_reply_response.with_user(user.clone());
+                        }
+                        response = response.with_first_reply(first_reply_response);
+                    }
+                }
             }
             response
         })

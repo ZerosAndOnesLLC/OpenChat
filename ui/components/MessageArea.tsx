@@ -22,7 +22,7 @@ export default function MessageArea({ channel, dm }: MessageAreaProps) {
   const currentKey = channel?.id || dm?.id || '';
 
   // Fetch messages when channel/dm changes
-  const { data: fetchedMessages = [] } = useQuery({
+  const { data: fetchedMessages, isError, error } = useQuery({
     queryKey: ['messages', currentKey],
     queryFn: async () => {
       if (channel) {
@@ -57,7 +57,9 @@ export default function MessageArea({ channel, dm }: MessageAreaProps) {
     if (!currentKey) return [];
 
     const wsMessages = messages[currentKey] || [];
-    const allMessages = [...fetchedMessages, ...wsMessages];
+    // Safely handle fetchedMessages being undefined
+    const fetchedArray = Array.isArray(fetchedMessages) ? fetchedMessages : [];
+    const allMessages = [...fetchedArray, ...wsMessages];
 
     // Deduplicate by ID
     const uniqueMessages = Array.from(
@@ -74,7 +76,7 @@ export default function MessageArea({ channel, dm }: MessageAreaProps) {
 
   // Set fetched messages to store
   useEffect(() => {
-    if (currentKey && fetchedMessages.length > 0) {
+    if (currentKey && fetchedMessages && fetchedMessages.length > 0) {
       setMessages(currentKey, []);
     }
   }, [currentKey, fetchedMessages, setMessages]);

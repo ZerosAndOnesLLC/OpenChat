@@ -27,15 +27,19 @@ export default function Sidebar({
   const [newChannelName, setNewChannelName] = useState('');
   const [newChannelType, setNewChannelType] = useState<'public' | 'private'>('public');
 
-  const { data: channels = [], refetch: refetchChannels } = useQuery({
+  const { data: channels, refetch: refetchChannels } = useQuery({
     queryKey: ['channels'],
     queryFn: () => apiClient.listChannels(),
   });
 
-  const { data: dms = [] } = useQuery({
+  const { data: dms } = useQuery({
     queryKey: ['dms'],
     queryFn: () => apiClient.listDms(),
   });
+
+  // Safely handle undefined data from queries
+  const channelsList = Array.isArray(channels) ? channels : [];
+  const dmsList = Array.isArray(dms) ? dms : [];
 
   const handleCreateChannel = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -131,7 +135,7 @@ export default function Sidebar({
             )}
 
             <ChannelList
-              channels={channels}
+              channels={channelsList}
               activeChannel={activeChannel}
               onSelectChannel={onSelectChannel}
             />
@@ -142,7 +146,7 @@ export default function Sidebar({
               <h2 className="text-sm font-semibold text-gray-400">Direct Messages</h2>
             </div>
             <DirectMessageList
-              dms={dms}
+              dms={dmsList}
               activeDm={activeDm}
               onSelectDm={onSelectDm}
             />

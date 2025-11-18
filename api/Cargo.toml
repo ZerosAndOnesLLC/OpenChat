@@ -1,6 +1,6 @@
 [package]
 name = "openchat-api"
-version = "0.22.0"
+version = "0.23.0"
 edition = "2024"
 
 [dependencies]
@@ -54,6 +54,9 @@ tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 
 # Configuration
 dotenvy = "0.15"
+
+# Regex
+regex = "1"
 
 # File Storage
 aws-sdk-s3 = "1"

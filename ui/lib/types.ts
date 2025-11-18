@@ -83,6 +83,26 @@ export interface AttachmentUploadResponse {
   storage_type: string;
 }
 
+// Custom Emoji types
+export interface CustomEmoji {
+  id: string;
+  org_id: string;
+  name: string;
+  image_url?: string;
+  storage_type: string;
+  storage_path: string;
+  created_by: string;
+  created_at: string;
+}
+
+export interface EmojiUploadResponse {
+  id: string;
+  name: string;
+  image_url: string;
+  storage_type: string;
+  created_at: string;
+}
+
 // Reaction types
 export interface Reaction {
   id: string;

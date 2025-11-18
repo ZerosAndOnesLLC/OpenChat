@@ -29,6 +29,7 @@ use handlers::{
     channels as channel_handlers,
     dms as dm_handlers,
     drafts as draft_handlers,
+    emoji as emoji_handlers,
     link_preview as link_preview_handlers,
     mentions as mention_handlers,
     messages as message_handlers,
@@ -340,13 +341,27 @@ async fn main() -> std::io::Result<()> {
                     .wrap(api_rate_limit.clone())
                     .wrap(openchat_auth.clone())
                     .route("", web::get().to(role_handlers::list_roles))
+                    .route("", web::post().to(role_handlers::create_role))
                     .route("/{id}", web::get().to(role_handlers::get_role))
+                    .route("/{id}", web::put().to(role_handlers::update_role))
+                    .route("/{id}", web::delete().to(role_handlers::delete_role))
+                    .route("/{id}/permissions", web::post().to(role_handlers::assign_permissions))
             )
             .service(
                 web::scope("/api/permissions")
                     .wrap(api_rate_limit.clone())
                     .wrap(openchat_auth.clone())
                     .route("", web::get().to(role_handlers::list_permissions))
+            )
+            // Custom Emoji routes - require "openchat" role
+            .service(
+                web::scope("/api/emojis")
+                    .wrap(api_rate_limit.clone())
+                    .wrap(openchat_auth.clone())
+                    .route("/upload", web::post().to(emoji_handlers::upload_emoji))
+                    .route("", web::get().to(emoji_handlers::get_org_emojis))
+                    .route("/{id}", web::delete().to(emoji_handlers::delete_emoji))
+                    .route("/{id}/image", web::get().to(emoji_handlers::get_emoji_image))
             )
             // Metrics routes - require "openchat" role (admin should have additional checks in production)
             .service(

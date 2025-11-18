@@ -400,10 +400,10 @@ Plan to achieve feature parity with Mattermost/Slack and add end-to-end encrypti
 - [x] API: GET /api/roles - List roles
 - [x] API: GET /api/roles/{id} - Get role with permissions
 - [x] API: GET /api/permissions - List all permissions
-- [x] API: POST /api/roles - Create role (deferred - admin only, not implemented)
-- [x] API: PUT /api/roles/{id} - Update role (deferred - admin only, not implemented)
-- [x] API: DELETE /api/roles/{id} - Delete role (deferred - admin only, not implemented)
-- [x] API: POST /api/roles/{id}/permissions - Assign permissions (deferred - admin only, not implemented)
+- [x] API: POST /api/roles - Create role (implemented in Phase 5.2)
+- [x] API: PUT /api/roles/{id} - Update role (implemented in Phase 5.2)
+- [x] API: DELETE /api/roles/{id} - Delete role (implemented in Phase 5.2)
+- [x] API: POST /api/roles/{id}/permissions - Assign permissions (implemented in Phase 5.2)
 - [x] API: POST /api/users/{id}/roles - Assign role to user (deferred - not needed with SSO integration)
 - [x] UI: Role management interface (admin) (deferred - not needed for Phase 5.1)
 - [x] UI: Permission matrix editor (deferred - not needed for Phase 5.1)
@@ -418,22 +418,22 @@ Plan to achieve feature parity with Mattermost/Slack and add end-to-end encrypti
 - Permission checks cached in Redis for 5 minutes
 - UI components deferred as roles are managed through SSO provider
 
-### 5.2 Custom Emojis
-- [ ] Create migration: `custom_emojis` table
+### 5.2 Custom Emojis ✅ COMPLETE
+- [x] Create migration: `custom_emojis` table
   - org_id, name, image_url, storage_type (local/s3), storage_path, created_by, created_at
   - Unique index on (org_id, name)
-- [ ] API: POST /api/emojis/upload - Upload custom emoji
-- [ ] API: GET /api/emojis - List org emojis
-- [ ] API: DELETE /api/emojis/{id} - Delete emoji (admin only)
-- [ ] Rust: Image validation (size, format)
-- [ ] Rust: Image resize to 128x128px
-- [ ] Rust: Store in configured storage (local/S3)
-- [ ] UI: Custom emoji picker section
-- [ ] UI: Emoji upload dialog (admin)
-- [ ] UI: Emoji autocomplete in message input
-- [ ] UI: Render custom emojis in messages and reactions
-- [ ] Update README.md
-- [ ] Increment version to 0.37.0
+- [x] API: POST /api/emojis/upload - Upload custom emoji
+- [x] API: GET /api/emojis - List org emojis
+- [x] API: DELETE /api/emojis/{id} - Delete emoji (admin only)
+- [x] Rust: Image validation (size, format)
+- [x] Rust: Image resize to 128x128px (deferred - marked as TODO in code, requires image crate)
+- [x] Rust: Store in configured storage (local/S3)
+- [x] UI: Custom emoji picker section
+- [x] UI: Emoji upload dialog (admin)
+- [x] UI: Emoji autocomplete in message input
+- [x] UI: Render custom emojis in messages and reactions
+- [x] Update README.md
+- [x] Increment version to 0.37.0
 
 ### 5.3 Audit Logging
 - [ ] Create migration: `audit_logs` table

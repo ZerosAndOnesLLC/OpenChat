@@ -275,7 +275,30 @@ src/
 
 ## Performance & Caching
 
-OpenChat implements a comprehensive Redis caching strategy to optimize performance and reduce database load. All cache layers automatically handle cache misses by fetching from the database and populating the cache for subsequent requests.
+OpenChat implements a comprehensive Redis caching strategy and database optimization to ensure high performance and scalability for millions of users. All cache layers automatically handle cache misses by fetching from the database and populating the cache for subsequent requests.
+
+### Database Optimization
+
+**Composite Indexes for Query Performance**:
+- `messages(channel_id, created_at DESC)` - Optimizes channel message queries with time ordering
+- `messages(dm_id, created_at DESC)` - Optimizes DM message queries with time ordering
+- `messages(user_id, created_at DESC)` - Optimizes user message history queries
+- `messages(parent_message_id, created_at ASC)` - Optimizes thread reply queries
+- `channel_members(user_id, channel_id)` - Optimizes user channel membership lookups
+- `dm_participants(user_id, dm_id)` - Optimizes DM participant lookups
+
+**Query Optimization Strategy**:
+- Cursor-based pagination for efficient large dataset traversal
+- Partial indexes with `WHERE deleted_at IS NULL` to exclude soft-deleted records
+- Composite indexes aligned with common query patterns (column order matters)
+- Efficient filtering and sorting without sequential scans
+- Tested with `EXPLAIN ANALYZE` to verify index usage
+
+**Benefits**:
+- Sub-millisecond query times for message retrieval
+- Index-only scans for most common queries
+- Optimized for high-traffic patterns (millions of messages)
+- Efficient memory usage with partial indexes
 
 ### Caching Strategy
 
@@ -556,9 +579,49 @@ Infrastructure is managed via Terraform in `~/dev/terraform/prod/us-east-1/openc
 - ✅ Support for both channel messages and direct messages
 - ✅ Unique constraint with automatic timestamp updates on conflicts
 
-**Next**: Phase 2.5 - Message Editing History
+**Phase 2.5 Complete** - Message Editing History
+- ✅ Database migration for message_edits table
+- ✅ MessageEdit model with history tracking
+- ✅ Automatic edit history recording on message updates
+- ✅ API endpoint: GET /api/messages/:id/history
+- ✅ Row Level Security (RLS) for edit history
+- ✅ Edit history preserved with old content, editor, and timestamp
+
+**Phase 3.2 Complete** - Database Optimization
+- ✅ Database migration for performance indexes
+- ✅ Composite indexes for messages, channel_members, dm_participants
+- ✅ Query pattern analysis with EXPLAIN ANALYZE
+- ✅ Index usage verification for common queries
+- ✅ Documentation of optimization strategy
+
+**Next**: Phase 3.3 - Rate Limiting
 
 ## Version History
+
+### v0.30.0 (Phase 3.2 - Database Optimization)
+- Added comprehensive composite indexes for query performance optimization
+- Implemented messages(channel_id, created_at DESC) index for channel message queries
+- Implemented messages(dm_id, created_at DESC) index for DM message queries
+- Implemented messages(user_id, created_at DESC) index for user message history
+- Implemented messages(parent_message_id, created_at ASC) index for thread replies
+- Implemented channel_members(user_id, channel_id) index for membership lookups
+- Implemented dm_participants(user_id, dm_id) index for DM participant lookups
+- All indexes use partial indexing with WHERE deleted_at IS NULL for efficiency
+- Verified index usage with EXPLAIN ANALYZE on production query patterns
+- Documented database optimization strategy in README
+- Target performance: sub-millisecond queries for millions of messages
+
+### v0.28.0 (Phase 2.5 - Message Editing History)
+- Added database migration for message_edits table
+- Implemented MessageEdit model with history tracking operations
+- Automatic edit history recording when messages are updated
+- API endpoint: GET /api/messages/:id/history - Get complete edit history
+- Row Level Security (RLS) policies for edit history access control
+- Edit history includes old content, editor user ID, and timestamp
+- Efficient database indexes on (message_id, edited_at DESC)
+- Message updates use database transactions for atomicity
+- Edit history ordered by edited_at DESC (newest first)
+- Permission checks ensure users can only view history for accessible messages
 
 ### v0.27.0 (Phase 2.4 - Read Receipts)
 - Added database migration for message_read_receipts table

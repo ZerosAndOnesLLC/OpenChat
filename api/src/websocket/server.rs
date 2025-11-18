@@ -161,6 +161,7 @@ impl Handler<Disconnect> for WsServer {
 #[rtype(result = "()")]
 pub struct SendMessage {
     pub user_id: Uuid,
+    pub user_name: String,
     pub org_id: Uuid,
     pub channel_id: Option<Uuid>,
     pub dm_id: Option<Uuid>,
@@ -180,6 +181,7 @@ impl Handler<SendMessage> for WsServer {
             channel_id: msg.channel_id,
             dm_id: msg.dm_id,
             user_id: msg.user_id,
+            user_name: msg.user_name,
             content: msg.content,
             parent_message_id: msg.parent_message_id,
             created_at: chrono::Utc::now().to_rfc3339(),

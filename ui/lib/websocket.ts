@@ -29,6 +29,7 @@ interface WebSocketStore {
   updateMessage: (messageId: string, content: string, editedAt: string) => void;
   deleteMessage: (messageId: string) => void;
   addReaction: (messageId: string, userId: string, emoji: string) => void;
+  removeReaction: (messageId: string, userId: string, emoji: string) => void;
   setMessages: (key: string, messages: Message[]) => void;
   clearMessages: (key: string) => void;
 }
@@ -71,12 +72,28 @@ export const useWebSocketStore = create<WebSocketStore>((set, get) => ({
 
         switch (message.type) {
           case 'new_message': {
-            if (!message.message) {
-              console.error('Received new_message without message data:', message);
-              break;
-            }
-            const key = message.message.channel_id || message.message.dm_id || '';
-            get().addMessage(key, message.message);
+            // Message fields come directly on the message object now
+            const newMessage: Message = {
+              id: message.id,
+              channel_id: message.channel_id,
+              dm_id: message.dm_id,
+              user_id: message.user_id,
+              content: message.content,
+              parent_message_id: message.parent_message_id,
+              created_at: message.created_at,
+              user: {
+                id: message.user_id,
+                display_name: message.user_name,
+                email: '',
+                org_id: '',
+                tv_user_id: '',
+                status: 'online',
+                created_at: '',
+                updated_at: '',
+              },
+            };
+            const key = newMessage.channel_id || newMessage.dm_id || '';
+            get().addMessage(key, newMessage);
             break;
           }
 
@@ -160,6 +177,30 @@ export const useWebSocketStore = create<WebSocketStore>((set, get) => ({
               break;
             }
             get().addReaction(message.message_id, message.user_id, message.emoji);
+            break;
+          }
+
+          case 'reaction_removed': {
+            if (!message.message_id || !message.user_id || !message.emoji) {
+              console.error('Received reaction_removed with missing data:', message);
+              break;
+            }
+            get().removeReaction(message.message_id, message.user_id, message.emoji);
+            break;
+          }
+
+          case 'connected': {
+            console.log('WebSocket connection confirmed for user:', message.user_id);
+            break;
+          }
+
+          case 'error': {
+            console.error('WebSocket error from server:', message.message);
+            break;
+          }
+
+          case 'pong': {
+            // Response to ping, can be used for latency monitoring
             break;
           }
 
@@ -299,6 +340,27 @@ export const useWebSocketStore = create<WebSocketStore>((set, get) => ({
                 ],
               };
             }
+          }
+          return msg;
+        });
+      });
+      return { messages: newMessages };
+    });
+  },
+
+  removeReaction: (messageId, userId, emoji) => {
+    set((state) => {
+      const newMessages = { ...state.messages };
+      Object.keys(newMessages).forEach((key) => {
+        newMessages[key] = newMessages[key].map((msg) => {
+          if (msg.id === messageId) {
+            const reactions = msg.reactions || [];
+            return {
+              ...msg,
+              reactions: reactions.filter(
+                (r) => !(r.user_id === userId && r.emoji === emoji)
+              ),
+            };
           }
           return msg;
         });

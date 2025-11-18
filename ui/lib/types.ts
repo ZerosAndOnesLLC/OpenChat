@@ -87,12 +87,16 @@ export type WSClientMessage =
   | { type: 'update_status'; status: 'online' | 'offline' | 'away' };
 
 export type WSServerMessage =
-  | { type: 'new_message'; message: Message }
+  | { type: 'new_message'; id: string; channel_id?: string; dm_id?: string; user_id: string; user_name: string; content: string; parent_message_id?: string; created_at: string }
   | { type: 'message_edited'; message_id: string; content: string; edited_at: string }
   | { type: 'message_deleted'; message_id: string }
   | { type: 'user_typing'; user_id: string; channel_id?: string; dm_id?: string; user_name: string }
   | { type: 'user_status'; user_id: string; status: 'online' | 'offline' | 'away' }
-  | { type: 'reaction_added'; message_id: string; user_id: string; emoji: string };
+  | { type: 'reaction_added'; message_id: string; user_id: string; emoji: string }
+  | { type: 'reaction_removed'; message_id: string; user_id: string; emoji: string }
+  | { type: 'connected'; user_id: string }
+  | { type: 'error'; message: string }
+  | { type: 'pong' };
 
 // API Request/Response types
 export interface CreateChannelRequest {

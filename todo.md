@@ -162,21 +162,21 @@ Plan to achieve feature parity with Mattermost/Slack and add end-to-end encrypti
 - [x] Increment version to 0.25.0
 
 ### 2.3 Advanced Status & Presence
-- [ ] Create migration: `user_status` table
+- [x] Create migration: `user_status` table
   - user_id, status (online/away/dnd/offline), custom_message, emoji, clear_at, updated_at
-- [ ] API: PUT /api/users/me/status - Update status
-- [ ] API: GET /api/users/{id}/status - Get user status
-- [ ] Rust: Auto-away logic (after 15 min inactivity)
-- [ ] WebSocket: Heartbeat to track activity
-- [ ] WebSocket: Broadcast status changes
-- [ ] Cache: User status in Redis (5 min TTL)
-- [ ] UI: Status picker dropdown
-- [ ] UI: Custom status input with emoji
-- [ ] UI: "Clear status after" time selector
-- [ ] UI: Status indicator on user avatars
-- [ ] UI: User profile shows full status
-- [ ] Update README.md
-- [ ] Increment version to 0.24.0
+- [x] API: PUT /api/users/me/status - Update status
+- [x] API: GET /api/users/{id}/status - Get user status
+- [x] Rust: Auto-away logic (after 15 min inactivity)
+- [x] WebSocket: Heartbeat to track activity
+- [x] WebSocket: Broadcast status changes
+- [x] Cache: User status in Redis (5 min TTL)
+- [ ] UI: Status picker dropdown (deferred to future work)
+- [ ] UI: Custom status input with emoji (deferred to future work)
+- [ ] UI: "Clear status after" time selector (deferred to future work)
+- [ ] UI: Status indicator on user avatars (deferred to future work)
+- [ ] UI: User profile shows full status (deferred to future work)
+- [x] Update README.md
+- [x] Increment version to 0.26.0
 
 ### 2.4 Read Receipts
 - [ ] Create migration: `message_read_receipts` table

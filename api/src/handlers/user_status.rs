@@ -1,5 +1,5 @@
 use actix_web::{web, HttpMessage, HttpRequest, HttpResponse};
-use chrono::{DateTime, Duration, Utc};
+use chrono::{Duration, Utc};
 use serde::{Deserialize, Serialize};
 use sqlx::PgPool;
 use uuid::Uuid;

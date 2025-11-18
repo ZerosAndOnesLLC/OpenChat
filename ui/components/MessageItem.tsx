@@ -15,9 +15,11 @@ import { Theme } from 'emoji-picker-react';
 
 interface MessageItemProps {
   message: Message;
+  onReply?: (message: Message) => void;
+  onOpenThread?: (message: Message) => void;
 }
 
-export default function MessageItem({ message }: MessageItemProps) {
+export default function MessageItem({ message, onReply, onOpenThread }: MessageItemProps) {
   const { user } = useAuth();
   const { addReaction: addReactionToStore, removeReaction: removeReactionFromStore } = useWebSocketStore();
   const [showReactionPicker, setShowReactionPicker] = useState(false);
@@ -232,16 +234,34 @@ export default function MessageItem({ message }: MessageItemProps) {
               </div>
             )}
           </div>
+
+          {/* Thread indicator - show if message has replies */}
+          {message.reply_count && message.reply_count > 0 && (
+            <button
+              onClick={() => onOpenThread?.(message)}
+              className="mt-2 flex items-center gap-1 text-xs text-blue-400 hover:underline"
+            >
+              <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6"
+                />
+              </svg>
+              <span>{message.reply_count} {message.reply_count === 1 ? 'reply' : 'replies'}</span>
+            </button>
+          )}
         </div>
       </div>
 
-      {/* Message actions - Edit and Delete only (Reaction moved inline) */}
-      {showActions && !isEditing && isOwnMessage && (
+      {/* Message actions - Reply, Edit, and Delete */}
+      {showActions && !isEditing && (
         <div className="absolute right-0 top-0 flex gap-1 rounded-lg border border-gray-700 bg-gray-900 p-1 shadow-sm">
           <button
-            onClick={() => setIsEditing(true)}
+            onClick={() => onReply?.(message)}
             className="rounded p-1 hover:bg-gray-800"
-            title="Edit message"
+            title="Reply in thread"
           >
             <svg
               className="h-4 w-4 text-gray-300"
@@ -253,29 +273,52 @@ export default function MessageItem({ message }: MessageItemProps) {
                 strokeLinecap="round"
                 strokeLinejoin="round"
                 strokeWidth={2}
-                d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
+                d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6"
               />
             </svg>
           </button>
-          <button
-            onClick={handleDelete}
-            className="rounded p-1 hover:bg-gray-800"
-            title="Delete message"
-          >
-            <svg
-              className="h-4 w-4 text-red-400"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
-              />
-            </svg>
-          </button>
+          {isOwnMessage && (
+            <>
+              <button
+                onClick={() => setIsEditing(true)}
+                className="rounded p-1 hover:bg-gray-800"
+                title="Edit message"
+              >
+                <svg
+                  className="h-4 w-4 text-gray-300"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
+                  />
+                </svg>
+              </button>
+              <button
+                onClick={handleDelete}
+                className="rounded p-1 hover:bg-gray-800"
+                title="Delete message"
+              >
+                <svg
+                  className="h-4 w-4 text-red-400"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
+                  />
+                </svg>
+              </button>
+            </>
+          )}
         </div>
       )}
     </div>

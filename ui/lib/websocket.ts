@@ -20,7 +20,7 @@ interface WebSocketStore {
 
   connect: (token: string) => void;
   disconnect: () => void;
-  sendMessage: (channelId: string | undefined, dmId: string | undefined, content: string) => void;
+  sendMessage: (channelId: string | undefined, dmId: string | undefined, content: string, parentMessageId?: string) => void;
   sendTyping: (channelId: string | undefined, dmId: string | undefined) => void;
   subscribeChannel: (channelId: string) => void;
   unsubscribeChannel: (channelId: string) => void;
@@ -225,7 +225,7 @@ export const useWebSocketStore = create<WebSocketStore>((set, get) => ({
     }
   },
 
-  sendMessage: (channelId, dmId, content) => {
+  sendMessage: (channelId, dmId, content, parentMessageId) => {
     const { ws } = get();
     if (ws && ws.readyState === WebSocket.OPEN) {
       const message: WSClientMessage = {
@@ -233,6 +233,7 @@ export const useWebSocketStore = create<WebSocketStore>((set, get) => ({
         content,
         ...(channelId ? { channel_id: channelId } : {}),
         ...(dmId ? { dm_id: dmId } : {}),
+        ...(parentMessageId ? { parent_message_id: parentMessageId } : {}),
       };
       ws.send(JSON.stringify(message));
     }

@@ -45,6 +45,7 @@ export interface Message {
   deleted_at?: string;
   user?: User;
   reactions?: Reaction[];
+  reply_count?: number;
 }
 
 // Reaction types
@@ -80,7 +81,7 @@ export interface DmParticipant {
 
 // WebSocket message types
 export type WSClientMessage =
-  | { type: 'send_message'; channel_id?: string; dm_id?: string; content: string }
+  | { type: 'send_message'; channel_id?: string; dm_id?: string; content: string; parent_message_id?: string }
   | { type: 'typing'; channel_id?: string; dm_id?: string }
   | { type: 'subscribe_channel'; channel_id: string }
   | { type: 'unsubscribe_channel'; channel_id: string }
@@ -149,4 +150,10 @@ export interface PaginatedResponse<T> {
   total: number;
   page: number;
   page_size: number;
+}
+
+// Thread types
+export interface ThreadResponse {
+  parent: Message;
+  replies: Message[];
 }

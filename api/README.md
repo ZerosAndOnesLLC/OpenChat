@@ -19,6 +19,7 @@ Open-source team chat application backend - similar to Slack/Mattermost.
 - Real-time messaging via WebSockets
 - Public and private channels
 - Direct messages (1-on-1 and groups)
+- Message threading (replies to messages)
 - Message reactions and editing
 - User presence and typing indicators
 - Horizontally scalable WebSocket support
@@ -110,8 +111,9 @@ src/
 - `DELETE /api/channels/:id` - Delete channel
 
 ### Messages (Phase 6+)
-- `POST /api/messages` - Send message to channel or DM
-- `GET /api/channels/:id/messages` - List channel messages (paginated)
+- `POST /api/messages` - Send message to channel or DM (supports `parent_message_id` for threading)
+- `GET /api/channels/:id/messages` - List channel messages (paginated, includes `reply_count`)
+- `GET /api/messages/:id/thread` - Get thread messages (parent message + all replies)
 - `PUT /api/messages/:id` - Edit message
 - `DELETE /api/messages/:id` - Soft delete message
 - `POST /api/messages/:id/reactions` - Add reaction to message

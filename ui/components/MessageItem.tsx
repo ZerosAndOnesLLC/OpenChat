@@ -239,17 +239,29 @@ export default function MessageItem({ message, onReply, onOpenThread }: MessageI
           {message.reply_count && message.reply_count > 0 && (
             <button
               onClick={() => onOpenThread?.(message)}
-              className="mt-2 flex items-center gap-1 text-xs text-blue-400 hover:underline"
+              className="mt-2 rounded-md border border-gray-700 bg-gray-900 p-2 text-left hover:border-gray-600 hover:bg-gray-800"
             >
-              <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6"
-                />
-              </svg>
-              <span>{message.reply_count} {message.reply_count === 1 ? 'reply' : 'replies'}</span>
+              <div className="flex items-center gap-2">
+                <svg className="h-4 w-4 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6"
+                  />
+                </svg>
+                <span className="text-xs font-semibold text-blue-400">
+                  {message.reply_count} {message.reply_count === 1 ? 'reply' : 'replies'}
+                </span>
+              </div>
+              {message.first_reply && (
+                <div className="ml-6 mt-1 text-xs text-gray-400">
+                  <span className="font-semibold text-gray-300">
+                    {message.first_reply.user?.display_name || 'Unknown'}:
+                  </span>{' '}
+                  <span className="line-clamp-1">{message.first_reply.content}</span>
+                </div>
+              )}
             </button>
           )}
         </div>

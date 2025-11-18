@@ -24,6 +24,10 @@ Modern real-time team chat application built with Next.js 15.
 - ✅ User presence (online/offline/away)
 - ✅ Message reactions (emoji)
 - ✅ Message editing and deletion
+- ✅ Message drafts (auto-save to IndexedDB)
+- ✅ Rich text formatting (Markdown)
+- ✅ Keyboard shortcuts (Cmd+K, Cmd+/, Esc, Cmd+Enter)
+- ✅ Quick channel/DM switcher (Cmd+K)
 - ✅ TitaniumVault SSO integration
 - ✅ Beautiful, responsive UI
 
@@ -44,13 +48,17 @@ openchat/ui/
 │   ├── MessageArea.tsx    # Message display area
 │   ├── MessageList.tsx    # Message list with scrolling
 │   ├── MessageItem.tsx    # Individual message with reactions and thread preview
-│   ├── MessageInput.tsx   # Message input with typing indicators
+│   ├── MessageInput.tsx   # Message input with typing indicators and drafts
 │   ├── ThreadPanel.tsx    # Thread side panel for replies
-│   └── TypingIndicator.tsx # Typing indicator UI
+│   ├── TypingIndicator.tsx # Typing indicator UI
+│   ├── KeyboardShortcutsHelp.tsx # Keyboard shortcuts help modal
+│   └── QuickSwitcher.tsx  # Quick channel/DM switcher modal
 ├── lib/                   # Core libraries
 │   ├── api.ts            # API client
 │   ├── websocket.ts      # WebSocket client and store
 │   ├── auth.tsx          # Authentication hooks and store
+│   ├── drafts.ts         # Message drafts manager (IndexedDB)
+│   ├── keyboard-shortcuts.ts # Keyboard shortcuts manager
 │   ├── types.ts          # TypeScript types
 │   └── providers.tsx     # React Query provider
 └── .env.local            # Environment variables
@@ -224,7 +232,7 @@ npm run build
 
 ## Version
 
-Current version: 0.3.0
+Current version: 0.8.0
 
 Increment version before commits:
 - **Patch** (0.1.x): Bug fixes, small tweaks
@@ -232,6 +240,37 @@ Increment version before commits:
 - **Major** (x.0.0): Breaking changes
 
 ### Recent Changes
+
+**v0.8.0** - Keyboard Shortcuts (Phase 2.7)
+- Implemented global keyboard shortcuts manager
+- Cmd/Ctrl+K: Quick switcher for channels and DMs with search
+- Cmd/Ctrl+/: Show keyboard shortcuts help modal
+- Cmd/Ctrl+Enter: Send message from textarea
+- Escape: Close modals and panels
+- QuickSwitcher component with fuzzy search and keyboard navigation
+- KeyboardShortcutsHelp modal showing all available shortcuts
+- Category-based organization of shortcuts (Navigation, Messaging, General)
+- Platform-aware shortcut display (⌘ for Mac, Ctrl for others)
+
+**v0.7.0** - Message Drafts (Phase 2.6)
+- Implemented IndexedDB-based draft storage per channel/DM
+- Auto-save draft every 2 seconds while typing
+- Automatic draft restore when switching channels/DMs
+- Draft cleared automatically on message send
+- Drafts persist across browser sessions
+- Clean draft management with automatic cleanup of empty drafts
+
+**v0.6.0** - Read Receipts & Message History (Phase 2.4-2.5)
+- API integration for read receipts and message edit history
+- Backend support for tracking message views
+- Foundation for future UI implementation
+
+**v0.5.0** - Rich Text Formatting (Phase 2.2)
+- Full Markdown support with live preview toggle
+- Markdown toolbar with formatting shortcuts
+- Syntax highlighting for code blocks
+- Sanitized HTML output to prevent XSS attacks
+- Support for bold, italic, code, lists, links, quotes, and headings
 
 **v0.4.0** - Thread Display UI (Phase 1.2)
 - Added `first_reply` field to Message type for inline thread previews

@@ -19,6 +19,7 @@ mod models;
 mod routes;
 mod services;
 mod storage;
+mod tasks;
 mod websocket;
 
 use config::Config;
@@ -139,6 +140,11 @@ async fn main() -> std::io::Result<()> {
         .unwrap_or_else(|_| "/var/openchat/uploads".to_string());
     let storage_factory = Arc::new(StorageFactory::new(db_pool.clone(), local_storage_path));
     info!("Storage factory initialized");
+
+    // Start background tasks
+    info!("Starting background tasks...");
+    tasks::start_background_tasks(db_pool.clone(), ws_server.clone());
+    info!("Background tasks started");
 
     // Build HTTP server
     let server = HttpServer::new(move || {

@@ -185,6 +185,38 @@ src/
 - Self-notification prevention
 - Unread mention and notification counters
 
+### Message Pinning & Bookmarks
+- `POST /api/messages/:id/pin` - Pin message to channel (requires permission)
+- `DELETE /api/messages/:id/pin` - Unpin message from channel
+- `GET /api/channels/:id/pins` - List pinned messages in channel
+- `POST /api/bookmarks` - Bookmark a message for later
+- `DELETE /api/bookmarks/:message_id` - Remove bookmark
+- `GET /api/bookmarks` - List user's bookmarked messages
+
+**Features**:
+- Channel-level message pinning (admin/moderator only)
+- Personal message bookmarks (private to user)
+- WebSocket events for pin/unpin actions
+- Bookmarks persist across devices
+
+### User Status & Presence
+- `PUT /api/users/me/status` - Update status with custom message and emoji
+- `POST /api/users/me/status/online` - Quick set status to online
+- `POST /api/users/me/status/away` - Quick set status to away
+- `POST /api/users/me/status/offline` - Quick set status to offline
+- `GET /api/users/:id/status` - Get user's current status
+- `GET /api/users/status/active` - Get all active users in organization
+
+**Features**:
+- Status types: online, away, dnd (do not disturb), offline
+- Custom status messages with emoji support
+- Auto-clear status after specified time
+- Auto-away after 15 minutes of inactivity
+- Redis caching for status data (5-minute TTL)
+- WebSocket broadcasting of status changes
+- Activity tracking via WebSocket heartbeat
+- Background task for auto-away and expired status cleanup
+
 ### WebSocket (Phase 9+)
 - `WS /api/ws?token=<jwt>` - WebSocket connection for real-time messaging
   - Real-time message delivery
@@ -387,9 +419,75 @@ Infrastructure is managed via Terraform in `~/dev/terraform/prod/us-east-1/openc
 - ✅ Regex-based mention detection in message content
 - ✅ Prevention of self-notification
 
-**Next**: Phase 2 - Enhanced UX & Collaboration
+**Phase 2.1 Complete** - Message Pinning & Bookmarks
+- ✅ Database migrations for pinned_messages and bookmarks tables
+- ✅ PinnedMessage and Bookmark models with CRUD operations
+- ✅ API endpoints: POST /api/messages/:id/pin, DELETE /api/messages/:id/pin
+- ✅ API endpoint: GET /api/channels/:id/pins - List pinned messages
+- ✅ API endpoints: POST /api/bookmarks, DELETE /api/bookmarks/:message_id
+- ✅ API endpoint: GET /api/bookmarks - List user's bookmarks
+- ✅ WebSocket broadcasting for pin/unpin events
+
+**Phase 2.2 Complete** - Rich Text Formatting (Markdown)
+- ✅ Messages stored as text/markdown in database
+- ✅ UI: Markdown preview toggle in message input
+- ✅ UI: Markdown toolbar (bold, italic, code, list, link, quote)
+- ✅ UI: Markdown rendering with react-markdown
+- ✅ UI: Syntax highlighting with react-syntax-highlighter
+- ✅ UI: Support for bold, italic, code, lists, links, quotes, headings
+- ✅ Security: HTML sanitization with rehype-sanitize
+
+**Phase 2.3 Complete** - Advanced Status & Presence
+- ✅ Database migration for user_status table
+- ✅ UserStatus model with status types (online/away/dnd/offline)
+- ✅ API endpoints: PUT /api/users/me/status - Update status with custom message/emoji
+- ✅ API endpoints: Quick status setters (POST /api/users/me/status/{online|away|offline})
+- ✅ API endpoint: GET /api/users/:id/status - Get user status
+- ✅ API endpoint: GET /api/users/status/active - Get active users in org
+- ✅ Auto-away logic after 15 minutes of inactivity
+- ✅ WebSocket heartbeat for activity tracking
+- ✅ WebSocket broadcasting of status changes
+- ✅ Redis caching for user status (5-minute TTL)
+- ✅ Background tasks for auto-away and expired status cleanup
+- ✅ Custom status messages with emoji and auto-clear time
+
+**Next**: Phase 2.4 - Read Receipts
 
 ## Version History
+
+### v0.26.0 (Phase 2.3 - Advanced Status & Presence)
+- Added database migration for user_status table
+- Implemented UserStatus model with status types (online/away/dnd/offline)
+- API endpoints for updating and retrieving user status
+- Quick status setter endpoints for online/away/offline
+- Custom status messages with emoji and auto-clear functionality
+- Auto-away logic: sets users to 'away' after 15 minutes of inactivity
+- Background tasks module for auto-away and expired status cleanup
+- WebSocket activity tracking via message handling
+- WebSocket broadcasting of status changes to organization members
+- Redis caching for user status with 5-minute TTL
+- Touch activity tracking in database updated_at field
+- Tasks run every 5 minutes (auto-away) and 10 minutes (clear expired)
+
+### v0.25.0 (Phase 2.2 - Rich Text Formatting / Markdown)
+- UI: Markdown toolbar for message composition
+- UI: Markdown preview toggle in message input
+- UI: Full markdown rendering with react-markdown
+- UI: Syntax highlighting for code blocks using react-syntax-highlighter
+- Security: HTML sanitization with rehype-sanitize
+- Support for bold, italic, inline code, code blocks, lists, links, quotes, headings
+- Dependencies added: react-markdown, react-syntax-highlighter, rehype-sanitize, remark-gfm
+
+### v0.24.0 (Phase 2.1 - Message Pinning & Bookmarks)
+- Added database migrations for pinned_messages and bookmarks tables
+- Implemented PinnedMessage model with pin/unpin operations
+- Implemented Bookmark model with create/delete operations
+- API endpoints: POST/DELETE /api/messages/:id/pin for pinning
+- API endpoint: GET /api/channels/:id/pins for listing pinned messages
+- API endpoints: POST /api/bookmarks, DELETE /api/bookmarks/:message_id
+- API endpoint: GET /api/bookmarks for listing user bookmarks
+- WebSocket PubSubEvent for pin/unpin broadcasts
+- Personal bookmarks are private to each user
 
 ### v0.23.0 (Phase 1.5 - @Mentions & Notifications)
 - Added database migrations for mentions and notifications tables

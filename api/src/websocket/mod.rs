@@ -56,6 +56,7 @@ pub async fn ws_route(
         claims.org_id,
         user.display_name,
         server.get_ref().clone(),
+        pool.get_ref().clone(),
     );
 
     // Upgrade connection to WebSocket

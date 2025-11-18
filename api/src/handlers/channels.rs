@@ -1,9 +1,11 @@
 use actix_web::{web, HttpMessage, HttpRequest, HttpResponse};
+use redis::aio::MultiplexedConnection;
 use serde::{Deserialize, Serialize};
 use sqlx::PgPool;
 use uuid::Uuid;
 
 use crate::{
+    cache::channels as channel_cache,
     errors::{ApiError, ApiResult},
     models::channel::{Channel, ChannelMember},
     models::user::User,
@@ -117,6 +119,7 @@ pub async fn create_channel(
 /// GET /api/channels/:id - Get channel details
 pub async fn get_channel(
     pool: web::Data<PgPool>,
+    redis: web::Data<MultiplexedConnection>,
     channel_id: web::Path<Uuid>,
     req: HttpRequest,
 ) -> ApiResult<HttpResponse> {
@@ -126,9 +129,22 @@ pub async fn get_channel(
         .cloned()
         .ok_or_else(|| ApiError::Authentication("Missing authentication".to_string()))?;
 
+    let mut redis_conn = redis.as_ref().clone();
+
+    // Try to get from cache first
+    if let Some(channel) = channel_cache::get_channel_from_cache(&mut redis_conn, *channel_id).await? {
+        return Ok(HttpResponse::Ok().json(ChannelResponse::from(channel)));
+    }
+
+    // Cache miss - fetch from database
     let channel = Channel::get_by_id(pool.get_ref(), *channel_id)
         .await?
         .ok_or_else(|| ApiError::NotFound("Channel not found".to_string()))?;
+
+    // Store in cache for next time
+    if let Err(e) = channel_cache::set_channel_in_cache(&mut redis_conn, &channel).await {
+        tracing::warn!("Failed to cache channel: {}", e);
+    }
 
     Ok(HttpResponse::Ok().json(ChannelResponse::from(channel)))
 }
@@ -136,6 +152,7 @@ pub async fn get_channel(
 /// PUT /api/channels/:id - Update channel
 pub async fn update_channel(
     pool: web::Data<PgPool>,
+    redis: web::Data<MultiplexedConnection>,
     channel_id: web::Path<Uuid>,
     body: web::Json<UpdateChannelRequest>,
     req: HttpRequest,
@@ -171,12 +188,19 @@ pub async fn update_channel(
     )
     .await?;
 
+    // Invalidate cache after update
+    let mut redis_conn = redis.as_ref().clone();
+    if let Err(e) = channel_cache::invalidate_channel_cache(&mut redis_conn, *channel_id).await {
+        tracing::warn!("Failed to invalidate channel cache: {}", e);
+    }
+
     Ok(HttpResponse::Ok().json(ChannelResponse::from(updated_channel)))
 }
 
 /// DELETE /api/channels/:id - Delete channel
 pub async fn delete_channel(
     pool: web::Data<PgPool>,
+    redis: web::Data<MultiplexedConnection>,
     channel_id: web::Path<Uuid>,
     req: HttpRequest,
 ) -> ApiResult<HttpResponse> {
@@ -205,12 +229,22 @@ pub async fn delete_channel(
 
     Channel::delete(pool.get_ref(), *channel_id).await?;
 
+    // Invalidate cache after deletion
+    let mut redis_conn = redis.as_ref().clone();
+    if let Err(e) = channel_cache::invalidate_channel_cache(&mut redis_conn, *channel_id).await {
+        tracing::warn!("Failed to invalidate channel cache: {}", e);
+    }
+    if let Err(e) = channel_cache::invalidate_channel_members_cache(&mut redis_conn, *channel_id).await {
+        tracing::warn!("Failed to invalidate channel members cache: {}", e);
+    }
+
     Ok(HttpResponse::NoContent().finish())
 }
 
 /// GET /api/channels/:id/members - List channel members
 pub async fn list_members(
     pool: web::Data<PgPool>,
+    redis: web::Data<MultiplexedConnection>,
     channel_id: web::Path<Uuid>,
     req: HttpRequest,
 ) -> ApiResult<HttpResponse> {
@@ -220,12 +254,25 @@ pub async fn list_members(
         .cloned()
         .ok_or_else(|| ApiError::Authentication("Missing authentication".to_string()))?;
 
+    let mut redis_conn = redis.as_ref().clone();
+
+    // Try to get from cache first
+    if let Some(members) = channel_cache::get_channel_members_from_cache(&mut redis_conn, *channel_id).await? {
+        return Ok(HttpResponse::Ok().json(members));
+    }
+
     // Verify channel exists
     Channel::get_by_id(pool.get_ref(), *channel_id)
         .await?
         .ok_or_else(|| ApiError::NotFound("Channel not found".to_string()))?;
 
+    // Cache miss - fetch from database
     let members = ChannelMember::list_by_channel(pool.get_ref(), *channel_id).await?;
+
+    // Store in cache for next time
+    if let Err(e) = channel_cache::set_channel_members_in_cache(&mut redis_conn, *channel_id, &members).await {
+        tracing::warn!("Failed to cache channel members: {}", e);
+    }
 
     Ok(HttpResponse::Ok().json(members))
 }
@@ -233,6 +280,7 @@ pub async fn list_members(
 /// POST /api/channels/:id/members - Add member to channel
 pub async fn add_member(
     pool: web::Data<PgPool>,
+    redis: web::Data<MultiplexedConnection>,
     channel_id: web::Path<Uuid>,
     body: web::Json<AddMemberRequest>,
     req: HttpRequest,
@@ -268,12 +316,19 @@ pub async fn add_member(
     let role = body.role.as_deref().unwrap_or("member");
     let member = ChannelMember::add(pool.get_ref(), *channel_id, body.user_id, role).await?;
 
+    // Invalidate members cache after adding a new member
+    let mut redis_conn = redis.as_ref().clone();
+    if let Err(e) = channel_cache::invalidate_channel_members_cache(&mut redis_conn, *channel_id).await {
+        tracing::warn!("Failed to invalidate channel members cache: {}", e);
+    }
+
     Ok(HttpResponse::Created().json(member))
 }
 
 /// DELETE /api/channels/:id/members/:user_id - Remove member from channel
 pub async fn remove_member(
     pool: web::Data<PgPool>,
+    redis: web::Data<MultiplexedConnection>,
     path: web::Path<(Uuid, Uuid)>,
     req: HttpRequest,
 ) -> ApiResult<HttpResponse> {
@@ -303,6 +358,12 @@ pub async fn remove_member(
     }
 
     ChannelMember::remove(pool.get_ref(), channel_id, user_id).await?;
+
+    // Invalidate members cache after removing a member
+    let mut redis_conn = redis.as_ref().clone();
+    if let Err(e) = channel_cache::invalidate_channel_members_cache(&mut redis_conn, channel_id).await {
+        tracing::warn!("Failed to invalidate channel members cache: {}", e);
+    }
 
     Ok(HttpResponse::NoContent().finish())
 }

@@ -101,6 +101,33 @@ class ApiClient {
         throw new Error('Authentication required');
       }
 
+      // Handle 429 Rate Limit - show user-friendly message with retry info
+      if (response.status === 429) {
+        const retryAfter = response.headers.get('Retry-After');
+        const rateLimitRemaining = response.headers.get('X-RateLimit-Remaining');
+
+        let message = 'Rate limit exceeded. Please slow down and try again in a moment.';
+
+        if (retryAfter) {
+          const seconds = parseInt(retryAfter);
+          if (!isNaN(seconds)) {
+            if (seconds < 60) {
+              message = `Rate limit exceeded. Please wait ${seconds} seconds before trying again.`;
+            } else {
+              const minutes = Math.ceil(seconds / 60);
+              message = `Rate limit exceeded. Please wait ${minutes} minute${minutes > 1 ? 's' : ''} before trying again.`;
+            }
+          }
+        }
+
+        // Show toast notification if toast library is available
+        if (typeof window !== 'undefined' && (window as any).showToast) {
+          (window as any).showToast(message, 'warning');
+        }
+
+        throw new Error(message);
+      }
+
       const error = await response.json().catch(() => ({
         message: `HTTP ${response.status}: ${response.statusText}`,
       }));

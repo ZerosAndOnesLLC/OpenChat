@@ -6,10 +6,12 @@ use uuid::Uuid;
 use crate::{
     errors::{ApiError, ApiResult},
     models::channel::{Channel, ChannelMember},
+    models::mention::{Mention, MentionType},
     models::message::{Message, PaginatedMessages},
+    models::notification::{CreateNotification, Notification, NotificationType},
     models::reaction::Reaction,
     models::user::User,
-    services::tv_api::TokenClaims,
+    services::{mention_parser, tv_api::TokenClaims},
 };
 
 #[derive(Debug, Deserialize)]
@@ -227,6 +229,73 @@ pub async fn send_message(
     } else {
         unreachable!() // Already validated above
     };
+
+    // Parse mentions from message content
+    let parsed_mentions = mention_parser::parse_mentions(&body.content, current_user.org_id, pool.get_ref()).await?;
+
+    // Create mention records
+    if !parsed_mentions.is_empty() {
+        let create_mentions = mention_parser::to_create_mentions(parsed_mentions.clone(), message.id);
+        Mention::create_batch(pool.get_ref(), create_mentions).await?;
+
+        // Create notifications for mentions
+        for parsed_mention in parsed_mentions {
+            match parsed_mention.mention_type {
+                MentionType::User => {
+                    // Create notification for the mentioned user
+                    if let Some(mentioned_user_id) = parsed_mention.mentioned_user_id {
+                        // Don't notify if user mentioned themselves
+                        if mentioned_user_id != current_user.id {
+                            let notification = CreateNotification {
+                                user_id: mentioned_user_id,
+                                notification_type: NotificationType::Mention,
+                                message_id: Some(message.id),
+                                channel_id: message.channel_id,
+                                dm_id: message.dm_id,
+                            };
+                            Notification::create(pool.get_ref(), notification).await?;
+                        }
+                    }
+                }
+                MentionType::Channel | MentionType::Here | MentionType::Everyone => {
+                    // Get all channel members and create notifications for them
+                    if let Some(channel_id) = message.channel_id {
+                        let member_ids = mention_parser::get_channel_members(pool.get_ref(), channel_id).await?;
+                        for member_id in member_ids {
+                            // Don't notify the sender
+                            if member_id != current_user.id {
+                                let notification = CreateNotification {
+                                    user_id: member_id,
+                                    notification_type: NotificationType::Mention,
+                                    message_id: Some(message.id),
+                                    channel_id: Some(channel_id),
+                                    dm_id: None,
+                                };
+                                Notification::create(pool.get_ref(), notification).await?;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // If this is a thread reply, create a notification for the parent message author
+    if let Some(parent_message_id) = body.parent_message_id {
+        if let Ok(Some(parent_message)) = Message::get_by_id(pool.get_ref(), parent_message_id).await {
+            // Don't notify if replying to your own message
+            if parent_message.user_id != current_user.id {
+                let notification = CreateNotification {
+                    user_id: parent_message.user_id,
+                    notification_type: NotificationType::ThreadReply,
+                    message_id: Some(message.id),
+                    channel_id: message.channel_id,
+                    dm_id: message.dm_id,
+                };
+                Notification::create(pool.get_ref(), notification).await?;
+            }
+        }
+    }
 
     Ok(HttpResponse::Created().json(MessageResponse::from(message)))
 }

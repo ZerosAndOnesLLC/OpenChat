@@ -160,6 +160,31 @@ src/
 - Cache invalidation on mark-as-read operations
 - WebSocket support for unread count updates
 
+### Message Search
+- `GET /api/search/messages?q={query}&scope={channel|dm|all}&channel_id={id}` - Full-text search messages
+
+**Features**:
+- PostgreSQL full-text search with GIN index
+- Automatic tsvector updates via database trigger
+- Search scopes: channel-specific, DM-specific, or all messages
+- Redis caching for search results (1-minute TTL)
+
+### Mentions & Notifications
+- `GET /api/mentions` - List user's mentions (paginated)
+- `GET /api/mentions/unread-count` - Get count of unread mentions
+- `GET /api/notifications?unread_only={bool}` - List notifications (paginated)
+- `GET /api/notifications/unread-count` - Get unread notification count
+- `POST /api/notifications/:id/read` - Mark notification as read
+- `POST /api/notifications/read-all` - Mark all notifications as read
+
+**Features**:
+- Automatic mention detection: @username, @channel, @here, @everyone
+- Case-insensitive user lookup by display name
+- Thread reply notifications
+- Mention notifications for user and channel-wide mentions
+- Self-notification prevention
+- Unread mention and notification counters
+
 ### WebSocket (Phase 9+)
 - `WS /api/ws?token=<jwt>` - WebSocket connection for real-time messaging
   - Real-time message delivery
@@ -340,9 +365,56 @@ Infrastructure is managed via Terraform in `~/dev/terraform/prod/us-east-1/openc
 - ✅ Environment variables for storage configuration
 - ✅ UI API client methods for upload/download
 
-**Next**: Phase 1.4 - Message Search (Full-Text)
+**Phase 1.4 Complete** - Message Search (Full-Text)
+- ✅ Database migration adding GIN index on messages.content
+- ✅ Full-text search using PostgreSQL tsvector
+- ✅ Auto-updating tsvector column with trigger
+- ✅ API endpoint: GET /api/search/messages?q={query}&scope={channel|dm|all}&channel_id={id}
+- ✅ Redis caching for search results (1-minute TTL)
+
+**Phase 1.5 Complete** - @Mentions & Notifications
+- ✅ Database migrations for mentions and notifications tables
+- ✅ Mention and Notification models with CRUD operations
+- ✅ Mention parser for @username, @channel, @here, @everyone
+- ✅ User lookup by display name (case-insensitive)
+- ✅ Automatic mention parsing on message creation
+- ✅ Notification creation for user mentions
+- ✅ Notification creation for @channel/@here/@everyone mentions
+- ✅ Thread reply notifications
+- ✅ API endpoints: GET /api/mentions, GET /api/mentions/unread-count
+- ✅ API endpoints: GET /api/notifications, GET /api/notifications/unread-count
+- ✅ API endpoints: POST /api/notifications/:id/read, POST /api/notifications/read-all
+- ✅ Regex-based mention detection in message content
+- ✅ Prevention of self-notification
+
+**Next**: Phase 2 - Enhanced UX & Collaboration
 
 ## Version History
+
+### v0.23.0 (Phase 1.5 - @Mentions & Notifications)
+- Added database migrations for mentions and notifications tables
+- Implemented Mention model with MentionType (user/channel/here/everyone)
+- Implemented Notification model with NotificationType (mention/dm/thread_reply/channel_invite)
+- Created mention parser service with regex-based detection
+- Added user lookup by display name (case-insensitive)
+- Integrated mention parsing into message creation flow
+- Automatic notification creation for mentions and thread replies
+- API endpoints: GET /api/mentions, GET /api/mentions/unread-count
+- API endpoints: GET /api/notifications, GET /api/notifications/unread-count
+- API endpoints: POST /api/notifications/:id/read, POST /api/notifications/read-all
+- Support for @username, @channel, @here, @everyone mentions
+- Self-notification prevention logic
+- Unread mention counter with join query on read status
+- Crate added: regex
+
+### v0.22.0 (Phase 1.4 - Message Search Full-Text)
+- Added database migration with GIN index for full-text search
+- Implemented tsvector column with auto-update trigger
+- Created search handler with query parsing
+- API endpoint: GET /api/search/messages
+- Redis caching for search results (1-minute TTL)
+- Support for search scopes: channel, dm, all
+- Case-insensitive search with PostgreSQL full-text search
 
 ### v0.21.0 (Phase 1.3 - File Attachments with Configurable Storage)
 - Added database migrations for attachments and storage_settings tables

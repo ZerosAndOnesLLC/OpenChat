@@ -26,7 +26,9 @@ use handlers::{
     attachment as attachment_handlers,
     channels as channel_handlers,
     dms as dm_handlers,
+    mentions as mention_handlers,
     messages as message_handlers,
+    notifications as notification_handlers,
     reactions as reaction_handlers,
     read_status as read_status_handlers,
     search as search_handlers,
@@ -224,6 +226,22 @@ async fn main() -> std::io::Result<()> {
                 web::scope("/api/search")
                     .wrap(openchat_auth.clone())
                     .route("/messages", web::get().to(search_handlers::search_messages))
+            )
+            // Mention routes - require "openchat" role
+            .service(
+                web::scope("/api/mentions")
+                    .wrap(openchat_auth.clone())
+                    .route("", web::get().to(mention_handlers::list_mentions))
+                    .route("/unread-count", web::get().to(mention_handlers::get_unread_mention_count))
+            )
+            // Notification routes - require "openchat" role
+            .service(
+                web::scope("/api/notifications")
+                    .wrap(openchat_auth.clone())
+                    .route("", web::get().to(notification_handlers::list_notifications))
+                    .route("/unread-count", web::get().to(notification_handlers::get_unread_count))
+                    .route("/{id}/read", web::post().to(notification_handlers::mark_notification_as_read))
+                    .route("/read-all", web::post().to(notification_handlers::mark_all_notifications_as_read))
             )
             // SSO routes - no auth required (they handle authentication themselves)
             .configure(routes::sso::configure)

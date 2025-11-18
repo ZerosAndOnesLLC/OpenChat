@@ -24,6 +24,8 @@ import type {
   PinnedMessage,
   Bookmark,
   LinkPreview,
+  ReadReceiptWithUser,
+  MessageEditWithUser,
 } from './types';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080';
@@ -509,6 +511,22 @@ class ApiClient {
   async getLinkPreview(url: string): Promise<LinkPreview> {
     const encodedUrl = encodeURIComponent(url);
     return this.request<LinkPreview>(`/api/links/preview?url=${encodedUrl}`);
+  }
+
+  // Read Receipt endpoints
+  async recordReadReceipt(messageId: string): Promise<void> {
+    return this.request<void>(`/api/messages/${messageId}/read`, {
+      method: 'POST',
+    });
+  }
+
+  async getMessageReceipts(messageId: string): Promise<ReadReceiptWithUser[]> {
+    return this.request<ReadReceiptWithUser[]>(`/api/messages/${messageId}/receipts`);
+  }
+
+  // Message Edit History endpoints
+  async getMessageHistory(messageId: string): Promise<MessageEditWithUser[]> {
+    return this.request<MessageEditWithUser[]>(`/api/messages/${messageId}/history`);
   }
 }
 

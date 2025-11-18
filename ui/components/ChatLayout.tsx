@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import Sidebar from './Sidebar';
 import MessageArea from './MessageArea';
 import KeyboardShortcutsHelp from './KeyboardShortcutsHelp';
@@ -9,6 +10,7 @@ import { keyboardShortcutsManager, SHORTCUT_CATEGORIES } from '@/lib/keyboard-sh
 import type { Channel, DirectMessage } from '@/lib/types';
 
 export default function ChatLayout() {
+  const router = useRouter();
   const [activeChannel, setActiveChannel] = useState<Channel | null>(null);
   const [activeDm, setActiveDm] = useState<DirectMessage | null>(null);
   const [showShortcutsHelp, setShowShortcutsHelp] = useState(false);
@@ -48,6 +50,16 @@ export default function ChatLayout() {
       handler: () => setShowShortcutsHelp(true),
     });
 
+    // Cmd/Ctrl+F: Search messages
+    const unregisterSearch = keyboardShortcutsManager.register({
+      key: 'f',
+      ctrl: true,
+      meta: true,
+      description: 'Search messages',
+      category: SHORTCUT_CATEGORIES.NAVIGATION,
+      handler: () => router.push('/search'),
+    });
+
     // Escape: Close modals/panels
     const unregisterEscape = keyboardShortcutsManager.register({
       key: 'escape',
@@ -69,10 +81,11 @@ export default function ChatLayout() {
     return () => {
       window.removeEventListener('keydown', handleKeyDown);
       unregisterQuickSwitcher();
+      unregisterSearch();
       unregisterHelp();
       unregisterEscape();
     };
-  }, []);
+  }, [router]);
 
   return (
     <div className="flex h-screen bg-gray-100">

@@ -339,6 +339,39 @@ OpenChat implements a comprehensive Redis caching strategy and database optimiza
 - **Scalability**: Cache layer enables horizontal scaling for read-heavy workloads
 - **Real-time Updates**: Cache invalidation ensures users see fresh data after mutations
 
+### Rate Limiting
+
+OpenChat implements Redis-based rate limiting to protect the API from abuse and ensure fair resource usage for all users.
+
+**Rate Limit Tiers**:
+- **API Requests**: 20 requests per second per user
+- **Messages**: 5 messages per second per user
+- **WebSocket**: 100 messages per minute per user
+
+**Implementation**:
+- Token bucket algorithm using Redis for distributed rate limiting
+- Per-user rate limits based on authenticated user ID
+- Automatic window rotation with TTL-based expiry
+- Rate limit headers on all API responses
+
+**HTTP Headers**:
+All API responses include rate limit information:
+- `X-RateLimit-Limit`: Maximum number of requests allowed in the window
+- `X-RateLimit-Remaining`: Number of requests remaining in current window
+- `X-RateLimit-Reset`: Seconds until the rate limit window resets
+
+**Rate Limit Exceeded**:
+When rate limit is exceeded, the API returns:
+- HTTP Status: `429 Too Many Requests`
+- Header: `Retry-After` (seconds until window resets)
+- JSON response with error details and retry timing
+
+**Benefits**:
+- Prevents API abuse and denial-of-service attacks
+- Ensures fair resource allocation across users
+- Protects backend services from overload
+- Graceful degradation on Redis failures (allows requests through)
+
 ## Environment Variables
 
 | Variable | Description | Required |
@@ -594,9 +627,30 @@ Infrastructure is managed via Terraform in `~/dev/terraform/prod/us-east-1/openc
 - ✅ Index usage verification for common queries
 - ✅ Documentation of optimization strategy
 
-**Next**: Phase 3.3 - Rate Limiting
+**Phase 3.3 Complete** - Rate Limiting
+- ✅ Redis-based rate limiting middleware with token bucket algorithm
+- ✅ Per-user rate limits: 20 API requests/second, 5 messages/second, 100 WebSocket messages/minute
+- ✅ HTTP 429 Too Many Requests responses with Retry-After headers
+- ✅ Rate limit headers on all API responses (X-RateLimit-Limit, X-RateLimit-Remaining, X-RateLimit-Reset)
+- ✅ Distributed rate limiting using Redis for multi-instance support
+- ✅ Graceful degradation on Redis failures (allows requests through)
+- ✅ Rate limit middleware applied to all API routes
+- ✅ Documentation of rate limiting strategy and headers
+
+**Next**: Phase 2.6 - Message Drafts
 
 ## Version History
+
+### v0.31.0 (Phase 3.3 - Rate Limiting)
+- Implemented Redis-based rate limiting middleware
+- Added per-user rate limits: 20 API requests/second, 5 messages/second, 100 WebSocket messages/minute
+- Token bucket algorithm for smooth rate limiting with automatic window rotation
+- Rate limit headers on all API responses (X-RateLimit-Limit, X-RateLimit-Remaining, X-RateLimit-Reset)
+- HTTP 429 Too Many Requests responses with Retry-After header when limits exceeded
+- Distributed rate limiting using Redis for multi-instance deployment support
+- Graceful degradation on Redis failures to avoid blocking legitimate traffic
+- Applied rate limiting middleware to all authenticated API routes
+- Comprehensive documentation of rate limiting strategy and implementation
 
 ### v0.30.0 (Phase 3.2 - Database Optimization)
 - Added comprehensive composite indexes for query performance optimization

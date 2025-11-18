@@ -266,16 +266,16 @@ Plan to achieve feature parity with Mattermost/Slack and add end-to-end encrypti
 - [x] Increment version to 0.30.0
 
 ### 3.3 Rate Limiting
-- [ ] Rust: Redis-based rate limiting middleware
-- [ ] Rust: Per-user rate limits:
+- [x] Rust: Redis-based rate limiting middleware
+- [x] Rust: Per-user rate limits:
   - 5 messages/second
   - 20 API requests/second
   - 100 WebSocket messages/minute
-- [ ] API: Return 429 Too Many Requests with Retry-After header
-- [ ] API: Rate limit headers on responses (X-RateLimit-Limit, X-RateLimit-Remaining)
-- [ ] UI: Show rate limit error to user
-- [ ] Update README.md
-- [ ] Increment version to 0.30.0
+- [x] API: Return 429 Too Many Requests with Retry-After header
+- [x] API: Rate limit headers on responses (X-RateLimit-Limit, X-RateLimit-Remaining)
+- [ ] UI: Show rate limit error to user (deferred to future work)
+- [x] Update README.md
+- [x] Increment version to 0.31.0
 
 ---
 

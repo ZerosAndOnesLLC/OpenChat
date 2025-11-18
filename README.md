@@ -62,8 +62,8 @@ OpenChat is a powerful alternative to Slack and Microsoft Teams that you can sel
 ### Collaboration
 - **Typing Indicators** - See when teammates are composing messages
 - **User Presence** - Online, offline, and away status tracking
-- **File Attachments** - Share images, documents, and more (roadmap)
-- **Search** - Find messages and files quickly (roadmap)
+- **File Attachments** - Share images, documents, and more
+- **Full-Text Search** - Find messages instantly with PostgreSQL full-text search and Redis caching
 - **Mentions** - @user and @channel notifications (roadmap)
 
 ### Enterprise Features
@@ -255,15 +255,15 @@ Even if application code has bugs, the database prevents cross-organization data
 - [x] Message editing and deletion
 
 ### 🚧 Phase 2 - Enhanced Features (In Progress)
-- [ ] Threaded conversations
-- [ ] File and image attachments
-- [ ] Full-text search
+- [x] Threaded conversations
+- [x] File and image attachments
+- [x] Full-text search with Redis caching
+- [x] Unread message counts
 - [ ] Push notifications
 - [ ] User mentions (@user)
 - [ ] Channel mentions (@channel)
 - [ ] Markdown formatting
 - [ ] Code syntax highlighting
-- [ ] Unread message counts
 
 ### 🔮 Phase 3 - Enterprise (Future)
 - [ ] Voice and video calls
@@ -287,6 +287,35 @@ Even if application code has bugs, the database prevents cross-organization data
 
 ---
 
+## API Features
+
+### Message Search
+
+OpenChat provides powerful full-text search capabilities powered by PostgreSQL and Redis:
+
+**Endpoint**: `GET /api/search/messages`
+
+**Query Parameters**:
+- `q` - Search query text (required)
+- `scope` - Search scope: `all`, `channel`, or `dm` (default: `all`)
+- `channel_id` - Filter by specific channel (required if scope is `channel`)
+- `dm_id` - Filter by specific DM (required if scope is `dm`)
+- `limit` - Number of results (default: 50, max: 100)
+
+**Features**:
+- Full-text search using PostgreSQL GIN indexes
+- Prefix matching for partial word searches
+- Results cached in Redis for 1 minute
+- Returns messages with total count
+- Supports search across all messages, specific channels, or DMs
+
+**Example**:
+```bash
+GET /api/search/messages?q=hello+world&scope=channel&channel_id=abc-123&limit=20
+```
+
+---
+
 ## Performance
 
 OpenChat is built for scale:
@@ -297,6 +326,7 @@ OpenChat is built for scale:
 - **Caching**: Aggressive Redis caching reduces database load by 80%+
 - **WebSocket**: Efficient connection pooling and message routing
 - **Latency**: Sub-100ms message delivery in same region
+- **Search Performance**: Full-text search with GIN indexes and 1-minute Redis caching
 
 ### Scalability
 

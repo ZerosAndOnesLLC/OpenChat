@@ -29,6 +29,7 @@ use handlers::{
     messages as message_handlers,
     reactions as reaction_handlers,
     read_status as read_status_handlers,
+    search as search_handlers,
     users as user_handlers,
 };
 use middleware::auth::AuthMiddleware;
@@ -217,6 +218,12 @@ async fn main() -> std::io::Result<()> {
                     .route("/{id}/messages", web::get().to(dm_handlers::list_dm_messages))
                     .route("/{id}/read", web::post().to(read_status_handlers::mark_dm_as_read))
                     .route("/{id}/unread", web::get().to(read_status_handlers::get_dm_unread_count))
+            )
+            // Search routes - require "openchat" role
+            .service(
+                web::scope("/api/search")
+                    .wrap(openchat_auth.clone())
+                    .route("/messages", web::get().to(search_handlers::search_messages))
             )
             // SSO routes - no auth required (they handle authentication themselves)
             .configure(routes::sso::configure)

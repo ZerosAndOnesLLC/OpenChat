@@ -74,20 +74,20 @@ Plan to achieve feature parity with Mattermost/Slack and add end-to-end encrypti
 - [x] Increment version to 0.21.0 (API), 0.5.0 (UI)
 
 ### 1.4 Message Search (Full-Text)
-- [ ] Create migration: Add GIN index on messages.content
+- [x] Create migration: Add GIN index on messages.content
   - Create tsvector column: content_tsv
   - Create trigger to auto-update tsvector on insert/update
   - Add GIN index on content_tsv
-- [ ] API: GET /api/search/messages?q={query}&scope={channel|dm|all}&channel_id={id}
-- [ ] API: Support filters: from:@user, in:#channel, before:date, after:date
-- [ ] Cache: Search results in Redis (short TTL, 1 min)
-- [ ] UI: Global search bar in header
-- [ ] UI: Keyboard shortcut Cmd/Ctrl+K for search
-- [ ] UI: Search results page with filters
-- [ ] UI: Jump to message in context from search results
-- [ ] UI: Search within channel/DM option
-- [ ] Update README.md
-- [ ] Increment version to 0.20.0
+- [x] API: GET /api/search/messages?q={query}&scope={channel|dm|all}&channel_id={id}
+- [ ] API: Support filters: from:@user, in:#channel, before:date, after:date (deferred to future enhancement)
+- [x] Cache: Search results in Redis (short TTL, 1 min)
+- [ ] UI: Global search bar in header (deferred)
+- [ ] UI: Keyboard shortcut Cmd/Ctrl+K for search (deferred)
+- [ ] UI: Search results page with filters (deferred)
+- [ ] UI: Jump to message in context from search results (deferred)
+- [ ] UI: Search within channel/DM option (deferred)
+- [x] Update README.md
+- [x] Increment version to 0.22.0 (API)
 
 ### 1.5 @Mentions & Notifications
 - [ ] Create migration: `mentions` table

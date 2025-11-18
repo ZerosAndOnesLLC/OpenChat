@@ -90,30 +90,30 @@ Plan to achieve feature parity with Mattermost/Slack and add end-to-end encrypti
 - [x] Increment version to 0.22.0 (API)
 
 ### 1.5 @Mentions & Notifications
-- [ ] Create migration: `mentions` table
+- [x] Create migration: `mentions` table
   - message_id, mentioned_user_id, mention_type (user/channel), created_at
   - Indexes on (mentioned_user_id, created_at), (message_id)
-- [ ] Create migration: `notifications` table
+- [x] Create migration: `notifications` table
   - user_id, type (mention/dm/thread_reply), message_id, channel_id, dm_id, read, created_at
   - Indexes on (user_id, read, created_at)
-- [ ] Rust: Mention parser for @username and @channel
-- [ ] Rust: User lookup for autocomplete
-- [ ] API: Parse mentions when creating/editing messages
-- [ ] API: Create notification records for mentions
-- [ ] API: GET /api/mentions - List user's mentions
-- [ ] API: GET /api/notifications - List notifications
-- [ ] API: POST /api/notifications/{id}/read - Mark as read
-- [ ] API: POST /api/notifications/read-all - Mark all as read
-- [ ] WebSocket: Send real-time notifications
-- [ ] Cache: Notification counts in Redis
-- [ ] UI: @mention autocomplete dropdown in message input
-- [ ] UI: Highlight @mentions in messages
-- [ ] UI: @channel confirmation dialog (notify all members)
-- [ ] UI: Notifications panel/dropdown
-- [ ] UI: Notification badge count
-- [ ] UI: Notification sound (optional, user preference)
-- [ ] Update README.md
-- [ ] Increment version to 0.21.0
+- [x] Rust: Mention parser for @username and @channel
+- [x] Rust: User lookup for autocomplete
+- [x] API: Parse mentions when creating/editing messages
+- [x] API: Create notification records for mentions
+- [x] API: GET /api/mentions - List user's mentions
+- [x] API: GET /api/notifications - List notifications
+- [x] API: POST /api/notifications/{id}/read - Mark as read
+- [x] API: POST /api/notifications/read-all - Mark all as read
+- [ ] WebSocket: Send real-time notifications (deferred to future enhancement)
+- [ ] Cache: Notification counts in Redis (deferred to future enhancement)
+- [ ] UI: @mention autocomplete dropdown in message input (deferred to future work)
+- [ ] UI: Highlight @mentions in messages (deferred to future work)
+- [ ] UI: @channel confirmation dialog (notify all members) (deferred to future work)
+- [ ] UI: Notifications panel/dropdown (deferred to future work)
+- [ ] UI: Notification badge count (deferred to future work)
+- [ ] UI: Notification sound (optional, user preference) (deferred to future work)
+- [x] Update README.md
+- [x] Increment version to 0.23.0
 
 ---
 

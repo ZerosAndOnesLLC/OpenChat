@@ -2,7 +2,7 @@
 
 **Open-source, self-hosted team collaboration platform - Your data, your control**
 
-[![Version](https://img.shields.io/badge/version-0.36.0-blue.svg)](https://github.com/yourusername/openchat)
+[![Version](https://img.shields.io/badge/version-0.38.0-blue.svg)](https://github.com/yourusername/openchat)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 [![Rust](https://img.shields.io/badge/rust-2024-orange.svg)](https://www.rust-lang.org/)
 [![Next.js](https://img.shields.io/badge/next.js-16-black.svg)](https://nextjs.org/)
@@ -31,6 +31,56 @@ OpenChat is a powerful alternative to Slack and Microsoft Teams that you can sel
 ---
 
 ## Recent Updates
+
+### Version 0.38.0 (API) / 0.16.0 (UI) - Enterprise Audit Logging & Enhanced Custom Emojis
+
+**New Features:**
+- **Comprehensive Audit Logging**: Track all important security and administrative events
+  - Automatic logging of message deletions (with content preservation)
+  - Channel creation, deletion, and membership changes
+  - Permission and role assignment tracking
+  - Settings modifications
+  - User authentication events (login, logout, failed attempts)
+  - IP address and user agent tracking for security analysis
+  - Monthly table partitioning for scalable long-term storage
+- **Audit Log Management**:
+  - Admin-only audit log viewer with advanced filtering
+  - Filter by user, action type, resource type, resource ID, and date range
+  - Expandable row details with full metadata display
+  - CSV export functionality for compliance and analysis
+  - Pagination support for large datasets
+  - Retention period: 7 years (configurable for compliance)
+- **Enhanced Custom Emojis**:
+  - Automatic image resizing to 128x128 pixels for consistency
+  - Support for PNG, JPEG, GIF, and WebP formats
+  - High-quality Lanczos3 filtering for crisp emoji rendering
+  - Fallback to original if resize fails
+
+**API Endpoints:**
+- `GET /api/audit-logs` - List audit logs with filters (requires org.view_audit_logs permission)
+- `GET /api/audit-logs/export` - Export audit logs to CSV
+- `GET /api/audit-logs/actions` - Get list of all unique action types
+- `GET /api/audit-logs/resource-types` - Get list of all resource types
+
+**Database:**
+- New `audit_logs` table with partitioning by timestamp (monthly partitions)
+- Indexes on (user_id, timestamp), (resource_type, resource_id), action, and timestamp
+- Composite primary key (id, timestamp) for partition compatibility
+
+**Technical:**
+- AuditLogger service with helper methods for common audit events
+- Automatic IP address extraction from X-Forwarded-For header (ALB/CloudFront compatible)
+- User agent tracking for security analysis
+- JSONB metadata storage for flexible event details
+- Permission-based access control (org.view_audit_logs)
+- Image processing with `image` crate (resize_emoji_image function)
+
+**Security & Compliance:**
+- Full audit trail for security investigations
+- Compliance support (SOC 2, GDPR, HIPAA audit requirements)
+- Tamper-evident logging with timestamp partitioning
+- IP address tracking for threat detection
+- User agent analysis for anomaly detection
 
 ### Version 0.33.0 (API) / 0.11.0 (UI) - Advanced Search & Real-time Notifications
 

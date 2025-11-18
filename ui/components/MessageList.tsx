@@ -9,9 +9,13 @@ interface MessageListProps {
   unreadCount?: number;
   onReply?: (message: Message) => void;
   onOpenThread?: (message: Message) => void;
+  onPin?: (message: Message) => void;
+  onBookmark?: (message: Message) => void;
+  pinnedMessageIds?: Set<string>;
+  bookmarkedMessageIds?: Set<string>;
 }
 
-export default function MessageList({ messages, unreadCount = 0, onReply, onOpenThread }: MessageListProps) {
+export default function MessageList({ messages, unreadCount = 0, onReply, onOpenThread, onPin, onBookmark, pinnedMessageIds = new Set(), bookmarkedMessageIds = new Set() }: MessageListProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const unreadMarkerRef = useRef<HTMLDivElement>(null);
 
@@ -76,6 +80,10 @@ export default function MessageList({ messages, unreadCount = 0, onReply, onOpen
               message={message}
               onReply={onReply}
               onOpenThread={onOpenThread}
+              onPin={onPin}
+              onBookmark={onBookmark}
+              isPinned={pinnedMessageIds.has(message.id)}
+              isBookmarked={bookmarkedMessageIds.has(message.id)}
             />
           </div>
         ))}

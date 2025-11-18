@@ -20,6 +20,8 @@ import type {
   MarkAsReadRequest,
   Attachment,
   AttachmentUploadResponse,
+  PinnedMessage,
+  Bookmark,
 } from './types';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080';
@@ -453,6 +455,41 @@ class ApiClient {
     return this.request<{ success: boolean; count: number }>('/api/notifications/read-all', {
       method: 'POST',
     });
+  }
+
+  // Pin endpoints
+  async pinMessage(messageId: string): Promise<PinnedMessage> {
+    return this.request<PinnedMessage>(`/api/messages/${messageId}/pin`, {
+      method: 'POST',
+    });
+  }
+
+  async unpinMessage(messageId: string): Promise<void> {
+    return this.request<void>(`/api/messages/${messageId}/pin`, {
+      method: 'DELETE',
+    });
+  }
+
+  async getChannelPins(channelId: string): Promise<PinnedMessage[]> {
+    return this.request<PinnedMessage[]>(`/api/channels/${channelId}/pins`);
+  }
+
+  // Bookmark endpoints
+  async bookmarkMessage(messageId: string): Promise<Bookmark> {
+    return this.request<Bookmark>('/api/bookmarks', {
+      method: 'POST',
+      body: JSON.stringify({ message_id: messageId }),
+    });
+  }
+
+  async unbookmarkMessage(messageId: string): Promise<void> {
+    return this.request<void>(`/api/bookmarks/${messageId}`, {
+      method: 'DELETE',
+    });
+  }
+
+  async getUserBookmarks(): Promise<Bookmark[]> {
+    return this.request<Bookmark[]>('/api/bookmarks');
   }
 }
 

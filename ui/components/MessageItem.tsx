@@ -6,6 +6,7 @@ import { useAuth } from '@/lib/auth';
 import { apiClient } from '@/lib/api';
 import { useWebSocketStore } from '@/lib/websocket';
 import type { Message } from '@/lib/types';
+import MarkdownRenderer from './MarkdownRenderer';
 
 // Dynamically import EmojiPicker to avoid SSR issues
 const EmojiPicker = dynamic(() => import('emoji-picker-react'), { ssr: false });
@@ -182,7 +183,9 @@ export default function MessageItem({ message, onReply, onOpenThread }: MessageI
               </div>
             </div>
           ) : (
-            <p className="text-sm text-gray-200">{message.content}</p>
+            <div className="text-sm">
+              <MarkdownRenderer content={message.content} />
+            </div>
           )}
 
           {/* Reactions - Mattermost style with inline + button */}

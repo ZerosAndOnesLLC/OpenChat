@@ -235,7 +235,7 @@ Plan to achieve feature parity with Mattermost/Slack and add end-to-end encrypti
 
 ## Phase 3: Performance & Caching (Priority 2)
 
-### 3.1 Full Redis Caching Implementation
+### 3.1 Full Redis Caching Implementation ✅ COMPLETE
 - [x] Rust: Implement cache layer for channels (use existing cache/channels.rs)
 - [x] Rust: Implement cache layer for DMs (use existing cache/dms.rs)
 - [x] Rust: Implement cache layer for users (use existing cache/users.rs) - integrated in user handlers
@@ -248,12 +248,12 @@ Plan to achieve feature parity with Mattermost/Slack and add end-to-end encrypti
   - Unread counts: 60 sec TTL (already implemented)
   - Search results: 1 min TTL (already implemented)
 - [x] Rust: Cache invalidation on mutations (updates, deletes)
-- [ ] Rust: Cache warming on app startup 
-- [ ] Add metrics for cache hit/miss rates 
+- [x] Rust: Cache warming on app startup (warms active channels, DMs, and users)
+- [x] Add metrics for cache hit/miss rates (tracks hits/misses per cache type, exposed via /api/metrics/cache)
 - [x] Update README.md with caching strategy
 - [x] Increment version to 0.29.0
 
-### 3.2 Database Optimization
+### 3.2 Database Optimization ✅ COMPLETE
 - [x] Create migration: Add performance indexes
   - messages(channel_id, created_at DESC)
   - messages(dm_id, created_at DESC)
@@ -264,12 +264,12 @@ Plan to achieve feature parity with Mattermost/Slack and add end-to-end encrypti
   - mentions(user_id, created_at DESC) - Already exists
   - notifications(user_id, read, created_at DESC) - Already exists
 - [x] Analyze query patterns with EXPLAIN ANALYZE
-- [ ] Consider partitioning messages table by created_at (if > 1M messages) (deferred - not needed yet)
+- [x] Consider partitioning messages table by created_at (evaluated - not needed, current count: 0 messages, well below 1M threshold)
 - [x] Optimize pagination queries (use cursor-based, already implemented)
 - [x] Update README.md
 - [x] Increment version to 0.30.0
 
-### 3.3 Rate Limiting
+### 3.3 Rate Limiting ✅ COMPLETE
 - [x] Rust: Redis-based rate limiting middleware
 - [x] Rust: Per-user rate limits:
   - 5 messages/second
@@ -277,7 +277,7 @@ Plan to achieve feature parity with Mattermost/Slack and add end-to-end encrypti
   - 100 WebSocket messages/minute
 - [x] API: Return 429 Too Many Requests with Retry-After header
 - [x] API: Rate limit headers on responses (X-RateLimit-Limit, X-RateLimit-Remaining)
-- [ ] UI: Show rate limit error to user 
+- [x] UI: Show rate limit error to user (global toast notifications with retry time, warning type support)
 - [x] Update README.md
 - [x] Increment version to 0.31.0
 

@@ -24,11 +24,15 @@ pub async fn get_user_from_cache(
 
     match cached {
         Some(json) => {
+            super::metrics::record_hit(redis, super::metrics::CacheType::Users).await;
             let user: User = serde_json::from_str(&json)
                 .map_err(|e| crate::errors::ApiError::Internal(format!("Cache deserialization error: {}", e)))?;
             Ok(Some(user))
         }
-        None => Ok(None),
+        None => {
+            super::metrics::record_miss(redis, super::metrics::CacheType::Users).await;
+            Ok(None)
+        }
     }
 }
 

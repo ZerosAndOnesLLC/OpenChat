@@ -120,12 +120,14 @@ The app automatically connects to the WebSocket server when authenticated. The c
 5. Server broadcasts to all subscribed users
 6. UI updates in real-time
 
-### Reactions
+### Reactions (Mattermost-style)
 
-- Click emoji button on message to add reaction
-- Common emojis: 👍 ❤️ 😊 🎉 👏 🔥
-- Click existing reaction to remove
-- Reactions group by emoji with counts
+- Hover over a message to see the "+" button inline with reactions
+- Click "+" to open comprehensive emoji picker
+- Click existing reaction to toggle (add/remove)
+- Reactions display grouped by emoji with counts
+- Your reactions are highlighted in blue
+- Full emoji library with categories and search
 
 ## State Management
 
@@ -218,7 +220,7 @@ npm run build
 
 ## Version
 
-Current version: 0.1.8
+Current version: 0.2.2
 
 Increment version before commits:
 - **Patch** (0.1.x): Bug fixes, small tweaks
@@ -226,6 +228,27 @@ Increment version before commits:
 - **Major** (x.0.0): Breaking changes
 
 ### Recent Changes
+
+**v0.2.2** - Fix reaction removal (toggle functionality)
+- Fixed API client to handle empty responses (204 No Content)
+- Clicking an existing reaction now properly removes it
+- Added proper content-type checking before JSON parsing
+- Toggle reaction on/off now works correctly
+
+**v0.2.1** - Fix reactions not appearing immediately when clicked
+- Added optimistic UI updates for reactions
+- Reactions now appear instantly when clicked (no WebSocket delay)
+- Automatic rollback if API call fails
+- Improved reaction responsiveness and user experience
+
+**v0.2.0** - Mattermost-style emoji reactions with comprehensive picker
+- Integrated emoji-picker-react library with full emoji support
+- Moved "+" button to display inline with reactions (Mattermost UX)
+- Added comprehensive emoji picker with categories and search
+- Emoji picker appears on hover, positioned below reactions
+- Click outside picker to close
+- Removed emoji button from top-right hover menu
+- Improved reaction UI consistency
 
 **v0.1.8** - Fix WebSocket message parsing errors
 - Added defensive checks for all WebSocket message handlers

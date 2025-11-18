@@ -57,20 +57,37 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
   initialize: async () => {
     try {
       if (typeof window !== 'undefined') {
+        // Check if we're already authenticated (set by SSO callback)
+        const currentState = get();
+        if (currentState.isAuthenticated && currentState.user) {
+          console.log('Already authenticated, skipping initialization');
+          set({ isLoading: false });
+          return;
+        }
+
         // Check for existing token in localStorage
         const existingToken = apiClient.getToken();
         if (existingToken) {
           try {
-            // Verify token is still valid by making an API call
+            // Verify token is still valid by getting user info
             apiClient.setToken(existingToken);
-            const users = await apiClient.listUsers();
-
-            // Get current user info
             const userInfo = await apiClient.getUserInfo(existingToken);
-            const currentUser = users.find((u) => u.tv_user_id === userInfo.sub);
 
-            if (currentUser) {
-              get().setAuth(existingToken, currentUser);
+            if (userInfo && userInfo.sub) {
+              // Create a minimal user object from userinfo
+              const user: User = {
+                id: userInfo.sub,
+                org_id: userInfo.org_id || '',
+                tv_user_id: userInfo.sub,
+                email: userInfo.email || 'user@openchat.local',
+                display_name: userInfo.name || userInfo.email?.split('@')[0] || 'User',
+                status: 'online',
+                created_at: new Date().toISOString(),
+                updated_at: new Date().toISOString(),
+              };
+
+              console.log('Token validated, setting auth state');
+              get().setAuth(existingToken, user);
               return;
             }
           } catch (error) {

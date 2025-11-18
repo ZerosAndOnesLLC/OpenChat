@@ -75,6 +75,21 @@ class ApiClient {
     });
 
     if (!response.ok) {
+      // Handle 401 Unauthorized - clear token and trigger re-authentication
+      if (response.status === 401) {
+        console.warn('401 Unauthorized - clearing token and redirecting to login');
+        this.clearToken();
+
+        // Only redirect if we're not already on the SSO callback page
+        if (typeof window !== 'undefined' && !window.location.pathname.includes('/sso/callback')) {
+          // Trigger re-authentication by reloading the page
+          // The auth.initialize() will detect no valid token and start OAuth flow
+          window.location.href = '/';
+        }
+
+        throw new Error('Authentication required');
+      }
+
       const error = await response.json().catch(() => ({
         message: `HTTP ${response.status}: ${response.statusText}`,
       }));

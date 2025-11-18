@@ -17,10 +17,13 @@ function SSOCallbackContent() {
   useEffect(() => {
     const handleSSOCallback = async () => {
       // Prevent multiple exchanges of the same authorization code
+      // This is critical to avoid "Invalid or expired authorization code" errors
       if (hasAttemptedExchange.current) {
         console.log('SSO Callback - Already attempted exchange, skipping');
         return;
       }
+
+      // Mark as attempted before async operations to prevent race conditions
       hasAttemptedExchange.current = true;
 
       try {
@@ -47,6 +50,7 @@ function SSOCallbackContent() {
           console.error('SSO Callback - No authorization code found in URL');
           setError('No authorization code provided');
           setStatus('error');
+          hasAttemptedExchange.current = false; // Allow retry
           return;
         }
 
@@ -56,6 +60,7 @@ function SSOCallbackContent() {
           console.error('SSO Callback - State mismatch (CSRF protection)');
           setError('Invalid state parameter - possible CSRF attack');
           setStatus('error');
+          hasAttemptedExchange.current = false; // Allow retry
           return;
         }
         // Clear the saved state
@@ -99,6 +104,8 @@ function SSOCallbackContent() {
         console.error('SSO callback error:', err);
         setError(err instanceof Error ? err.message : 'SSO authentication failed');
         setStatus('error');
+        // Don't reset hasAttemptedExchange on error to prevent retry loops
+        // User can manually retry using the "Try Again" button
       }
     };
 

@@ -50,7 +50,7 @@ export default function MessageInput({ channelId, dmId }: MessageInputProps) {
   }, []);
 
   return (
-    <div className="border-t border-gray-200 px-6 py-4">
+    <div className="border-t border-gray-800 px-6 py-4">
       <form onSubmit={handleSubmit}>
         <div className="flex gap-2">
           <input
@@ -58,12 +58,12 @@ export default function MessageInput({ channelId, dmId }: MessageInputProps) {
             value={message}
             onChange={handleChange}
             placeholder="Type a message..."
-            className="flex-1 rounded-lg border border-gray-300 px-4 py-2 focus:border-blue-500 focus:outline-none"
+            className="flex-1 rounded-lg border border-gray-600 bg-gray-900 px-4 py-2 text-white placeholder-gray-400 focus:border-blue-500 focus:outline-none"
           />
           <button
             type="submit"
             disabled={!message.trim()}
-            className="rounded-lg bg-blue-600 px-6 py-2 font-medium text-white transition-colors hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed"
+            className="rounded-lg bg-blue-600 px-6 py-2 font-medium text-white transition-colors hover:bg-blue-700 disabled:bg-gray-700 disabled:cursor-not-allowed"
           >
             Send
           </button>

@@ -17,6 +17,7 @@ Modern real-time team chat application built with Next.js 15.
 - ✅ Real-time messaging via WebSockets
 - ✅ Public and private channels
 - ✅ Direct messages (1-on-1 and group)
+- ✅ Unread message tracking (API support)
 - ✅ Typing indicators
 - ✅ User presence (online/offline/away)
 - ✅ Message reactions (emoji)
@@ -220,7 +221,7 @@ npm run build
 
 ## Version
 
-Current version: 0.2.2
+Current version: 0.3.0
 
 Increment version before commits:
 - **Patch** (0.1.x): Bug fixes, small tweaks
@@ -228,6 +229,14 @@ Increment version before commits:
 - **Major** (x.0.0): Breaking changes
 
 ### Recent Changes
+
+**v0.3.0** - Unread message tracking (API support)
+- Added UnreadCountResponse and MarkAsReadRequest types
+- Implemented markChannelAsRead() and getChannelUnreadCount() API methods
+- Implemented markDmAsRead() and getDmUnreadCount() API methods
+- Added WebSocket message type for unread count updates
+- API foundation ready for UI implementation of unread badges
+- Prepared for future unread count display in sidebar
 
 **v0.2.2** - Fix reaction removal (toggle functionality)
 - Fixed API client to handle empty responses (204 No Content)

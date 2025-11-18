@@ -43,6 +43,7 @@ pub enum ServerMessage {
         channel_id: Option<Uuid>,
         dm_id: Option<Uuid>,
         user_id: Uuid,
+        user_name: String,
         content: String,
         parent_message_id: Option<Uuid>,
         created_at: String,

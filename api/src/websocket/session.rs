@@ -45,6 +45,7 @@ impl WsSessionData {
             } => {
                 self.server.do_send(server::SendMessage {
                     user_id: self.user_id,
+                    user_name: self.user_name.clone(),
                     org_id: self.org_id,
                     channel_id,
                     dm_id,

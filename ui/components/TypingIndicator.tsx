@@ -21,7 +21,7 @@ export default function TypingIndicator({ users }: TypingIndicatorProps) {
 
   return (
     <div className="px-6 py-2">
-      <div className="flex items-center gap-2 text-sm text-gray-500">
+      <div className="flex items-center gap-2 text-sm text-gray-400">
         <div className="flex gap-1">
           <span className="animate-bounce">•</span>
           <span className="animate-bounce animation-delay-200">•</span>

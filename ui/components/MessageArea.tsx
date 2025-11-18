@@ -22,7 +22,7 @@ export default function MessageArea({ channel, dm }: MessageAreaProps) {
   const currentKey = channel?.id || dm?.id || '';
 
   // Fetch messages when channel/dm changes
-  const { data: fetchedMessages = [] } = useQuery({
+  const { data: fetchedMessages, isError, error } = useQuery({
     queryKey: ['messages', currentKey],
     queryFn: async () => {
       if (channel) {
@@ -57,7 +57,9 @@ export default function MessageArea({ channel, dm }: MessageAreaProps) {
     if (!currentKey) return [];
 
     const wsMessages = messages[currentKey] || [];
-    const allMessages = [...fetchedMessages, ...wsMessages];
+    // Safely handle fetchedMessages being undefined
+    const fetchedArray = Array.isArray(fetchedMessages) ? fetchedMessages : [];
+    const allMessages = [...fetchedArray, ...wsMessages];
 
     // Deduplicate by ID
     const uniqueMessages = Array.from(
@@ -74,7 +76,7 @@ export default function MessageArea({ channel, dm }: MessageAreaProps) {
 
   // Set fetched messages to store
   useEffect(() => {
-    if (currentKey && fetchedMessages.length > 0) {
+    if (currentKey && fetchedMessages && fetchedMessages.length > 0) {
       setMessages(currentKey, []);
     }
   }, [currentKey, fetchedMessages, setMessages]);
@@ -87,19 +89,19 @@ export default function MessageArea({ channel, dm }: MessageAreaProps) {
 
   if (!channel && !dm) {
     return (
-      <div className="flex flex-1 items-center justify-center bg-white">
+      <div className="flex flex-1 items-center justify-center bg-black">
         <div className="text-center">
           <div className="mb-4 text-6xl">💬</div>
-          <h2 className="mb-2 text-2xl font-bold text-gray-900">Welcome to OpenChat</h2>
-          <p className="text-gray-600">Select a channel or start a direct message to begin</p>
+          <h2 className="mb-2 text-2xl font-bold text-white">Welcome to OpenChat</h2>
+          <p className="text-gray-400">Select a channel or start a direct message to begin</p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="flex flex-1 flex-col bg-white">
-      <div className="flex h-14 items-center border-b border-gray-200 px-6">
+    <div className="flex flex-1 flex-col bg-black">
+      <div className="flex h-14 items-center border-b border-gray-800 px-6">
         <div className="flex items-center">
           <span className="mr-2 text-xl">
             {channel
@@ -108,12 +110,12 @@ export default function MessageArea({ channel, dm }: MessageAreaProps) {
                 : '#'
               : '💬'}
           </span>
-          <h2 className="text-lg font-semibold text-gray-900">
+          <h2 className="text-lg font-semibold text-white">
             {channel?.name || (dm && 'Direct Message')}
           </h2>
         </div>
         {channel?.description && (
-          <p className="ml-4 text-sm text-gray-600">{channel.description}</p>
+          <p className="ml-4 text-sm text-gray-400">{channel.description}</p>
         )}
       </div>
 

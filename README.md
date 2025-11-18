@@ -30,6 +30,25 @@ OpenChat is a powerful alternative to Slack and Microsoft Teams that you can sel
 
 ---
 
+## Recent Updates
+
+### Version 0.14.2 - Bug Fixes & Stability Improvements
+
+**Fixed:**
+- Fixed application crash when clicking on channels due to expired/invalid tokens
+- Resolved "Invalid or expired authorization code" errors during SSO callback
+- Prevented duplicate authorization code exchanges in React Strict Mode
+- Fixed "d is not iterable" error when React Query returns undefined data
+
+**Improved:**
+- Added proper 401 error handling with automatic re-authentication
+- Implemented error boundaries to prevent full app crashes
+- Enhanced React Query retry logic to skip authentication errors
+- Better SSO callback flow to prevent race conditions
+- Added defensive checks for undefined data in all React Query hooks
+
+---
+
 ## Features
 
 ### Core Messaging

@@ -3,4 +3,5 @@ pub mod dms;
 pub mod messages;
 pub mod read_status;
 pub mod search;
+pub mod user_status;
 pub mod users;

@@ -22,18 +22,28 @@ export default function MessageArea({ channel, dm }: MessageAreaProps) {
   const currentKey = channel?.id || dm?.id || '';
 
   // Fetch messages when channel/dm changes
-  const { data: fetchedMessages, isError, error } = useQuery({
+  const { data: fetchedMessages, isError, error, isLoading } = useQuery({
     queryKey: ['messages', currentKey],
     queryFn: async () => {
+      console.log('Fetching messages for:', currentKey, { channel, dm });
       if (channel) {
-        return apiClient.listChannelMessages(channel.id);
+        const messages = await apiClient.listChannelMessages(channel.id);
+        console.log('Fetched channel messages:', messages);
+        return messages;
       } else if (dm) {
-        return apiClient.listDmMessages(dm.id);
+        const messages = await apiClient.listDmMessages(dm.id);
+        console.log('Fetched DM messages:', messages);
+        return messages;
       }
       return [];
     },
     enabled: !!currentKey,
   });
+
+  // Log errors
+  if (isError) {
+    console.error('Error fetching messages:', error);
+  }
 
   // Subscribe/unsubscribe to channel when it changes
   useEffect(() => {
@@ -54,20 +64,25 @@ export default function MessageArea({ channel, dm }: MessageAreaProps) {
 
   // Set fetched messages to store when they arrive
   useEffect(() => {
+    console.log('Setting messages to store:', { currentKey, fetchedMessages, isArray: Array.isArray(fetchedMessages) });
     if (currentKey && Array.isArray(fetchedMessages)) {
       // Replace store messages with fetched messages (clears any old WebSocket-only messages)
       setMessages(currentKey, fetchedMessages);
+      console.log('Messages set to store for key:', currentKey, 'count:', fetchedMessages.length);
     }
   }, [currentKey, fetchedMessages, setMessages]);
 
   // Get messages from store (includes both fetched and new WebSocket messages)
   const localMessages = useMemo(() => {
+    console.log('Computing localMessages for:', currentKey);
     if (!currentKey) return [];
 
     const storeMessages = messages[currentKey];
+    console.log('Store messages for', currentKey, ':', storeMessages);
 
     // Ensure storeMessages is an array
     if (!Array.isArray(storeMessages)) {
+      console.log('Store messages is not an array, returning empty');
       return [];
     }
 
@@ -76,6 +91,7 @@ export default function MessageArea({ channel, dm }: MessageAreaProps) {
       (a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
     );
 
+    console.log('Computed localMessages count:', sorted.length);
     return sorted;
   }, [currentKey, messages]);
 

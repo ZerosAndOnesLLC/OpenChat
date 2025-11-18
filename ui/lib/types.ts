@@ -6,8 +6,18 @@ export interface User {
   email: string;
   display_name: string;
   avatar_url?: string;
-  status: 'online' | 'offline' | 'away';
+  status: 'online' | 'offline' | 'away' | 'dnd';
   created_at: string;
+  updated_at: string;
+  user_status?: UserStatus;
+}
+
+export interface UserStatus {
+  user_id: string;
+  status: 'online' | 'offline' | 'away' | 'dnd';
+  custom_message?: string;
+  emoji?: string;
+  clear_at?: string;
   updated_at: string;
 }
 
@@ -166,7 +176,10 @@ export interface UpdateUserRequest {
 }
 
 export interface UpdateUserStatusRequest {
-  status: 'online' | 'offline' | 'away';
+  status: 'online' | 'offline' | 'away' | 'dnd';
+  custom_message?: string;
+  emoji?: string;
+  clear_after_minutes?: number;
 }
 
 // Pagination
@@ -209,4 +222,13 @@ export interface Bookmark {
   message_id: string;
   bookmarked_at: string;
   message?: Message;
+}
+
+// Link Preview types
+export interface LinkPreview {
+  url: string;
+  title?: string;
+  description?: string;
+  image?: string;
+  site_name?: string;
 }

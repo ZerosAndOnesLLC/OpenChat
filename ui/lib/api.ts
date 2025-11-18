@@ -18,6 +18,8 @@ import type {
   ThreadResponse,
   UnreadCountResponse,
   MarkAsReadRequest,
+  Attachment,
+  AttachmentUploadResponse,
 } from './types';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080';
@@ -278,6 +280,71 @@ class ApiClient {
       method: 'PUT',
       body: JSON.stringify(data),
     });
+  }
+
+  // Attachment endpoints
+  async uploadAttachment(messageId: string, file: File): Promise<AttachmentUploadResponse[]> {
+    const token = this.getToken();
+    const formData = new FormData();
+    formData.append('message_id', messageId);
+    formData.append('file', file);
+
+    const response = await fetch(`${this.baseUrl}/api/attachments/upload`, {
+      method: 'POST',
+      headers: {
+        'Authorization': token ? `Bearer ${token}` : '',
+      },
+      body: formData,
+    });
+
+    if (!response.ok) {
+      if (response.status === 401) {
+        this.clearToken();
+        if (typeof window !== 'undefined' && !window.location.pathname.includes('/sso/callback')) {
+          window.location.href = '/';
+        }
+        throw new Error('Authentication required');
+      }
+      const error = await response.json().catch(() => ({
+        message: `HTTP ${response.status}: ${response.statusText}`,
+      }));
+      throw new Error(error.message || 'Upload failed');
+    }
+
+    return response.json();
+  }
+
+  async downloadAttachment(attachmentId: string): Promise<Blob> {
+    const token = this.getToken();
+    const response = await fetch(`${this.baseUrl}/api/attachments/${attachmentId}/download`, {
+      method: 'GET',
+      headers: {
+        'Authorization': token ? `Bearer ${token}` : '',
+      },
+    });
+
+    if (!response.ok) {
+      if (response.status === 401) {
+        this.clearToken();
+        if (typeof window !== 'undefined' && !window.location.pathname.includes('/sso/callback')) {
+          window.location.href = '/';
+        }
+        throw new Error('Authentication required');
+      }
+      throw new Error('Download failed');
+    }
+
+    return response.blob();
+  }
+
+  async deleteAttachment(attachmentId: string): Promise<void> {
+    return this.request<void>(`/api/attachments/${attachmentId}`, {
+      method: 'DELETE',
+    });
+  }
+
+  async getMessageAttachments(messageId: string): Promise<Attachment[]> {
+    return this.request<Attachment[]>(`/api/messages/${messageId}/attachments`);
   }
 
   // SSO endpoints

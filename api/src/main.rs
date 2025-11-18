@@ -18,10 +18,12 @@ mod middleware;
 mod models;
 mod routes;
 mod services;
+mod storage;
 mod websocket;
 
 use config::Config;
 use handlers::{
+    attachment as attachment_handlers,
     channels as channel_handlers,
     dms as dm_handlers,
     messages as message_handlers,
@@ -31,6 +33,7 @@ use handlers::{
 };
 use middleware::auth::AuthMiddleware;
 use services::tv_api::TvApiClient;
+use storage::StorageFactory;
 
 async fn health_check() -> impl Responder {
     HttpResponse::Ok().json(serde_json::json!({
@@ -125,6 +128,12 @@ async fn main() -> std::io::Result<()> {
     // Create TV API client
     let tv_api_client = Arc::new(TvApiClient::new(config.tv_api_url.clone()));
 
+    // Create storage factory
+    let local_storage_path = std::env::var("LOCAL_STORAGE_PATH")
+        .unwrap_or_else(|_| "/var/openchat/uploads".to_string());
+    let storage_factory = Arc::new(StorageFactory::new(db_pool.clone(), local_storage_path));
+    info!("Storage factory initialized");
+
     // Build HTTP server
     let server = HttpServer::new(move || {
         // Configure CORS
@@ -148,6 +157,7 @@ async fn main() -> std::io::Result<()> {
             .app_data(web::Data::new(redis_conn.clone()))
             .app_data(web::Data::new(ws_server.clone()))
             .app_data(web::Data::new(tv_api_client.clone()))
+            .app_data(web::Data::new(storage_factory.clone()))
             .route("/health", web::get().to(health_check))
             .route("/api/ws", web::get().to(websocket::ws_route))
             // User routes - require "openchat" role
@@ -187,6 +197,15 @@ async fn main() -> std::io::Result<()> {
                     .route("/{id}/reactions", web::get().to(reaction_handlers::list_reactions))
                     .route("/{id}/reactions/counts", web::get().to(reaction_handlers::get_reaction_counts))
                     .route("/{id}/reactions/{emoji}", web::delete().to(reaction_handlers::remove_reaction))
+                    .route("/{id}/attachments", web::get().to(attachment_handlers::get_message_attachments))
+            )
+            // Attachment routes - require "openchat" role
+            .service(
+                web::scope("/api/attachments")
+                    .wrap(openchat_auth.clone())
+                    .route("/upload", web::post().to(attachment_handlers::upload_attachment))
+                    .route("/{id}/download", web::get().to(attachment_handlers::download_attachment))
+                    .route("/{id}", web::delete().to(attachment_handlers::delete_attachment))
             )
             // Direct Message routes - require "openchat" role
             .service(

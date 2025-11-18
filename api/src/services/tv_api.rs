@@ -22,6 +22,10 @@ struct AccessTokenClaims {
     sub: String,           // User ID
     #[serde(default)]
     email: Option<String>,
+    #[serde(default)]
+    nickname: Option<String>,     // User's display name/nickname
+    #[serde(default)]
+    name: Option<String>,         // User's full name
     org_id: Option<String>,
     org_name: Option<String>,
     #[serde(default)]
@@ -138,8 +142,9 @@ impl TvApiClient {
         let org_name = jwt_claims.org_name.clone()
             .unwrap_or_else(|| format!("org-{}", org_id));
 
-        // Use org_name as display_name if available, otherwise use email prefix
-        let display_name = jwt_claims.org_name
+        // Use nickname first, then name, then email prefix as display_name
+        let display_name = jwt_claims.nickname
+            .or(jwt_claims.name)
             .unwrap_or_else(|| email.split('@').next().unwrap_or("User").to_string());
 
         let claims = TokenClaims {

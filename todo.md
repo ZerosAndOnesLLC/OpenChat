@@ -1,0 +1,681 @@
+# OpenChat Development Roadmap
+
+## Overview
+Plan to achieve feature parity with Mattermost/Slack and add end-to-end encryption. Focus on UX/core features first, then encryption, then enterprise features.
+
+---
+
+## Phase 1: Critical UX Features (Priority 1)
+
+### 1.1 Unread Message Tracking
+- [x] Create migration: `channel_read_status` table
+  - user_id, channel_id, last_read_message_id, last_read_at, unread_count
+  - Indexes on (user_id, channel_id), (channel_id)
+- [x] Create migration: `dm_read_status` table
+  - user_id, dm_id, last_read_message_id, last_read_at, unread_count
+  - Indexes on (user_id, dm_id), (dm_id)
+- [x] API: POST /api/channels/{id}/read - Mark channel as read
+- [x] API: GET /api/channels/{id}/unread - Get unread count
+- [x] API: POST /api/dms/{id}/read - Mark DM as read
+- [x] API: GET /api/dms/{id}/unread - Get unread count
+- [x] WebSocket: Send unread count updates on new messages
+- [x] Cache: Unread counts in Redis with TTL
+- [x] UI: API client methods for unread endpoints (infrastructure ready)
+- [ ] UI: Unread badges on channels in sidebar (future work)
+- [ ] UI: Unread badges on DMs in sidebar (future work)
+- [ ] UI: Bold unread items in sidebar (future work)
+- [ ] UI: Scroll to first unread message indicator (future work)
+- [x] Update README.md for API changes
+
+### 1.2 Thread Display UI
+- [ ] UI: Show thread count badge on parent messages
+- [ ] UI: Inline thread preview (first reply + "X replies")
+- [ ] UI: Thread side panel with all replies
+- [ ] UI: "Reply in thread" button on messages
+- [ ] UI: Thread breadcrumb navigation
+- [ ] API: GET /api/messages/{id}/thread (already exists, verify)
+- [ ] WebSocket: Send thread updates to subscribers
+- [ ] UI: Notification preferences for thread replies
+- [ ] Update README.md
+
+### 1.3 File Attachments with Configurable Storage
+- [ ] Create migration: Update `attachments` table if needed
+  - Add storage_type column (local, s3)
+  - Add storage_path column (filesystem path or S3 key)
+- [ ] Create migration: `storage_settings` table
+  - org_id, storage_type (local/s3), s3_bucket, s3_region, s3_access_key_id_encrypted, s3_secret_key_encrypted
+- [ ] Rust: Create FileStorage trait with Local and S3 implementations
+- [ ] Rust: Local storage handler (save to /var/openchat/uploads or configurable path)
+- [ ] Rust: S3 storage handler using aws-sdk-s3
+- [ ] Rust: Storage factory based on org settings (default: local)
+- [ ] API: POST /api/attachments/upload - Get upload URL or initiate upload
+- [ ] API: POST /api/attachments - Save attachment metadata
+- [ ] API: GET /api/attachments/{id} - Download/get attachment URL
+- [ ] API: DELETE /api/attachments/{id} - Delete attachment
+- [ ] API: POST /api/settings/storage - Configure storage settings (admin only)
+- [ ] API: GET /api/settings/storage - Get storage settings (admin only)
+- [ ] Env vars: MAX_FILE_SIZE (default 25MB)
+- [ ] Env vars: ALLOWED_FILE_TYPES (default: images, docs, videos)
+- [ ] Env vars: LOCAL_STORAGE_PATH (default: /var/openchat/uploads)
+- [ ] UI: File upload button in message input
+- [ ] UI: Drag and drop file upload
+- [ ] UI: File upload progress indicator
+- [ ] UI: Image inline preview in messages
+- [ ] UI: Document/video thumbnails
+- [ ] UI: File download button
+- [ ] UI: Admin settings page for storage configuration
+- [ ] UI: Storage type selector (Local/S3)
+- [ ] UI: S3 credentials input form (encrypted storage)
+- [ ] WebSocket: Send attachment notifications
+- [ ] File type validation and size limits
+- [ ] Update README.md with storage configuration docs
+- [ ] Increment version to 0.19.0
+
+### 1.4 Message Search (Full-Text)
+- [ ] Create migration: Add GIN index on messages.content
+  - Create tsvector column: content_tsv
+  - Create trigger to auto-update tsvector on insert/update
+  - Add GIN index on content_tsv
+- [ ] API: GET /api/search/messages?q={query}&scope={channel|dm|all}&channel_id={id}
+- [ ] API: Support filters: from:@user, in:#channel, before:date, after:date
+- [ ] Cache: Search results in Redis (short TTL, 1 min)
+- [ ] UI: Global search bar in header
+- [ ] UI: Keyboard shortcut Cmd/Ctrl+K for search
+- [ ] UI: Search results page with filters
+- [ ] UI: Jump to message in context from search results
+- [ ] UI: Search within channel/DM option
+- [ ] Update README.md
+- [ ] Increment version to 0.20.0
+
+### 1.5 @Mentions & Notifications
+- [ ] Create migration: `mentions` table
+  - message_id, mentioned_user_id, mention_type (user/channel), created_at
+  - Indexes on (mentioned_user_id, created_at), (message_id)
+- [ ] Create migration: `notifications` table
+  - user_id, type (mention/dm/thread_reply), message_id, channel_id, dm_id, read, created_at
+  - Indexes on (user_id, read, created_at)
+- [ ] Rust: Mention parser for @username and @channel
+- [ ] Rust: User lookup for autocomplete
+- [ ] API: Parse mentions when creating/editing messages
+- [ ] API: Create notification records for mentions
+- [ ] API: GET /api/mentions - List user's mentions
+- [ ] API: GET /api/notifications - List notifications
+- [ ] API: POST /api/notifications/{id}/read - Mark as read
+- [ ] API: POST /api/notifications/read-all - Mark all as read
+- [ ] WebSocket: Send real-time notifications
+- [ ] Cache: Notification counts in Redis
+- [ ] UI: @mention autocomplete dropdown in message input
+- [ ] UI: Highlight @mentions in messages
+- [ ] UI: @channel confirmation dialog (notify all members)
+- [ ] UI: Notifications panel/dropdown
+- [ ] UI: Notification badge count
+- [ ] UI: Notification sound (optional, user preference)
+- [ ] Update README.md
+- [ ] Increment version to 0.21.0
+
+---
+
+## Phase 2: Enhanced UX & Collaboration (Priority 1)
+
+### 2.1 Message Pinning & Bookmarks
+- [ ] Create migration: `pinned_messages` table
+  - channel_id, message_id, pinned_by, pinned_at
+  - Unique index on (channel_id, message_id)
+- [ ] Create migration: `bookmarks` table
+  - user_id, message_id, bookmarked_at
+  - Unique index on (user_id, message_id)
+- [ ] API: POST /api/messages/{id}/pin - Pin message (requires permission)
+- [ ] API: DELETE /api/messages/{id}/pin - Unpin message
+- [ ] API: GET /api/channels/{id}/pins - List pinned messages
+- [ ] API: POST /api/bookmarks - Bookmark message
+- [ ] API: DELETE /api/bookmarks/{message_id} - Remove bookmark
+- [ ] API: GET /api/bookmarks - List user's bookmarks
+- [ ] UI: Pin icon in message hover menu
+- [ ] UI: Pinned messages panel at top of channel
+- [ ] UI: Bookmark icon in message hover menu
+- [ ] UI: Personal bookmarks sidebar section
+- [ ] UI: Toast notification when message pinned
+- [ ] WebSocket: Broadcast pin/unpin events
+- [ ] Update README.md
+- [ ] Increment version to 0.22.0
+
+### 2.2 Rich Text Formatting (Markdown)
+- [ ] Rust: Store messages as markdown in database
+- [ ] UI: Markdown preview in message input (toggle)
+- [ ] UI: Markdown toolbar (bold, italic, code, list, link, quote)
+- [ ] UI: Render markdown in messages using react-markdown
+- [ ] UI: Syntax highlighting for code blocks (prism.js)
+- [ ] UI: Support for:
+  - Bold: **text** or __text__
+  - Italic: *text* or _text_
+  - Code inline: `code`
+  - Code block: ```language\ncode\n```
+  - Lists: ordered and unordered
+  - Links: [text](url)
+  - Quotes: > quote
+  - Headings: # H1, ## H2, ### H3
+- [ ] Security: Sanitize HTML output (prevent XSS)
+- [ ] UI: Link unfurling (show preview for URLs)
+- [ ] Update README.md
+- [ ] Increment version to 0.23.0
+
+### 2.3 Advanced Status & Presence
+- [ ] Create migration: `user_status` table
+  - user_id, status (online/away/dnd/offline), custom_message, emoji, clear_at, updated_at
+- [ ] API: PUT /api/users/me/status - Update status
+- [ ] API: GET /api/users/{id}/status - Get user status
+- [ ] Rust: Auto-away logic (after 15 min inactivity)
+- [ ] WebSocket: Heartbeat to track activity
+- [ ] WebSocket: Broadcast status changes
+- [ ] Cache: User status in Redis (5 min TTL)
+- [ ] UI: Status picker dropdown
+- [ ] UI: Custom status input with emoji
+- [ ] UI: "Clear status after" time selector
+- [ ] UI: Status indicator on user avatars
+- [ ] UI: User profile shows full status
+- [ ] Update README.md
+- [ ] Increment version to 0.24.0
+
+### 2.4 Read Receipts
+- [ ] Create migration: `message_read_receipts` table
+  - message_id, user_id, read_at
+  - Indexes on (message_id, read_at), (user_id)
+- [ ] Create migration: Add `disable_read_receipts` to users table (privacy option)
+- [ ] API: POST /api/messages/{id}/read - Record read receipt
+- [ ] API: GET /api/messages/{id}/receipts - Get who read message
+- [ ] API: Batch read receipt recording
+- [ ] WebSocket: Send read receipts to sender
+- [ ] UI: "Seen by" indicator on messages (like Slack)
+- [ ] UI: Privacy setting to disable sending read receipts
+- [ ] UI: Read receipt list modal
+- [ ] Update README.md
+- [ ] Increment version to 0.25.0
+
+### 2.5 Message Editing History
+- [ ] Create migration: `message_edits` table
+  - message_id, old_content, edited_by, edited_at
+  - Index on (message_id, edited_at)
+- [ ] API: Store edit history when message updated
+- [ ] API: GET /api/messages/{id}/history - Get edit history
+- [ ] UI: "Edited" indicator on messages
+- [ ] UI: Click to show edit history modal
+- [ ] UI: Diff view for edits (show what changed)
+- [ ] Update README.md
+- [ ] Increment version to 0.26.0
+
+### 2.6 Message Drafts
+- [ ] UI: Store drafts in IndexedDB per channel/DM
+- [ ] UI: Auto-save draft every 2 seconds
+- [ ] UI: Restore draft when switching channels
+- [ ] UI: Clear draft on send
+- [ ] Optional: Sync drafts via API for cross-device
+- [ ] Update README.md
+
+### 2.7 Keyboard Shortcuts
+- [ ] UI: Implement keyboard shortcuts:
+  - Cmd/Ctrl+K: Quick switcher (channels/DMs)
+  - Cmd/Ctrl+F: Search messages (already in 1.4)
+  - Up arrow: Edit last message
+  - Cmd/Ctrl+Enter: Send message
+  - Tab: Navigate channels
+  - Esc: Close modals/panels
+  - Cmd/Ctrl+/: Show keyboard shortcuts help
+- [ ] UI: Keyboard shortcuts help modal
+- [ ] UI: Visual indicator for shortcut hints
+- [ ] Update README.md
+- [ ] Increment version to 0.27.0
+
+---
+
+## Phase 3: Performance & Caching (Priority 2)
+
+### 3.1 Full Redis Caching Implementation
+- [ ] Rust: Implement cache layer for channels (use existing cache/channels.rs)
+- [ ] Rust: Implement cache layer for DMs (use existing cache/dms.rs)
+- [ ] Rust: Implement cache layer for users (use existing cache/users.rs)
+- [ ] Rust: Implement cache layer for messages (use existing cache/messages.rs)
+- [ ] Rust: Cache patterns:
+  - User sessions: 5 min TTL
+  - Channel members: invalidate on change
+  - Recent messages: 1 min TTL
+  - Unread counts: real-time updates
+  - Search results: 1 min TTL
+- [ ] Rust: Cache invalidation on mutations (updates, deletes)
+- [ ] Rust: Cache warming on app startup
+- [ ] Add metrics for cache hit/miss rates
+- [ ] Update README.md with caching strategy
+- [ ] Increment version to 0.28.0
+
+### 3.2 Database Optimization
+- [ ] Create migration: Add performance indexes
+  - messages(channel_id, created_at DESC)
+  - messages(dm_id, created_at DESC)
+  - messages(user_id, created_at DESC)
+  - channel_members(user_id, channel_id)
+  - mentions(user_id, created_at DESC)
+  - notifications(user_id, read, created_at DESC)
+- [ ] Analyze query patterns with EXPLAIN ANALYZE
+- [ ] Consider partitioning messages table by created_at (if > 1M messages)
+- [ ] Optimize pagination queries (use cursor-based, already implemented)
+- [ ] Update README.md
+- [ ] Increment version to 0.29.0
+
+### 3.3 Rate Limiting
+- [ ] Rust: Redis-based rate limiting middleware
+- [ ] Rust: Per-user rate limits:
+  - 5 messages/second
+  - 20 API requests/second
+  - 100 WebSocket messages/minute
+- [ ] API: Return 429 Too Many Requests with Retry-After header
+- [ ] API: Rate limit headers on responses (X-RateLimit-Limit, X-RateLimit-Remaining)
+- [ ] UI: Show rate limit error to user
+- [ ] Update README.md
+- [ ] Increment version to 0.30.0
+
+---
+
+## Phase 4: End-to-End Encryption (Priority 1 - After UX)
+
+### 4.1 E2E Encryption Architecture & Planning
+- [ ] Research: Finalize Matrix Olm/Megolm vs Signal Protocol
+- [ ] Decision: Choose Vodozemac (Olm/Megolm) for Rust backend
+- [ ] Decision: Choose @matrix-org/olm for TypeScript frontend
+- [ ] Design: Key management architecture
+- [ ] Design: Device registration flow
+- [ ] Design: Encryption session establishment
+- [ ] Design: Megolm session rotation strategy
+- [ ] Update README.md with encryption architecture docs
+
+### 4.2 Database Schema for Encryption
+- [ ] Create migration: `user_devices` table
+  - device_id, user_id, device_name, identity_key, signing_key, one_time_keys (JSONB), last_seen, created_at
+  - Indexes on (user_id), (device_id)
+- [ ] Create migration: `encrypted_channels` table
+  - channel_id, encryption_enabled, algorithm, megolm_session_id, created_at
+  - Unique index on (channel_id)
+- [ ] Create migration: Modify `messages` table
+  - Add encrypted_content (BYTEA)
+  - Add encryption_metadata (JSONB) - algorithm, sender_device_id, session_id, ciphertext_type
+  - Keep content NULL for encrypted messages
+- [ ] Create migration: `encryption_sessions` table
+  - session_id, channel_id, dm_id, algorithm, session_key_encrypted, created_at, rotated_at
+  - Indexes on (channel_id), (dm_id)
+- [ ] Increment version to 0.31.0
+
+### 4.3 Crypto Key Management API
+- [ ] Add vodozemac crate to Cargo.toml
+- [ ] Rust: Crypto module structure (src/crypto/)
+- [ ] Rust: Device registration handler
+- [ ] Rust: One-time key upload handler
+- [ ] Rust: One-time key claiming handler
+- [ ] API: POST /api/crypto/devices - Register device
+- [ ] API: GET /api/crypto/devices/{user_id} - Get user's devices
+- [ ] API: POST /api/crypto/prekeys - Upload one-time keys
+- [ ] API: POST /api/crypto/claim-keys - Claim keys for encryption
+- [ ] API: POST /api/crypto/sessions - Establish encryption session
+- [ ] API: GET /api/crypto/sessions/{channel_id} - Get channel session info
+- [ ] Security: Rate limit key claims to prevent DoS
+- [ ] Update README.md
+- [ ] Increment version to 0.32.0
+
+### 4.4 Message Encryption Implementation
+- [ ] Rust: Server-side message handling (store encrypted blobs only)
+- [ ] Rust: Never decrypt messages on server
+- [ ] Rust: Validation of encryption metadata
+- [ ] API: Accept encrypted_content in POST /api/messages
+- [ ] API: Return encrypted_content in message responses
+- [ ] WebSocket: Forward encrypted messages without decryption
+- [ ] Update README.md
+- [ ] Increment version to 0.33.0
+
+### 4.5 Frontend Encryption Implementation
+- [ ] UI: Add @matrix-org/olm library
+- [ ] UI: Crypto store in IndexedDB for keys
+- [ ] UI: Device registration on first login
+- [ ] UI: Generate and upload one-time keys
+- [ ] UI: Encrypt messages before sending (if channel has encryption)
+- [ ] UI: Decrypt messages on receipt
+- [ ] UI: Megolm session management for group channels
+- [ ] UI: Olm session management for DMs
+- [ ] UI: Key backup/recovery mechanism
+- [ ] Update README.md
+- [ ] Increment version to 0.34.0
+
+### 4.6 Encryption UI/UX
+- [ ] UI: Channel settings - "Enable End-to-End Encryption" toggle (admin only)
+- [ ] UI: Lock icon on encrypted channels/messages
+- [ ] UI: Device verification flow
+- [ ] UI: Device list in user settings
+- [ ] UI: Device trust management (verify safety numbers)
+- [ ] UI: Key backup setup wizard
+- [ ] UI: Key recovery flow (passphrase)
+- [ ] UI: Warning when sending to unverified devices
+- [ ] UI: Encryption status indicator
+- [ ] Update README.md
+- [ ] Increment version to 0.35.0
+
+### 4.7 Encryption Testing & Security Audit
+- [ ] Test: Encryption/decryption round-trip
+- [ ] Test: Multi-device scenarios
+- [ ] Test: Session rotation
+- [ ] Test: Key backup/recovery
+- [ ] Test: Unverified device warnings
+- [ ] Security: Third-party audit (if budget allows)
+- [ ] Security: Penetration testing
+- [ ] Documentation: Encryption whitepaper
+- [ ] Update README.md
+
+---
+
+## Phase 5: Enterprise Features (Priority 2)
+
+### 5.1 Advanced Permissions System
+- [ ] Create migration: `roles` table
+  - org_id, role_name, is_system_role, created_at
+- [ ] Create migration: `permissions` table
+  - permission_name, resource_type, action, description
+- [ ] Create migration: `role_permissions` table
+  - role_id, permission_id
+- [ ] Create migration: `user_roles` table
+  - user_id, role_id, channel_id (NULL for org-level roles)
+- [ ] Seed default roles: admin, moderator, member, guest
+- [ ] Permissions:
+  - channel.read, channel.write, channel.delete
+  - channel.invite_users, channel.manage_members
+  - channel.delete_messages, channel.pin_messages
+  - org.create_channels, org.manage_users, org.manage_roles
+- [ ] Rust: Permission checking middleware
+- [ ] API: GET /api/roles - List roles
+- [ ] API: POST /api/roles - Create role (admin only)
+- [ ] API: PUT /api/roles/{id} - Update role
+- [ ] API: DELETE /api/roles/{id} - Delete role
+- [ ] API: POST /api/roles/{id}/permissions - Assign permissions
+- [ ] API: POST /api/users/{id}/roles - Assign role to user
+- [ ] UI: Role management interface (admin)
+- [ ] UI: Permission matrix editor
+- [ ] UI: User role assignment
+- [ ] UI: Channel-specific role overrides
+- [ ] Update README.md
+- [ ] Increment version to 0.36.0
+
+### 5.2 Custom Emojis
+- [ ] Create migration: `custom_emojis` table
+  - org_id, name, image_url, storage_type (local/s3), storage_path, created_by, created_at
+  - Unique index on (org_id, name)
+- [ ] API: POST /api/emojis/upload - Upload custom emoji
+- [ ] API: GET /api/emojis - List org emojis
+- [ ] API: DELETE /api/emojis/{id} - Delete emoji (admin only)
+- [ ] Rust: Image validation (size, format)
+- [ ] Rust: Image resize to 128x128px
+- [ ] Rust: Store in configured storage (local/S3)
+- [ ] UI: Custom emoji picker section
+- [ ] UI: Emoji upload dialog (admin)
+- [ ] UI: Emoji autocomplete in message input
+- [ ] UI: Render custom emojis in messages and reactions
+- [ ] Update README.md
+- [ ] Increment version to 0.37.0
+
+### 5.3 Audit Logging
+- [ ] Create migration: `audit_logs` table
+  - user_id, action, resource_type, resource_id, metadata (JSONB), ip_address, user_agent, timestamp
+  - Indexes on (user_id, timestamp), (resource_type, resource_id)
+  - Partitioning by timestamp (monthly)
+- [ ] Rust: Audit logging middleware
+- [ ] Log actions:
+  - Message deletion (with content)
+  - Channel creation/deletion
+  - User added/removed from channel
+  - Permission changes
+  - Role assignments
+  - Settings changes
+  - Login/logout events
+- [ ] API: GET /api/audit-logs - List audit logs (admin only)
+- [ ] API: Filters: user, action, resource, date range
+- [ ] UI: Audit log viewer (admin)
+- [ ] UI: Export audit logs (CSV)
+- [ ] Retention: 7 years (configurable)
+- [ ] Update README.md
+- [ ] Increment version to 0.38.0
+
+### 5.4 Data Retention Policies
+- [ ] Create migration: `retention_policies` table
+  - org_id, policy_type (messages/files), retention_days, enabled, created_at
+- [ ] Rust: Background job for retention enforcement
+- [ ] Rust: Legal hold capability (freeze deletion for specific channels)
+- [ ] API: POST /api/settings/retention - Set retention policy (admin only)
+- [ ] API: GET /api/settings/retention - Get retention policy
+- [ ] API: POST /api/channels/{id}/legal-hold - Enable legal hold
+- [ ] UI: Retention settings page (admin)
+- [ ] UI: Legal hold management
+- [ ] UI: GDPR data export (download all user data)
+- [ ] Update README.md
+- [ ] Increment version to 0.39.0
+
+---
+
+## Phase 6: Collaboration Tools (Priority 3)
+
+### 6.1 Slash Commands
+- [ ] Create migration: `slash_commands` table
+  - org_id, command_name, description, handler_type (builtin/webhook), handler_url, created_by, created_at
+  - Unique index on (org_id, command_name)
+- [ ] Rust: Slash command parser
+- [ ] Rust: Built-in commands: /giphy, /shrug, /tableflip
+- [ ] Rust: Webhook command handler (POST to external URL)
+- [ ] API: POST /api/commands/execute - Execute command
+- [ ] API: GET /api/commands - List available commands
+- [ ] API: POST /api/commands - Create custom command (admin only)
+- [ ] API: DELETE /api/commands/{id} - Delete command
+- [ ] UI: Slash command autocomplete
+- [ ] UI: Command help (/help)
+- [ ] UI: Custom command management (admin)
+- [ ] Update README.md
+- [ ] Increment version to 0.40.0
+
+### 6.2 Message Reminders
+- [ ] Create migration: `reminders` table
+  - user_id, message_id, remind_at, message_text, completed, created_at
+  - Index on (user_id, remind_at, completed)
+- [ ] Rust: Background job to check reminders every minute
+- [ ] API: POST /api/reminders - Create reminder
+- [ ] API: GET /api/reminders - List user reminders
+- [ ] API: DELETE /api/reminders/{id} - Cancel reminder
+- [ ] UI: "Remind me" in message context menu
+- [ ] UI: Reminder time picker (1 hour, 3 hours, tomorrow, custom)
+- [ ] UI: Reminder notification
+- [ ] WebSocket: Send reminder notification
+- [ ] Update README.md
+- [ ] Increment version to 0.41.0
+
+### 6.3 Polls
+- [ ] Create migration: `polls` table
+  - message_id, question, options (JSONB array), expires_at, created_by, created_at
+- [ ] Create migration: `poll_votes` table
+  - poll_id, user_id, option_index, voted_at
+  - Unique index on (poll_id, user_id) for single-vote polls
+- [ ] Rust: Poll creation handler
+- [ ] API: POST /api/polls - Create poll (embeds in message)
+- [ ] API: POST /api/polls/{id}/vote - Vote on poll
+- [ ] API: GET /api/polls/{id}/results - Get poll results
+- [ ] UI: Poll creation dialog
+- [ ] UI: Poll display component
+- [ ] UI: Vote buttons
+- [ ] UI: Real-time results chart
+- [ ] WebSocket: Broadcast vote updates
+- [ ] Update README.md
+- [ ] Increment version to 0.42.0
+
+### 6.4 Webhooks & Integrations
+- [ ] Create migration: `webhooks` table
+  - channel_id, name, url, events (JSONB array), secret, enabled, created_by, created_at
+- [ ] Create migration: `webhook_deliveries` table
+  - webhook_id, event_type, payload (JSONB), status, response, delivered_at
+  - Index on (webhook_id, delivered_at)
+- [ ] Rust: Webhook dispatcher (async job)
+- [ ] Rust: HMAC signature for webhook payloads
+- [ ] Events: message.created, message.deleted, channel.created, etc.
+- [ ] API: POST /api/webhooks - Create webhook (admin only)
+- [ ] API: GET /api/webhooks - List webhooks
+- [ ] API: DELETE /api/webhooks/{id} - Delete webhook
+- [ ] API: POST /api/webhooks/incoming/{channel_id} - Incoming webhook endpoint
+- [ ] UI: Webhook management interface
+- [ ] UI: Webhook delivery log
+- [ ] Update README.md
+- [ ] Increment version to 0.43.0
+
+### 6.5 Message Forwarding
+- [ ] API: POST /api/messages/{id}/forward - Forward message
+- [ ] UI: "Forward" in message context menu
+- [ ] UI: Channel/DM selector modal
+- [ ] UI: Show "Forwarded from" attribution
+- [ ] WebSocket: Send forwarded message notification
+- [ ] Update README.md
+- [ ] Increment version to 0.44.0
+
+---
+
+## Phase 7: Multi-Platform Apps (Priority 3)
+
+### 7.1 Flutter App Setup
+- [ ] Initialize Flutter project (openchat_mobile)
+- [ ] Setup project structure (lib/, features/, core/)
+- [ ] Add dependencies: http, web_socket_channel, flutter_secure_storage, provider/riverpod
+- [ ] Configure Android (build.gradle, AndroidManifest.xml)
+- [ ] Configure iOS (Info.plist, Podfile)
+- [ ] Configure Windows (CMakeLists.txt)
+- [ ] Configure macOS (Podfile, entitlements)
+- [ ] Setup CI/CD for all platforms
+- [ ] Update README.md
+
+### 7.2 Flutter Authentication
+- [ ] Implement OAuth 2.0 PKCE flow
+- [ ] Secure token storage (flutter_secure_storage)
+- [ ] Auto-refresh token logic
+- [ ] Login screen UI
+- [ ] Deep linking for OAuth callback
+- [ ] Update README.md
+
+### 7.3 Flutter Core Features
+- [ ] API client (Dio or http)
+- [ ] WebSocket client with auto-reconnect
+- [ ] State management (Provider or Riverpod)
+- [ ] Offline message queue (sqflite)
+- [ ] Push notifications (FCM for Android, APNS for iOS)
+- [ ] Update README.md
+
+### 7.4 Flutter UI Implementation
+- [ ] Channel list screen
+- [ ] DM list screen
+- [ ] Message area screen
+- [ ] Thread view screen
+- [ ] User profile screen
+- [ ] Settings screen
+- [ ] Search screen
+- [ ] Notifications screen
+- [ ] Match web UI design
+- [ ] Update README.md
+
+### 7.5 Flutter Platform-Specific Features
+- [ ] Android: Share extension
+- [ ] iOS: Share extension
+- [ ] Desktop: System tray icon
+- [ ] Desktop: Native notifications
+- [ ] All: Dark mode support
+- [ ] Update README.md
+
+### 7.6 Flutter Testing & Release
+- [ ] Unit tests for business logic
+- [ ] Widget tests for UI components
+- [ ] Integration tests
+- [ ] Android: Generate signed APK/AAB
+- [ ] iOS: App Store submission
+- [ ] Windows: MSIX package
+- [ ] macOS: DMG/PKG package
+- [ ] Update README.md
+- [ ] Increment version to 1.0.0
+
+---
+
+## Phase 8: Monitoring & Observability (Ongoing)
+
+### 8.1 Metrics & Monitoring
+- [ ] Add prometheus crate for metrics
+- [ ] Metrics:
+  - Message throughput (messages/sec)
+  - WebSocket connection count
+  - API latency (p50, p95, p99)
+  - Error rates by endpoint
+  - Cache hit/miss rates
+  - Database query performance
+- [ ] CloudWatch integration (if on AWS)
+- [ ] Grafana dashboards
+- [ ] Update README.md
+
+### 8.2 Logging & Tracing
+- [ ] Structured logging (already using tracing crate)
+- [ ] Log levels: ERROR, WARN, INFO, DEBUG
+- [ ] Request ID tracing across services
+- [ ] OpenTelemetry integration (optional)
+- [ ] Log aggregation (CloudWatch Logs or ELK stack)
+- [ ] Update README.md
+
+### 8.3 Alerting
+- [ ] CloudWatch alarms (if on AWS)
+- [ ] Alert on: High error rate, high latency, low disk space
+- [ ] Alert channels: Email, Slack, PagerDuty
+- [ ] Update README.md
+
+### 8.4 Performance Testing
+- [ ] Load testing with k6 or Locust
+- [ ] Target: 10,000 concurrent WebSocket connections
+- [ ] Target: 1,000 messages/sec throughput
+- [ ] Stress test database queries
+- [ ] Profile Rust code for bottlenecks
+- [ ] Update README.md
+
+---
+
+## Phase 9: Advanced Features (Future)
+
+### 9.1 Voice/Video Calling
+- [ ] Research: Daily.co vs Jitsi vs WebRTC from scratch
+- [ ] Integration planning
+- [ ] Implementation (TBD)
+
+### 9.2 Shared Canvas / Whiteboard
+- [ ] Real-time collaborative drawing
+- [ ] Integration with channels
+- [ ] Implementation (TBD)
+
+### 9.3 AI Features
+- [ ] Message summarization
+- [ ] Smart replies
+- [ ] Translation
+- [ ] Implementation (TBD)
+
+---
+
+## Version Increment Strategy
+
+Following semantic versioning (MAJOR.MINOR.PATCH):
+- **Major (1.0.0)**: When Flutter apps released and E2E encryption complete
+- **Minor (0.X.0)**: New features (each major feature phase)
+- **Patch (0.0.X)**: Bug fixes, small improvements
+
+Current version: 0.18.0 (API), 0.14.2 (UI)
+Target for 1.0.0: After Phase 7 completion
+
+---
+
+## Notes
+
+- All database changes use SQLx migrations (never manual SQL)
+- All commits increment version in Cargo.toml
+- Update README.md after each significant feature
+- Run `cargo check` and fix all warnings before commits
+- Never use paid crates without approval
+- Optimize database queries (millions of users expected)
+- Leverage cache before hitting database
+- Each feature should create a PR for openchat (public repo)
+- File storage defaults to local, S3 is optional and configurable per org
+- E2E encryption comes AFTER core UX features are complete

@@ -95,6 +95,7 @@ export type WSServerMessage =
   | { type: 'user_status'; user_id: string; status: 'online' | 'offline' | 'away' }
   | { type: 'reaction_added'; message_id: string; user_id: string; emoji: string }
   | { type: 'reaction_removed'; message_id: string; user_id: string; emoji: string }
+  | { type: 'unread_count_updated'; channel_id?: string; dm_id?: string; unread_count: number }
   | { type: 'connected'; user_id: string }
   | { type: 'error'; message: string }
   | { type: 'pong' };
@@ -156,4 +157,13 @@ export interface PaginatedResponse<T> {
 export interface ThreadResponse {
   parent: Message;
   replies: Message[];
+}
+
+// Read status types
+export interface UnreadCountResponse {
+  unread_count: number;
+}
+
+export interface MarkAsReadRequest {
+  last_message_id?: string;
 }

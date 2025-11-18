@@ -92,4 +92,10 @@ pub enum ServerMessage {
     },
     /// Pong response to ping
     Pong,
+    /// Unread count updated for a channel
+    UnreadCountUpdated {
+        channel_id: Option<Uuid>,
+        dm_id: Option<Uuid>,
+        unread_count: i32,
+    },
 }

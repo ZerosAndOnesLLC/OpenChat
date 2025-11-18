@@ -15,6 +15,7 @@ pub struct User {
     pub display_name: String,
     pub avatar_url: Option<String>,
     pub status: String,
+    pub disable_read_receipts: bool,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }

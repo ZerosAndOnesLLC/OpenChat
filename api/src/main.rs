@@ -33,6 +33,7 @@ use handlers::{
     notifications as notification_handlers,
     pins as pin_handlers,
     reactions as reaction_handlers,
+    read_receipts as read_receipt_handlers,
     read_status as read_status_handlers,
     search as search_handlers,
     user_status as user_status_handlers,
@@ -220,6 +221,14 @@ async fn main() -> std::io::Result<()> {
                     .route("/{id}/attachments", web::get().to(attachment_handlers::get_message_attachments))
                     .route("/{id}/pin", web::post().to(pin_handlers::pin_message))
                     .route("/{id}/pin", web::delete().to(pin_handlers::unpin_message))
+                    .route("/{id}/read", web::post().to(read_receipt_handlers::record_read_receipt))
+                    .route("/{id}/receipts", web::get().to(read_receipt_handlers::get_message_receipts))
+            )
+            // Read Receipt routes - require "openchat" role
+            .service(
+                web::scope("/api/read-receipts")
+                    .wrap(openchat_auth.clone())
+                    .route("/batch", web::post().to(read_receipt_handlers::record_batch_read_receipts))
             )
             // Attachment routes - require "openchat" role
             .service(

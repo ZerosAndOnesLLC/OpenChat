@@ -77,7 +77,7 @@ export default function MessageArea({ channel, dm }: MessageAreaProps) {
   // Set fetched messages to store
   useEffect(() => {
     if (currentKey && fetchedMessages && fetchedMessages.length > 0) {
-      setMessages(currentKey, []);
+      setMessages(currentKey, fetchedMessages);
     }
   }, [currentKey, fetchedMessages, setMessages]);
 

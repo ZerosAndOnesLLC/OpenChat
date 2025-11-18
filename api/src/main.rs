@@ -38,6 +38,7 @@ use handlers::{
     reactions as reaction_handlers,
     read_receipts as read_receipt_handlers,
     read_status as read_status_handlers,
+    roles as role_handlers,
     search as search_handlers,
     storage_settings as storage_settings_handlers,
     user_status as user_status_handlers,
@@ -332,6 +333,20 @@ async fn main() -> std::io::Result<()> {
                     .wrap(api_rate_limit.clone())
                     .wrap(openchat_auth.clone())
                     .route("/preview", web::get().to(link_preview_handlers::get_link_preview))
+            )
+            // Role and Permission routes - require "openchat" role
+            .service(
+                web::scope("/api/roles")
+                    .wrap(api_rate_limit.clone())
+                    .wrap(openchat_auth.clone())
+                    .route("", web::get().to(role_handlers::list_roles))
+                    .route("/{id}", web::get().to(role_handlers::get_role))
+            )
+            .service(
+                web::scope("/api/permissions")
+                    .wrap(api_rate_limit.clone())
+                    .wrap(openchat_auth.clone())
+                    .route("", web::get().to(role_handlers::list_permissions))
             )
             // Metrics routes - require "openchat" role (admin should have additional checks in production)
             .service(

@@ -95,12 +95,12 @@ export default function MessageItem({ message }: MessageItemProps) {
         </div>
         <div className="flex-1">
           <div className="mb-1 flex items-baseline gap-2">
-            <span className="font-semibold text-gray-900">
+            <span className="font-semibold text-white">
               {message.user?.display_name || 'Unknown User'}
             </span>
-            <span className="text-xs text-gray-500">{formatTime(message.created_at)}</span>
+            <span className="text-xs text-gray-400">{formatTime(message.created_at)}</span>
             {message.edited_at && (
-              <span className="text-xs text-gray-400">(edited)</span>
+              <span className="text-xs text-gray-500">(edited)</span>
             )}
           </div>
           {isEditing ? (
@@ -116,13 +116,13 @@ export default function MessageItem({ message }: MessageItemProps) {
                     setEditContent(message.content);
                   }
                 }}
-                className="w-full rounded border border-gray-300 px-2 py-1 text-sm focus:border-blue-500 focus:outline-none"
+                className="w-full rounded border border-gray-600 bg-gray-900 px-2 py-1 text-sm text-white focus:border-blue-500 focus:outline-none"
                 autoFocus
               />
               <div className="mt-1 flex gap-2">
                 <button
                   onClick={handleEdit}
-                  className="text-xs text-blue-600 hover:underline"
+                  className="text-xs text-blue-400 hover:underline"
                 >
                   Save
                 </button>
@@ -131,14 +131,14 @@ export default function MessageItem({ message }: MessageItemProps) {
                     setIsEditing(false);
                     setEditContent(message.content);
                   }}
-                  className="text-xs text-gray-600 hover:underline"
+                  className="text-xs text-gray-400 hover:underline"
                 >
                   Cancel
                 </button>
               </div>
             </div>
           ) : (
-            <p className="text-sm text-gray-900">{message.content}</p>
+            <p className="text-sm text-gray-200">{message.content}</p>
           )}
 
           {Object.keys(reactionCounts).length > 0 && (
@@ -151,8 +151,8 @@ export default function MessageItem({ message }: MessageItemProps) {
                     onClick={() => hasReacted ? handleRemoveReaction(emoji) : handleAddReaction(emoji)}
                     className={`rounded-full border px-2 py-0.5 text-xs transition-colors ${
                       hasReacted
-                        ? 'border-blue-500 bg-blue-50'
-                        : 'border-gray-300 bg-white hover:border-gray-400'
+                        ? 'border-blue-500 bg-blue-900 text-white'
+                        : 'border-gray-600 bg-gray-800 text-gray-200 hover:border-gray-500'
                     }`}
                   >
                     {emoji} {data.count}
@@ -165,10 +165,10 @@ export default function MessageItem({ message }: MessageItemProps) {
       </div>
 
       {showActions && !isEditing && (
-        <div className="absolute right-0 top-0 flex gap-1 rounded-lg border border-gray-200 bg-white p-1 shadow-sm">
+        <div className="absolute right-0 top-0 flex gap-1 rounded-lg border border-gray-700 bg-gray-900 p-1 shadow-sm">
           <button
             onClick={() => setShowReactionPicker(!showReactionPicker)}
-            className="rounded p-1 hover:bg-gray-100"
+            className="rounded p-1 hover:bg-gray-800"
             title="Add reaction"
           >
             <span className="text-sm">😊</span>
@@ -177,11 +177,11 @@ export default function MessageItem({ message }: MessageItemProps) {
             <>
               <button
                 onClick={() => setIsEditing(true)}
-                className="rounded p-1 hover:bg-gray-100"
+                className="rounded p-1 hover:bg-gray-800"
                 title="Edit message"
               >
                 <svg
-                  className="h-4 w-4 text-gray-600"
+                  className="h-4 w-4 text-gray-300"
                   fill="none"
                   stroke="currentColor"
                   viewBox="0 0 24 24"
@@ -196,11 +196,11 @@ export default function MessageItem({ message }: MessageItemProps) {
               </button>
               <button
                 onClick={handleDelete}
-                className="rounded p-1 hover:bg-gray-100"
+                className="rounded p-1 hover:bg-gray-800"
                 title="Delete message"
               >
                 <svg
-                  className="h-4 w-4 text-red-600"
+                  className="h-4 w-4 text-red-400"
                   fill="none"
                   stroke="currentColor"
                   viewBox="0 0 24 24"
@@ -219,13 +219,13 @@ export default function MessageItem({ message }: MessageItemProps) {
       )}
 
       {showReactionPicker && (
-        <div className="absolute right-0 top-8 z-10 rounded-lg border border-gray-200 bg-white p-2 shadow-lg">
+        <div className="absolute right-0 top-8 z-10 rounded-lg border border-gray-700 bg-gray-900 p-2 shadow-lg">
           <div className="flex gap-1">
             {commonEmojis.map((emoji) => (
               <button
                 key={emoji}
                 onClick={() => handleAddReaction(emoji)}
-                className="rounded p-1 text-lg hover:bg-gray-100"
+                className="rounded p-1 text-lg hover:bg-gray-800"
               >
                 {emoji}
               </button>

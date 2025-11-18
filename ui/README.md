@@ -218,12 +218,20 @@ npm run build
 
 ## Version
 
-Current version: 0.1.0
+Current version: 0.1.7
 
 Increment version before commits:
 - **Patch** (0.1.x): Bug fixes, small tweaks
 - **Minor** (0.x.0): New features, backward-compatible
 - **Major** (x.0.0): Breaking changes
+
+### Recent Changes
+
+**v0.1.7** - Dark theme update for messages and channels
+- Updated message area background to black
+- Updated all text colors for better visibility on dark background
+- Updated message input, reactions, and action buttons to match dark theme
+- Improved contrast and readability
 
 ## Related Projects
 

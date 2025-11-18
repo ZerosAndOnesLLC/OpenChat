@@ -1,9 +1,11 @@
 use actix_web::{web, HttpMessage, HttpRequest, HttpResponse};
+use redis::aio::MultiplexedConnection;
 use serde::{Deserialize, Serialize};
 use sqlx::PgPool;
 use uuid::Uuid;
 
 use crate::{
+    cache::messages as message_cache,
     errors::{ApiError, ApiResult},
     models::channel::{Channel, ChannelMember},
     models::mention::{Mention, MentionType},
@@ -158,6 +160,7 @@ impl From<PaginatedMessages> for PaginatedMessagesResponse {
 /// POST /api/messages - Send a new message
 pub async fn send_message(
     pool: web::Data<PgPool>,
+    redis: web::Data<MultiplexedConnection>,
     body: web::Json<SendMessageRequest>,
     req: HttpRequest,
 ) -> ApiResult<HttpResponse> {
@@ -297,12 +300,25 @@ pub async fn send_message(
         }
     }
 
+    // Invalidate message cache after sending a new message
+    let mut redis_conn = redis.as_ref().clone();
+    if let Some(channel_id) = body.channel_id {
+        if let Err(e) = message_cache::invalidate_channel_messages_cache(&mut redis_conn, channel_id).await {
+            tracing::warn!("Failed to invalidate channel messages cache: {}", e);
+        }
+    } else if let Some(dm_id) = body.dm_id {
+        if let Err(e) = message_cache::invalidate_dm_messages_cache(&mut redis_conn, dm_id).await {
+            tracing::warn!("Failed to invalidate DM messages cache: {}", e);
+        }
+    }
+
     Ok(HttpResponse::Created().json(MessageResponse::from(message)))
 }
 
 /// GET /api/channels/:id/messages - List messages in a channel
 pub async fn list_channel_messages(
     pool: web::Data<PgPool>,
+    redis: web::Data<MultiplexedConnection>,
     channel_id: web::Path<Uuid>,
     query: web::Query<ListMessagesQuery>,
     req: HttpRequest,
@@ -333,13 +349,41 @@ pub async fn list_channel_messages(
 
     // Get messages with pagination
     let limit = query.limit.unwrap_or(50);
-    let paginated = Message::list_by_channel(
-        pool.get_ref(),
-        *channel_id,
-        limit,
-        query.cursor.clone(),
-    )
-    .await?;
+
+    // Try to get from cache if this is the first page
+    let paginated = if query.cursor.is_none() {
+        let mut redis_conn = redis.as_ref().clone();
+
+        match message_cache::get_channel_messages_from_cache(&mut redis_conn, *channel_id).await? {
+            Some(cached) => cached,
+            None => {
+                // Cache miss - fetch from database
+                let paginated = Message::list_by_channel(
+                    pool.get_ref(),
+                    *channel_id,
+                    limit,
+                    query.cursor.clone(),
+                )
+                .await?;
+
+                // Store in cache for next time
+                if let Err(e) = message_cache::set_channel_messages_in_cache(&mut redis_conn, *channel_id, &paginated).await {
+                    tracing::warn!("Failed to cache channel messages: {}", e);
+                }
+
+                paginated
+            }
+        }
+    } else {
+        // Not first page - don't use cache
+        Message::list_by_channel(
+            pool.get_ref(),
+            *channel_id,
+            limit,
+            query.cursor.clone(),
+        )
+        .await?
+    };
 
     // Fetch users for all messages
     let user_ids: Vec<Uuid> = paginated.messages.iter().map(|m| m.user_id).collect();
@@ -447,6 +491,7 @@ pub async fn list_channel_messages(
 /// PUT /api/messages/:id - Edit a message
 pub async fn update_message(
     pool: web::Data<PgPool>,
+    redis: web::Data<MultiplexedConnection>,
     message_id: web::Path<Uuid>,
     body: web::Json<UpdateMessageRequest>,
     req: HttpRequest,
@@ -481,12 +526,25 @@ pub async fn update_message(
     // Update the message
     let updated_message = Message::update(pool.get_ref(), *message_id, &body.content, current_user.id).await?;
 
+    // Invalidate message cache after updating
+    let mut redis_conn = redis.as_ref().clone();
+    if let Some(channel_id) = message.channel_id {
+        if let Err(e) = message_cache::invalidate_channel_messages_cache(&mut redis_conn, channel_id).await {
+            tracing::warn!("Failed to invalidate channel messages cache: {}", e);
+        }
+    } else if let Some(dm_id) = message.dm_id {
+        if let Err(e) = message_cache::invalidate_dm_messages_cache(&mut redis_conn, dm_id).await {
+            tracing::warn!("Failed to invalidate DM messages cache: {}", e);
+        }
+    }
+
     Ok(HttpResponse::Ok().json(MessageResponse::from(updated_message)))
 }
 
 /// DELETE /api/messages/:id - Soft delete a message
 pub async fn delete_message(
     pool: web::Data<PgPool>,
+    redis: web::Data<MultiplexedConnection>,
     message_id: web::Path<Uuid>,
     req: HttpRequest,
 ) -> ApiResult<HttpResponse> {
@@ -514,6 +572,18 @@ pub async fn delete_message(
 
     // Soft delete the message
     Message::soft_delete(pool.get_ref(), *message_id).await?;
+
+    // Invalidate message cache after deleting
+    let mut redis_conn = redis.as_ref().clone();
+    if let Some(channel_id) = message.channel_id {
+        if let Err(e) = message_cache::invalidate_channel_messages_cache(&mut redis_conn, channel_id).await {
+            tracing::warn!("Failed to invalidate channel messages cache: {}", e);
+        }
+    } else if let Some(dm_id) = message.dm_id {
+        if let Err(e) = message_cache::invalidate_dm_messages_cache(&mut redis_conn, dm_id).await {
+            tracing::warn!("Failed to invalidate DM messages cache: {}", e);
+        }
+    }
 
     Ok(HttpResponse::NoContent().finish())
 }

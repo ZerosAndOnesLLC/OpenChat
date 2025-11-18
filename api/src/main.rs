@@ -24,11 +24,13 @@ mod websocket;
 use config::Config;
 use handlers::{
     attachment as attachment_handlers,
+    bookmarks as bookmark_handlers,
     channels as channel_handlers,
     dms as dm_handlers,
     mentions as mention_handlers,
     messages as message_handlers,
     notifications as notification_handlers,
+    pins as pin_handlers,
     reactions as reaction_handlers,
     read_status as read_status_handlers,
     search as search_handlers,
@@ -187,6 +189,7 @@ async fn main() -> std::io::Result<()> {
                     .route("/{id}/messages", web::get().to(message_handlers::list_channel_messages))
                     .route("/{id}/read", web::post().to(read_status_handlers::mark_channel_as_read))
                     .route("/{id}/unread", web::get().to(read_status_handlers::get_channel_unread_count))
+                    .route("/{id}/pins", web::get().to(pin_handlers::list_channel_pins))
             )
             // Message routes - require "openchat" role
             .service(
@@ -201,6 +204,8 @@ async fn main() -> std::io::Result<()> {
                     .route("/{id}/reactions/counts", web::get().to(reaction_handlers::get_reaction_counts))
                     .route("/{id}/reactions/{emoji}", web::delete().to(reaction_handlers::remove_reaction))
                     .route("/{id}/attachments", web::get().to(attachment_handlers::get_message_attachments))
+                    .route("/{id}/pin", web::post().to(pin_handlers::pin_message))
+                    .route("/{id}/pin", web::delete().to(pin_handlers::unpin_message))
             )
             // Attachment routes - require "openchat" role
             .service(
@@ -242,6 +247,14 @@ async fn main() -> std::io::Result<()> {
                     .route("/unread-count", web::get().to(notification_handlers::get_unread_count))
                     .route("/{id}/read", web::post().to(notification_handlers::mark_notification_as_read))
                     .route("/read-all", web::post().to(notification_handlers::mark_all_notifications_as_read))
+            )
+            // Bookmark routes - require "openchat" role
+            .service(
+                web::scope("/api/bookmarks")
+                    .wrap(openchat_auth.clone())
+                    .route("", web::get().to(bookmark_handlers::list_bookmarks))
+                    .route("", web::post().to(bookmark_handlers::create_bookmark))
+                    .route("/{message_id}", web::delete().to(bookmark_handlers::delete_bookmark))
             )
             // SSO routes - no auth required (they handle authentication themselves)
             .configure(routes::sso::configure)

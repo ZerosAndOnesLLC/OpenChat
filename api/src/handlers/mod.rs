@@ -1,9 +1,11 @@
 pub mod attachment;
+pub mod bookmarks;
 pub mod channels;
 pub mod dms;
 pub mod mentions;
 pub mod messages;
 pub mod notifications;
+pub mod pins;
 pub mod reactions;
 pub mod read_status;
 pub mod search;

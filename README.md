@@ -32,20 +32,26 @@ OpenChat is a powerful alternative to Slack and Microsoft Teams that you can sel
 
 ## Recent Updates
 
-### Version 0.14.2 - Bug Fixes & Stability Improvements
+### Version 0.24.0 (API) - Message Pinning & Bookmarks
 
-**Fixed:**
-- Fixed application crash when clicking on channels due to expired/invalid tokens
-- Resolved "Invalid or expired authorization code" errors during SSO callback
-- Prevented duplicate authorization code exchanges in React Strict Mode
-- Fixed "d is not iterable" error when React Query returns undefined data
+**New Features:**
+- **Message Pinning**: Pin important messages to channels for all members to see
+- **Personal Bookmarks**: Save messages privately for later reference
+- Real-time WebSocket notifications for pin/unpin actions
+- Access control ensures users can only pin/bookmark messages they can see
 
-**Improved:**
-- Added proper 401 error handling with automatic re-authentication
-- Implemented error boundaries to prevent full app crashes
-- Enhanced React Query retry logic to skip authentication errors
-- Better SSO callback flow to prevent race conditions
-- Added defensive checks for undefined data in all React Query hooks
+**API Endpoints:**
+- `POST /api/messages/{id}/pin` - Pin a message
+- `DELETE /api/messages/{id}/pin` - Unpin a message
+- `GET /api/channels/{id}/pins` - List pinned messages
+- `POST /api/bookmarks` - Bookmark a message
+- `DELETE /api/bookmarks/{message_id}` - Remove bookmark
+- `GET /api/bookmarks` - List your bookmarks
+
+**Technical:**
+- Added `pinned_messages` and `bookmarks` database tables with RLS policies
+- Optimized queries with indexes for performance at scale
+- WebSocket integration for real-time pin/unpin notifications
 
 ---
 
@@ -64,7 +70,9 @@ OpenChat is a powerful alternative to Slack and Microsoft Teams that you can sel
 - **User Presence** - Online, offline, and away status tracking
 - **File Attachments** - Share images, documents, and more
 - **Full-Text Search** - Find messages instantly with PostgreSQL full-text search and Redis caching
-- **Mentions** - @user and @channel notifications (roadmap)
+- **@Mentions & Notifications** - @user and @channel notifications with real-time alerts
+- **Message Pinning** - Pin important messages to channels for easy reference
+- **Personal Bookmarks** - Save messages for later with private bookmarks
 
 ### Enterprise Features
 - **Multi-Organization Support** - Host multiple teams on one instance
@@ -259,9 +267,10 @@ Even if application code has bugs, the database prevents cross-organization data
 - [x] File and image attachments
 - [x] Full-text search with Redis caching
 - [x] Unread message counts
+- [x] @Mentions & notifications
+- [x] Message pinning
+- [x] Bookmarked messages (personal starred messages)
 - [ ] Push notifications
-- [ ] User mentions (@user)
-- [ ] Channel mentions (@channel)
 - [ ] Markdown formatting
 - [ ] Code syntax highlighting
 
@@ -271,8 +280,6 @@ Even if application code has bugs, the database prevents cross-organization data
 - [ ] Webhooks and integrations
 - [ ] Bot framework
 - [ ] Custom emojis
-- [ ] Message pinning
-- [ ] Starred messages
 - [ ] Reminders and scheduled messages
 - [ ] Advanced analytics
 - [ ] LDAP/Active Directory sync
@@ -312,6 +319,57 @@ OpenChat provides powerful full-text search capabilities powered by PostgreSQL a
 **Example**:
 ```bash
 GET /api/search/messages?q=hello+world&scope=channel&channel_id=abc-123&limit=20
+```
+
+### Message Pinning
+
+Pin important messages to the top of channels for easy reference by all members:
+
+**Endpoints**:
+- `POST /api/messages/{id}/pin` - Pin a message (channel members only)
+- `DELETE /api/messages/{id}/pin` - Unpin a message
+- `GET /api/channels/{id}/pins` - List all pinned messages in a channel
+
+**Features**:
+- Only channel messages can be pinned (not DMs)
+- All channel members can view pinned messages
+- Real-time WebSocket notifications when messages are pinned/unpinned
+- Pins are sorted by pinned date (most recent first)
+
+**Example**:
+```bash
+# Pin a message
+POST /api/messages/msg-123/pin
+
+# List pinned messages
+GET /api/channels/channel-456/pins
+```
+
+### Personal Bookmarks
+
+Save messages for later reference with personal bookmarks:
+
+**Endpoints**:
+- `POST /api/bookmarks` - Bookmark a message
+- `DELETE /api/bookmarks/{message_id}` - Remove a bookmark
+- `GET /api/bookmarks` - List all your bookmarks
+
+**Features**:
+- Bookmarks are private to each user
+- Works with both channel messages and DMs
+- Access verification ensures users can only bookmark messages they can see
+- Sorted by bookmark date (most recent first)
+
+**Example**:
+```bash
+# Bookmark a message
+POST /api/bookmarks
+{
+  "message_id": "msg-789"
+}
+
+# List your bookmarks
+GET /api/bookmarks
 ```
 
 ---

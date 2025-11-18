@@ -31,6 +31,33 @@ pub struct DmResponse {
     pub participants: Vec<Uuid>,
 }
 
+#[derive(Debug, Serialize, Clone)]
+pub struct UserResponse {
+    pub id: Uuid,
+    pub email: String,
+    pub display_name: String,
+    pub org_id: Uuid,
+    pub tv_user_id: Uuid,
+    pub status: String,
+    pub created_at: String,
+    pub updated_at: String,
+}
+
+impl From<User> for UserResponse {
+    fn from(user: User) -> Self {
+        Self {
+            id: user.id,
+            email: user.email,
+            display_name: user.display_name,
+            org_id: user.org_id,
+            tv_user_id: user.tv_user_id,
+            status: user.status,
+            created_at: user.created_at.to_rfc3339(),
+            updated_at: user.updated_at.to_rfc3339(),
+        }
+    }
+}
+
 #[derive(Debug, Serialize)]
 pub struct PaginatedMessagesResponse {
     pub messages: Vec<MessageResponse>,
@@ -48,6 +75,7 @@ pub struct MessageResponse {
     pub parent_message_id: Option<Uuid>,
     pub created_at: String,
     pub edited_at: Option<String>,
+    pub user: Option<UserResponse>,
 }
 
 impl From<crate::models::message::Message> for MessageResponse {
@@ -61,7 +89,15 @@ impl From<crate::models::message::Message> for MessageResponse {
             parent_message_id: message.parent_message_id,
             created_at: message.created_at.to_rfc3339(),
             edited_at: message.edited_at.map(|dt| dt.to_rfc3339()),
+            user: None,
         }
+    }
+}
+
+impl MessageResponse {
+    pub fn with_user(mut self, user: User) -> Self {
+        self.user = Some(UserResponse::from(user));
+        self
     }
 }
 
@@ -279,5 +315,42 @@ pub async fn list_dm_messages(
     )
     .await?;
 
-    Ok(HttpResponse::Ok().json(PaginatedMessagesResponse::from(paginated)))
+    // Fetch users for all messages
+    let user_ids: Vec<Uuid> = paginated.messages.iter().map(|m| m.user_id).collect();
+    let users = if !user_ids.is_empty() {
+        sqlx::query_as::<_, User>(
+            "SELECT * FROM users WHERE id = ANY($1)"
+        )
+        .bind(&user_ids)
+        .fetch_all(pool.get_ref())
+        .await?
+    } else {
+        vec![]
+    };
+
+    // Create a map of user_id -> User for quick lookup
+    let user_map: std::collections::HashMap<Uuid, User> = users
+        .into_iter()
+        .map(|u| (u.id, u))
+        .collect();
+
+    // Enrich messages with user data
+    let messages_with_users: Vec<MessageResponse> = paginated.messages
+        .into_iter()
+        .map(|msg| {
+            let mut response = MessageResponse::from(msg.clone());
+            if let Some(user) = user_map.get(&msg.user_id) {
+                response = response.with_user(user.clone());
+            }
+            response
+        })
+        .collect();
+
+    let response = PaginatedMessagesResponse {
+        messages: messages_with_users,
+        has_more: paginated.has_more,
+        next_cursor: paginated.next_cursor,
+    };
+
+    Ok(HttpResponse::Ok().json(response))
 }

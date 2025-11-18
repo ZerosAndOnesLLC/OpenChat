@@ -26,6 +26,7 @@ use handlers::{
     dms as dm_handlers,
     messages as message_handlers,
     reactions as reaction_handlers,
+    read_status as read_status_handlers,
     users as user_handlers,
 };
 use middleware::auth::AuthMiddleware;
@@ -97,6 +98,13 @@ async fn main() -> std::io::Result<()> {
         .expect("Failed to initialize database pool");
     info!("Database connection established");
 
+    // Initialize Redis connection
+    info!("Connecting to Redis...");
+    let redis_conn = db::init_redis(&config.redis_url)
+        .await
+        .expect("Failed to initialize Redis connection");
+    info!("Redis connection established");
+
     // Start WebSocket server
     info!("Starting WebSocket server...");
     let ws_server = websocket::server::WsServer::new(db_pool.clone()).start();
@@ -137,6 +145,7 @@ async fn main() -> std::io::Result<()> {
         App::new()
             .wrap(cors)
             .app_data(web::Data::new(db_pool.clone()))
+            .app_data(web::Data::new(redis_conn.clone()))
             .app_data(web::Data::new(ws_server.clone()))
             .app_data(web::Data::new(tv_api_client.clone()))
             .route("/health", web::get().to(health_check))
@@ -163,6 +172,8 @@ async fn main() -> std::io::Result<()> {
                     .route("/{id}/members", web::post().to(channel_handlers::add_member))
                     .route("/{id}/members/{user_id}", web::delete().to(channel_handlers::remove_member))
                     .route("/{id}/messages", web::get().to(message_handlers::list_channel_messages))
+                    .route("/{id}/read", web::post().to(read_status_handlers::mark_channel_as_read))
+                    .route("/{id}/unread", web::get().to(read_status_handlers::get_channel_unread_count))
             )
             // Message routes - require "openchat" role
             .service(
@@ -185,6 +196,8 @@ async fn main() -> std::io::Result<()> {
                     .route("", web::post().to(dm_handlers::create_dm))
                     .route("/{id}", web::get().to(dm_handlers::get_dm))
                     .route("/{id}/messages", web::get().to(dm_handlers::list_dm_messages))
+                    .route("/{id}/read", web::post().to(read_status_handlers::mark_dm_as_read))
+                    .route("/{id}/unread", web::get().to(read_status_handlers::get_dm_unread_count))
             )
             // SSO routes - no auth required (they handle authentication themselves)
             .configure(routes::sso::configure)

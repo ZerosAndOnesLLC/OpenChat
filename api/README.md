@@ -127,6 +127,19 @@ src/
 - `GET /api/dms/:id` - Get DM details
 - `GET /api/dms/:id/messages` - List DM messages (paginated)
 
+### Unread Message Tracking
+- `POST /api/channels/:id/read` - Mark channel as read
+- `GET /api/channels/:id/unread` - Get unread message count for channel
+- `POST /api/dms/:id/read` - Mark DM as read
+- `GET /api/dms/:id/unread` - Get unread message count for DM
+
+**Features**:
+- Tracks last read message and timestamp per user per channel/DM
+- Calculates unread count by comparing last read timestamp with message timestamps
+- Redis caching for unread counts (60-second TTL)
+- Cache invalidation on mark-as-read operations
+- WebSocket support for unread count updates
+
 ### WebSocket (Phase 9+)
 - `WS /api/ws?token=<jwt>` - WebSocket connection for real-time messaging
   - Real-time message delivery
@@ -272,9 +285,30 @@ Infrastructure is managed via Terraform in `~/dev/terraform/prod/us-east-1/openc
 - ✅ Graceful degradation (works without Redis)
 - ✅ Horizontal scaling support for production
 
-**Next**: Phase 12 - Frontend Setup
+**Phase 1.1 Complete** - Unread Message Tracking
+- ✅ Database migrations for channel_read_status and dm_read_status tables
+- ✅ ReadStatus models with mark_as_read and get_unread_count methods
+- ✅ Redis caching for unread counts with 60-second TTL
+- ✅ API endpoints: POST /channels/:id/read, GET /channels/:id/unread
+- ✅ API endpoints: POST /dms/:id/read, GET /dms/:id/unread
+- ✅ Cache invalidation on mark-as-read operations
+- ✅ WebSocket message type for unread count updates
+- ✅ UI API client methods for unread endpoints
+
+**Next**: Phase 1.2 - Thread Display UI
 
 ## Version History
+
+### v0.19.0 (Phase 1.1 - Unread Message Tracking)
+- Added channel_read_status and dm_read_status database tables
+- Implemented ChannelReadStatus and DmReadStatus models
+- Added mark_as_read and get_unread_count methods for channels and DMs
+- Redis caching for unread counts with 60-second TTL
+- API endpoints for marking channels/DMs as read
+- API endpoints for getting unread message counts
+- Cache invalidation on mark-as-read operations
+- WebSocket message type for unread count updates (UnreadCountUpdated)
+- UI API client methods for unread functionality
 
 ### v0.17.0 (Feature Release)
 - Added reactions to message responses when listing channel and DM messages

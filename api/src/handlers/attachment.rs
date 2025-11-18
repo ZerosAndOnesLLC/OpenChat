@@ -207,13 +207,15 @@ pub async fn download_attachment(
             SELECT 1 FROM messages m
             LEFT JOIN channels c ON m.channel_id = c.id
             LEFT JOIN channel_members cm ON c.id = cm.channel_id
+            LEFT JOIN users u ON cm.user_id = u.id
             LEFT JOIN direct_messages dm ON m.dm_id = dm.id
             LEFT JOIN dm_participants dp ON dm.id = dp.dm_id
+            LEFT JOIN users u2 ON dp.user_id = u2.id
             WHERE m.id = $1
             AND m.deleted_at IS NULL
             AND (
-                (m.channel_id IS NOT NULL AND cm.user_id = $2)
-                OR (m.dm_id IS NOT NULL AND dp.user_id = $2)
+                (m.channel_id IS NOT NULL AND u.tv_user_id = $2)
+                OR (m.dm_id IS NOT NULL AND u2.tv_user_id = $2)
             )
         )",
     )
@@ -333,13 +335,15 @@ pub async fn get_message_attachments(
             SELECT 1 FROM messages m
             LEFT JOIN channels c ON m.channel_id = c.id
             LEFT JOIN channel_members cm ON c.id = cm.channel_id
+            LEFT JOIN users u ON cm.user_id = u.id
             LEFT JOIN direct_messages dm ON m.dm_id = dm.id
             LEFT JOIN dm_participants dp ON dm.id = dp.dm_id
+            LEFT JOIN users u2 ON dp.user_id = u2.id
             WHERE m.id = $1
             AND m.deleted_at IS NULL
             AND (
-                (m.channel_id IS NOT NULL AND cm.user_id = $2)
-                OR (m.dm_id IS NOT NULL AND dp.user_id = $2)
+                (m.channel_id IS NOT NULL AND u.tv_user_id = $2)
+                OR (m.dm_id IS NOT NULL AND u2.tv_user_id = $2)
             )
         )",
     )

@@ -72,6 +72,23 @@ pub enum PubSubEvent {
         org_id: Uuid,
         unread_count: i32,
     },
+    /// New notification created
+    NewNotification {
+        user_id: Uuid,
+        notification_id: Uuid,
+        notification_type: String,
+        message_id: Option<Uuid>,
+        channel_id: Option<Uuid>,
+        dm_id: Option<Uuid>,
+        org_id: Uuid,
+        created_at: String,
+    },
+    /// Notification count updated
+    NotificationCountUpdated {
+        user_id: Uuid,
+        org_id: Uuid,
+        unread_count: i32,
+    },
 }
 
 /// Redis Pub/Sub manager
@@ -273,6 +290,40 @@ impl RedisPubSub {
                         dm_id,
                         unread_count,
                     },
+                });
+            }
+            PubSubEvent::NewNotification {
+                user_id,
+                notification_id,
+                notification_type,
+                message_id,
+                channel_id,
+                dm_id,
+                org_id,
+                created_at,
+            } => {
+                ws_server.do_send(super::server::BroadcastToUser {
+                    org_id,
+                    user_id,
+                    message: ServerMessage::NewNotification {
+                        notification_id,
+                        notification_type,
+                        message_id,
+                        channel_id,
+                        dm_id,
+                        created_at,
+                    },
+                });
+            }
+            PubSubEvent::NotificationCountUpdated {
+                user_id,
+                org_id,
+                unread_count,
+            } => {
+                ws_server.do_send(super::server::BroadcastToUser {
+                    org_id,
+                    user_id,
+                    message: ServerMessage::NotificationCountUpdated { unread_count },
                 });
             }
         }

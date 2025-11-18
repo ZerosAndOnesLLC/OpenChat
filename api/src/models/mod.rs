@@ -1,4 +1,5 @@
 pub mod attachment;
+pub mod audit_log;
 pub mod bookmark;
 pub mod channel;
 pub mod direct_message;

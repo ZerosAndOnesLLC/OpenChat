@@ -155,9 +155,14 @@ pub async fn upload_emoji(
         )));
     }
 
-    // TODO: Process image (resize to 128x128) - requires image crate
-    // For now, we'll upload as-is
-    let processed_data = file_data;
+    // Process image: resize to 128x128 for consistency
+    let processed_data = match resize_emoji_image(&file_data, &content_type) {
+        Ok(resized) => resized,
+        Err(e) => {
+            tracing::warn!("Failed to resize emoji image, uploading original: {}", e);
+            file_data // Fallback to original if resize fails
+        }
+    };
 
     // Upload to storage with emoji-specific path
     let storage_file_name = format!("emoji_{}_{}", emoji_name, file_name);
@@ -351,4 +356,36 @@ pub async fn get_emoji_image(
         .content_type(content_type)
         .append_header(("Cache-Control", "public, max-age=31536000")) // Cache for 1 year
         .body(data))
+}
+
+/// Resize emoji image to 128x128 pixels
+fn resize_emoji_image(file_data: &[u8], content_type: &str) -> Result<Vec<u8>, String> {
+    use image::{imageops::FilterType, ImageFormat};
+    use std::io::Cursor;
+
+    // Parse the image format from content type
+    let format = match content_type {
+        "image/png" => ImageFormat::Png,
+        "image/jpeg" | "image/jpg" => ImageFormat::Jpeg,
+        "image/gif" => ImageFormat::Gif,
+        "image/webp" => ImageFormat::WebP,
+        _ => return Err(format!("Unsupported image format: {}", content_type)),
+    };
+
+    // Load the image
+    let img = image::load_from_memory(file_data)
+        .map_err(|e| format!("Failed to load image: {}", e))?;
+
+    // Resize to 128x128 using Lanczos3 filter for best quality
+    let resized = img.resize_exact(128, 128, FilterType::Lanczos3);
+
+    // Encode back to the original format
+    let mut output = Vec::new();
+    let mut cursor = Cursor::new(&mut output);
+
+    resized
+        .write_to(&mut cursor, format)
+        .map_err(|e| format!("Failed to encode image: {}", e))?;
+
+    Ok(output)
 }

@@ -25,6 +25,7 @@ mod websocket;
 use config::Config;
 use handlers::{
     attachment as attachment_handlers,
+    audit_logs as audit_log_handlers,
     bookmarks as bookmark_handlers,
     channels as channel_handlers,
     dms as dm_handlers,
@@ -46,6 +47,7 @@ use handlers::{
     users as user_handlers,
 };
 use middleware::auth::AuthMiddleware;
+use middleware::permissions::PermissionMiddleware;
 use middleware::rate_limit::RateLimitMiddleware;
 use services::tv_api::TvApiClient;
 use storage::StorageFactory;
@@ -362,6 +364,17 @@ async fn main() -> std::io::Result<()> {
                     .route("", web::get().to(emoji_handlers::get_org_emojis))
                     .route("/{id}", web::delete().to(emoji_handlers::delete_emoji))
                     .route("/{id}/image", web::get().to(emoji_handlers::get_emoji_image))
+            )
+            // Audit Log routes - require "openchat" role and "org.view_audit_logs" permission
+            .service(
+                web::scope("/api/audit-logs")
+                    .wrap(api_rate_limit.clone())
+                    .wrap(PermissionMiddleware::require("org.view_audit_logs"))
+                    .wrap(openchat_auth.clone())
+                    .route("", web::get().to(audit_log_handlers::list_audit_logs))
+                    .route("/export", web::get().to(audit_log_handlers::export_audit_logs))
+                    .route("/actions", web::get().to(audit_log_handlers::list_actions))
+                    .route("/resource-types", web::get().to(audit_log_handlers::list_resource_types))
             )
             // Metrics routes - require "openchat" role (admin should have additional checks in production)
             .service(

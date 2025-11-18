@@ -157,4 +157,40 @@ impl UserStatus {
 
         Ok(result.rows_affected())
     }
+
+    /// Auto-set users to 'away' if they've been inactive for more than 15 minutes
+    /// Returns list of user IDs that were set to away
+    pub async fn auto_away_inactive_users(pool: &PgPool) -> ApiResult<Vec<Uuid>> {
+        // Set users to 'away' if their status is 'online' and they haven't updated in 15+ minutes
+        let updated_users = sqlx::query_scalar::<_, Uuid>(
+            r#"
+            UPDATE user_status
+            SET status = 'away', updated_at = NOW()
+            WHERE status = 'online'
+            AND updated_at < NOW() - INTERVAL '15 minutes'
+            RETURNING user_id
+            "#,
+        )
+        .fetch_all(pool)
+        .await?;
+
+        Ok(updated_users)
+    }
+
+    /// Update the last activity timestamp for a user (without changing their status)
+    /// This is called on WebSocket heartbeat and user actions
+    pub async fn touch_activity(pool: &PgPool, user_id: Uuid) -> ApiResult<()> {
+        sqlx::query(
+            r#"
+            UPDATE user_status
+            SET updated_at = NOW()
+            WHERE user_id = $1
+            "#,
+        )
+        .bind(user_id)
+        .execute(pool)
+        .await?;
+
+        Ok(())
+    }
 }

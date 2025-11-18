@@ -1,6 +1,7 @@
 use actix::{Addr, Handler, Message as ActixMessage};
 use actix_ws::Message as WsMessage;
 use futures_util::StreamExt;
+use sqlx::PgPool;
 use std::time::{Duration, Instant};
 use tokio::sync::mpsc;
 use tokio::time::interval;
@@ -8,6 +9,7 @@ use uuid::Uuid;
 
 use super::messages::{ClientMessage, ServerMessage};
 use super::server::{self, WsServer};
+use crate::models::user_status::UserStatus;
 
 /// WebSocket session data
 pub struct WsSessionData {
@@ -16,6 +18,7 @@ pub struct WsSessionData {
     pub org_id: Uuid,
     pub user_name: String,
     pub server: Addr<WsServer>,
+    pub pool: PgPool,
 }
 
 impl WsSessionData {
@@ -24,6 +27,7 @@ impl WsSessionData {
         org_id: Uuid,
         user_name: String,
         server: Addr<WsServer>,
+        pool: PgPool,
     ) -> Self {
         Self {
             id: Uuid::new_v4(),
@@ -31,11 +35,19 @@ impl WsSessionData {
             org_id,
             user_name,
             server,
+            pool,
         }
     }
 
     /// Handle incoming client messages
     fn handle_client_message(&self, msg: ClientMessage, tx: &mpsc::UnboundedSender<ServerMessage>) {
+        // Track user activity
+        let pool = self.pool.clone();
+        let user_id = self.user_id;
+        tokio::spawn(async move {
+            let _ = UserStatus::touch_activity(&pool, user_id).await;
+        });
+
         match msg {
             ClientMessage::SendMessage {
                 channel_id,

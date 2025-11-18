@@ -32,6 +32,7 @@ use handlers::{
     link_preview as link_preview_handlers,
     mentions as mention_handlers,
     messages as message_handlers,
+    metrics as metrics_handlers,
     notifications as notification_handlers,
     pins as pin_handlers,
     reactions as reaction_handlers,
@@ -119,6 +120,13 @@ async fn main() -> std::io::Result<()> {
         .await
         .expect("Failed to initialize Redis connection");
     info!("Redis connection established");
+
+    // Warm the cache with frequently accessed data
+    info!("Warming cache...");
+    let mut redis_warming_conn = redis_conn.clone();
+    if let Err(e) = cache::warming::warm_cache(&db_pool, &mut redis_warming_conn).await {
+        tracing::warn!("Cache warming failed (non-critical): {}", e);
+    }
 
     // Start WebSocket server
     info!("Starting WebSocket server...");
@@ -324,6 +332,14 @@ async fn main() -> std::io::Result<()> {
                     .wrap(api_rate_limit.clone())
                     .wrap(openchat_auth.clone())
                     .route("/preview", web::get().to(link_preview_handlers::get_link_preview))
+            )
+            // Metrics routes - require "openchat" role (admin should have additional checks in production)
+            .service(
+                web::scope("/api/metrics")
+                    .wrap(api_rate_limit.clone())
+                    .wrap(openchat_auth.clone())
+                    .route("/cache", web::get().to(metrics_handlers::get_cache_metrics))
+                    .route("/cache/reset", web::post().to(metrics_handlers::reset_cache_metrics))
             )
             // SSO routes - no auth required (they handle authentication themselves)
             .configure(routes::sso::configure)

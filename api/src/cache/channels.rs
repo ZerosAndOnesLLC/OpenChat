@@ -29,11 +29,15 @@ pub async fn get_channel_from_cache(
 
     match cached {
         Some(json) => {
+            super::metrics::record_hit(redis, super::metrics::CacheType::Channels).await;
             let channel: Channel = serde_json::from_str(&json)
                 .map_err(|e| crate::errors::ApiError::Internal(format!("Cache deserialization error: {}", e)))?;
             Ok(Some(channel))
         }
-        None => Ok(None),
+        None => {
+            super::metrics::record_miss(redis, super::metrics::CacheType::Channels).await;
+            Ok(None)
+        }
     }
 }
 
@@ -72,11 +76,15 @@ pub async fn get_channel_members_from_cache(
 
     match cached {
         Some(json) => {
+            super::metrics::record_hit(redis, super::metrics::CacheType::ChannelMembers).await;
             let members: Vec<ChannelMember> = serde_json::from_str(&json)
                 .map_err(|e| crate::errors::ApiError::Internal(format!("Cache deserialization error: {}", e)))?;
             Ok(Some(members))
         }
-        None => Ok(None),
+        None => {
+            super::metrics::record_miss(redis, super::metrics::CacheType::ChannelMembers).await;
+            Ok(None)
+        }
     }
 }
 

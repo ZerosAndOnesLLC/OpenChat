@@ -328,6 +328,13 @@ OpenChat implements a comprehensive Redis caching strategy and database optimiza
 
 - **Cache Miss Handling**: On cache miss, data is fetched from the database and automatically stored in the cache
 - **Cache Invalidation**: All mutations (create, update, delete) automatically invalidate relevant cache entries
+- **Cache Warming**: On application startup, the cache is pre-populated with:
+  - Active channels (channels with messages in last 7 days) - up to 100 channels
+  - Active DMs (DMs with messages in last 7 days) - up to 100 DMs
+  - Active users (users with activity in last 24 hours) - up to 200 users
+  - Channel members for all warmed channels
+  - DM participants for all warmed DMs
+- **Cache Metrics**: Hit/miss rates tracked per cache type (channels, users, DMs, etc.) and exposed via `/api/metrics/cache`
 - **Error Handling**: Cache failures are logged as warnings but don't affect API responses
 - **Memory Efficiency**: Only frequently accessed data (first pages, recent items) is cached
 - **TTL Strategy**: Shorter TTLs for frequently changing data, longer TTLs for stable data
@@ -627,6 +634,23 @@ Infrastructure is managed via Terraform in `~/dev/terraform/prod/us-east-1/openc
 - ✅ Index usage verification for common queries
 - ✅ Documentation of optimization strategy
 
+**Phase 3.1 Complete** - Full Redis Caching Implementation
+- ✅ Cache layers for channels, DMs, users, and messages with TTL-based expiration
+- ✅ Automatic cache invalidation on mutations (updates, deletes)
+- ✅ Cache warming on app startup for frequently accessed data
+- ✅ Cache metrics tracking with hit/miss rates per cache type
+- ✅ GET /api/metrics/cache endpoint for monitoring cache performance
+- ✅ POST /api/metrics/cache/reset endpoint for resetting metrics (admin)
+- ✅ Cache warming loads up to 100 active channels, 100 DMs, 200 users on startup
+- ✅ Metrics exposed in JSON format with hit rates and operation counts
+
+**Phase 3.2 Complete** - Database Optimization
+- ✅ Composite indexes for messages, channel_members, dm_participants
+- ✅ Query pattern analysis with EXPLAIN ANALYZE
+- ✅ Index usage verification for common queries
+- ✅ Evaluated message table partitioning (deferred - not needed at current scale)
+- ✅ Documentation of optimization strategy
+
 **Phase 3.3 Complete** - Rate Limiting
 - ✅ Redis-based rate limiting middleware with token bucket algorithm
 - ✅ Per-user rate limits: 20 API requests/second, 5 messages/second, 100 WebSocket messages/minute
@@ -639,7 +663,54 @@ Infrastructure is managed via Terraform in `~/dev/terraform/prod/us-east-1/openc
 
 **Next**: Phase 2.6 - Message Drafts
 
+### Performance Monitoring
+
+**Cache Metrics Endpoint**:
+- `GET /api/metrics/cache` - Get cache performance metrics
+- `POST /api/metrics/cache/reset` - Reset cache metrics (admin only)
+
+**Metrics Include**:
+- Total cache hits and misses across all cache types
+- Overall hit rate percentage
+- Per-cache-type breakdown (channels, users, DMs, messages, etc.)
+- Individual hit rates for each cache type
+- Total operations performed
+
+**Example Response**:
+```json
+{
+  "total_hits": 1250,
+  "total_misses": 85,
+  "total_operations": 1335,
+  "hit_rate_percentage": "93.63%",
+  "by_type": {
+    "channels": {
+      "hits": 450,
+      "misses": 20,
+      "total": 470,
+      "hit_rate": "95.74%"
+    },
+    ...
+  }
+}
+```
+
 ## Version History
+
+### v0.36.0 (Phase 3.1 - Full Redis Caching Implementation)
+- Implemented cache warming on application startup
+- Pre-loads active channels (last 7 days), DMs (last 7 days), and users (last 24 hours) into cache
+- Warms up to 100 channels, 100 DMs, 200 users, plus their members/participants
+- Added cache metrics tracking for all cache types
+- Cache hit/miss rates tracked per cache type (channels, users, DMs, messages, etc.)
+- Created /api/metrics/cache endpoint for monitoring cache performance
+- Created /api/metrics/cache/reset endpoint for resetting metrics
+- Integrated metrics recording into all cache get operations
+- Metrics include total hits/misses, hit rate percentage, and per-type breakdown
+- Cache warming runs automatically on server startup after Redis connection
+- Non-critical cache warming failures are logged as warnings
+- Cache metrics stored in Redis with 24-hour TTL
+- Metrics help identify cache effectiveness and optimization opportunities
 
 ### v0.31.0 (Phase 3.3 - Rate Limiting)
 - Implemented Redis-based rate limiting middleware

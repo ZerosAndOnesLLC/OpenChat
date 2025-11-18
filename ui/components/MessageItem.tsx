@@ -7,6 +7,7 @@ import { apiClient } from '@/lib/api';
 import { useWebSocketStore } from '@/lib/websocket';
 import type { Message } from '@/lib/types';
 import MarkdownRenderer from './MarkdownRenderer';
+import AttachmentDisplay from './AttachmentDisplay';
 
 // Dynamically import EmojiPicker to avoid SSR issues
 const EmojiPicker = dynamic(() => import('emoji-picker-react'), { ssr: false });
@@ -187,6 +188,9 @@ export default function MessageItem({ message, onReply, onOpenThread }: MessageI
               <MarkdownRenderer content={message.content} />
             </div>
           )}
+
+          {/* Attachments */}
+          <AttachmentDisplay messageId={message.id} />
 
           {/* Reactions - Mattermost style with inline + button */}
           <div className="relative mt-1 flex flex-wrap items-center gap-1">

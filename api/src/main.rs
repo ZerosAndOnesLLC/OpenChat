@@ -40,6 +40,7 @@ use handlers::{
     users as user_handlers,
 };
 use middleware::auth::AuthMiddleware;
+use middleware::rate_limit::RateLimitMiddleware;
 use services::tv_api::TvApiClient;
 use storage::StorageFactory;
 
@@ -164,6 +165,9 @@ async fn main() -> std::io::Result<()> {
         // Create auth middleware that requires "openchat" role
         let openchat_auth = AuthMiddleware::with_openchat_role(config.tv_api_url.clone());
 
+        // Create rate limiting middleware
+        let api_rate_limit = RateLimitMiddleware::api_request();
+
         App::new()
             .wrap(cors)
             .app_data(web::Data::new(db_pool.clone()))
@@ -176,6 +180,7 @@ async fn main() -> std::io::Result<()> {
             // User routes - require "openchat" role
             .service(
                 web::scope("/api/users")
+                    .wrap(api_rate_limit.clone())
                     .wrap(openchat_auth.clone())
                     .route("", web::get().to(user_handlers::list_users))
                     .route("/{id}", web::get().to(user_handlers::get_user))
@@ -192,6 +197,7 @@ async fn main() -> std::io::Result<()> {
             // Channel routes - require "openchat" role
             .service(
                 web::scope("/api/channels")
+                    .wrap(api_rate_limit.clone())
                     .wrap(openchat_auth.clone())
                     .route("", web::get().to(channel_handlers::list_channels))
                     .route("", web::post().to(channel_handlers::create_channel))
@@ -209,6 +215,7 @@ async fn main() -> std::io::Result<()> {
             // Message routes - require "openchat" role
             .service(
                 web::scope("/api/messages")
+                    .wrap(api_rate_limit.clone())
                     .wrap(openchat_auth.clone())
                     .route("", web::post().to(message_handlers::send_message))
                     .route("/{id}", web::put().to(message_handlers::update_message))
@@ -228,12 +235,14 @@ async fn main() -> std::io::Result<()> {
             // Read Receipt routes - require "openchat" role
             .service(
                 web::scope("/api/read-receipts")
+                    .wrap(api_rate_limit.clone())
                     .wrap(openchat_auth.clone())
                     .route("/batch", web::post().to(read_receipt_handlers::record_batch_read_receipts))
             )
             // Attachment routes - require "openchat" role
             .service(
                 web::scope("/api/attachments")
+                    .wrap(api_rate_limit.clone())
                     .wrap(openchat_auth.clone())
                     .route("/upload", web::post().to(attachment_handlers::upload_attachment))
                     .route("/{id}/download", web::get().to(attachment_handlers::download_attachment))
@@ -242,6 +251,7 @@ async fn main() -> std::io::Result<()> {
             // Direct Message routes - require "openchat" role
             .service(
                 web::scope("/api/dms")
+                    .wrap(api_rate_limit.clone())
                     .wrap(openchat_auth.clone())
                     .route("", web::get().to(dm_handlers::list_dms))
                     .route("", web::post().to(dm_handlers::create_dm))
@@ -253,12 +263,14 @@ async fn main() -> std::io::Result<()> {
             // Search routes - require "openchat" role
             .service(
                 web::scope("/api/search")
+                    .wrap(api_rate_limit.clone())
                     .wrap(openchat_auth.clone())
                     .route("/messages", web::get().to(search_handlers::search_messages))
             )
             // Mention routes - require "openchat" role
             .service(
                 web::scope("/api/mentions")
+                    .wrap(api_rate_limit.clone())
                     .wrap(openchat_auth.clone())
                     .route("", web::get().to(mention_handlers::list_mentions))
                     .route("/unread-count", web::get().to(mention_handlers::get_unread_mention_count))
@@ -266,6 +278,7 @@ async fn main() -> std::io::Result<()> {
             // Notification routes - require "openchat" role
             .service(
                 web::scope("/api/notifications")
+                    .wrap(api_rate_limit.clone())
                     .wrap(openchat_auth.clone())
                     .route("", web::get().to(notification_handlers::list_notifications))
                     .route("/unread-count", web::get().to(notification_handlers::get_unread_count))
@@ -275,6 +288,7 @@ async fn main() -> std::io::Result<()> {
             // Bookmark routes - require "openchat" role
             .service(
                 web::scope("/api/bookmarks")
+                    .wrap(api_rate_limit.clone())
                     .wrap(openchat_auth.clone())
                     .route("", web::get().to(bookmark_handlers::list_bookmarks))
                     .route("", web::post().to(bookmark_handlers::create_bookmark))

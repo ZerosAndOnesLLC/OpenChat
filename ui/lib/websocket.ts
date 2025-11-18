@@ -71,22 +71,38 @@ export const useWebSocketStore = create<WebSocketStore>((set, get) => ({
 
         switch (message.type) {
           case 'new_message': {
+            if (!message.message) {
+              console.error('Received new_message without message data:', message);
+              break;
+            }
             const key = message.message.channel_id || message.message.dm_id || '';
             get().addMessage(key, message.message);
             break;
           }
 
           case 'message_edited': {
+            if (!message.message_id || !message.content || !message.edited_at) {
+              console.error('Received message_edited with missing data:', message);
+              break;
+            }
             get().updateMessage(message.message_id, message.content, message.edited_at);
             break;
           }
 
           case 'message_deleted': {
+            if (!message.message_id) {
+              console.error('Received message_deleted without message_id:', message);
+              break;
+            }
             get().deleteMessage(message.message_id);
             break;
           }
 
           case 'user_typing': {
+            if (!message.user_id || !message.user_name) {
+              console.error('Received user_typing with missing data:', message);
+              break;
+            }
             const { typing } = get();
 
             // Remove old typing indicator for this user in this channel/dm
@@ -125,6 +141,10 @@ export const useWebSocketStore = create<WebSocketStore>((set, get) => ({
           }
 
           case 'user_status': {
+            if (!message.user_id || !message.status) {
+              console.error('Received user_status with missing data:', message);
+              break;
+            }
             set((state) => ({
               userStatuses: {
                 ...state.userStatuses,
@@ -135,12 +155,21 @@ export const useWebSocketStore = create<WebSocketStore>((set, get) => ({
           }
 
           case 'reaction_added': {
+            if (!message.message_id || !message.user_id || !message.emoji) {
+              console.error('Received reaction_added with missing data:', message);
+              break;
+            }
             get().addReaction(message.message_id, message.user_id, message.emoji);
+            break;
+          }
+
+          default: {
+            console.warn('Received unknown WebSocket message type:', message);
             break;
           }
         }
       } catch (error) {
-        console.error('Error parsing WebSocket message:', error);
+        console.error('Error parsing WebSocket message:', error, 'Raw data:', event.data);
       }
     };
 

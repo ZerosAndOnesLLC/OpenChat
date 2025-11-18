@@ -218,7 +218,7 @@ npm run build
 
 ## Version
 
-Current version: 0.1.7
+Current version: 0.1.8
 
 Increment version before commits:
 - **Patch** (0.1.x): Bug fixes, small tweaks
@@ -226,6 +226,12 @@ Increment version before commits:
 - **Major** (x.0.0): Breaking changes
 
 ### Recent Changes
+
+**v0.1.8** - Fix WebSocket message parsing errors
+- Added defensive checks for all WebSocket message handlers
+- Prevent crashes when receiving malformed or incomplete messages
+- Improved error logging to help debug WebSocket issues
+- Added default case handler for unknown message types
 
 **v0.1.7** - Dark theme update for messages and channels
 - Updated message area background to black

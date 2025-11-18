@@ -16,6 +16,8 @@ import type {
   UpdateUserRequest,
   UpdateUserStatusRequest,
   ThreadResponse,
+  UnreadCountResponse,
+  MarkAsReadRequest,
 } from './types';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080';
@@ -159,6 +161,19 @@ class ApiClient {
     return response.messages;
   }
 
+  async markChannelAsRead(channelId: string, lastMessageId?: string): Promise<void> {
+    const body: MarkAsReadRequest = lastMessageId ? { last_message_id: lastMessageId } : {};
+    return this.request<void>(`/api/channels/${channelId}/read`, {
+      method: 'POST',
+      body: JSON.stringify(body),
+    });
+  }
+
+  async getChannelUnreadCount(channelId: string): Promise<number> {
+    const response = await this.request<UnreadCountResponse>(`/api/channels/${channelId}/unread`);
+    return response.unread_count;
+  }
+
   // Direct Message endpoints
   async listDms(): Promise<DirectMessage[]> {
     return this.request<DirectMessage[]>('/api/dms');
@@ -180,6 +195,19 @@ class ApiClient {
     if (before) params.append('before', before);
     const response = await this.request<{ messages: Message[]; has_more: boolean; next_cursor?: string }>(`/api/dms/${dmId}/messages?${params}`);
     return response.messages;
+  }
+
+  async markDmAsRead(dmId: string, lastMessageId?: string): Promise<void> {
+    const body: MarkAsReadRequest = lastMessageId ? { last_message_id: lastMessageId } : {};
+    return this.request<void>(`/api/dms/${dmId}/read`, {
+      method: 'POST',
+      body: JSON.stringify(body),
+    });
+  }
+
+  async getDmUnreadCount(dmId: string): Promise<number> {
+    const response = await this.request<UnreadCountResponse>(`/api/dms/${dmId}/unread`);
+    return response.unread_count;
   }
 
   // Message endpoints

@@ -64,6 +64,14 @@ pub enum PubSubEvent {
         org_id: Uuid,
         emoji: String,
     },
+    /// Unread count updated
+    UnreadCountUpdated {
+        user_id: Uuid,
+        channel_id: Option<Uuid>,
+        dm_id: Option<Uuid>,
+        org_id: Uuid,
+        unread_count: i32,
+    },
 }
 
 /// Redis Pub/Sub manager
@@ -247,6 +255,23 @@ impl RedisPubSub {
                         message_id,
                         user_id,
                         emoji,
+                    },
+                });
+            }
+            PubSubEvent::UnreadCountUpdated {
+                user_id: _,
+                channel_id,
+                dm_id,
+                org_id,
+                unread_count,
+            } => {
+                ws_server.do_send(super::server::BroadcastMessage {
+                    org_id,
+                    channel_id,
+                    message: ServerMessage::UnreadCountUpdated {
+                        channel_id,
+                        dm_id,
+                        unread_count,
                     },
                 });
             }

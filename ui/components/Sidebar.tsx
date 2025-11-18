@@ -6,6 +6,7 @@ import { useAuth } from '@/lib/auth';
 import type { Channel, DirectMessage } from '@/lib/types';
 import ChannelList from './ChannelList';
 import DirectMessageList from './DirectMessageList';
+import BookmarksList from './BookmarksList';
 import UserProfile from './UserProfile';
 import { useState } from 'react';
 
@@ -150,6 +151,13 @@ export default function Sidebar({
               activeDm={activeDm}
               onSelectDm={onSelectDm}
             />
+          </div>
+
+          <div className="mb-4">
+            <div className="mb-2 px-2">
+              <h2 className="text-sm font-semibold text-gray-400">Bookmarks</h2>
+            </div>
+            <BookmarksList />
           </div>
         </div>
       </div>

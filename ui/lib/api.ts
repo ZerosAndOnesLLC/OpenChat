@@ -13,8 +13,21 @@ import type {
   ReactionCount,
   AddReactionRequest,
   User,
+  UserStatus,
   UpdateUserRequest,
   UpdateUserStatusRequest,
+  ThreadResponse,
+  UnreadCountResponse,
+  MarkAsReadRequest,
+  Attachment,
+  AttachmentUploadResponse,
+  CustomEmoji,
+  EmojiUploadResponse,
+  PinnedMessage,
+  Bookmark,
+  LinkPreview,
+  ReadReceiptWithUser,
+  MessageEditWithUser,
 } from './types';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080';
@@ -75,10 +88,58 @@ class ApiClient {
     });
 
     if (!response.ok) {
+      // Handle 401 Unauthorized - clear token and trigger re-authentication
+      if (response.status === 401) {
+        console.warn('401 Unauthorized - clearing token and redirecting to login');
+        this.clearToken();
+
+        // Only redirect if we're not already on the SSO callback page
+        if (typeof window !== 'undefined' && !window.location.pathname.includes('/sso/callback')) {
+          // Trigger re-authentication by reloading the page
+          // The auth.initialize() will detect no valid token and start OAuth flow
+          window.location.href = '/';
+        }
+
+        throw new Error('Authentication required');
+      }
+
+      // Handle 429 Rate Limit - show user-friendly message with retry info
+      if (response.status === 429) {
+        const retryAfter = response.headers.get('Retry-After');
+        const rateLimitRemaining = response.headers.get('X-RateLimit-Remaining');
+
+        let message = 'Rate limit exceeded. Please slow down and try again in a moment.';
+
+        if (retryAfter) {
+          const seconds = parseInt(retryAfter);
+          if (!isNaN(seconds)) {
+            if (seconds < 60) {
+              message = `Rate limit exceeded. Please wait ${seconds} seconds before trying again.`;
+            } else {
+              const minutes = Math.ceil(seconds / 60);
+              message = `Rate limit exceeded. Please wait ${minutes} minute${minutes > 1 ? 's' : ''} before trying again.`;
+            }
+          }
+        }
+
+        // Show toast notification if toast library is available
+        if (typeof window !== 'undefined' && (window as any).showToast) {
+          (window as any).showToast(message, 'warning');
+        }
+
+        throw new Error(message);
+      }
+
       const error = await response.json().catch(() => ({
         message: `HTTP ${response.status}: ${response.statusText}`,
       }));
       throw new Error(error.message || 'API request failed');
+    }
+
+    // Handle empty responses (204 No Content, etc.)
+    const contentType = response.headers.get('content-type');
+    if (response.status === 204 || !contentType?.includes('application/json')) {
+      return undefined as T;
     }
 
     return response.json();
@@ -89,10 +150,20 @@ class ApiClient {
     return this.request<Channel[]>('/api/channels');
   }
 
+  async listPublicChannels(): Promise<Channel[]> {
+    return this.request<Channel[]>('/api/channels/public');
+  }
+
   async createChannel(data: CreateChannelRequest): Promise<Channel> {
     return this.request<Channel>('/api/channels', {
       method: 'POST',
       body: JSON.stringify(data),
+    });
+  }
+
+  async joinChannel(channelId: string): Promise<ChannelMember> {
+    return this.request<ChannelMember>(`/api/channels/${channelId}/join`, {
+      method: 'POST',
     });
   }
 
@@ -133,7 +204,21 @@ class ApiClient {
   async listChannelMessages(channelId: string, limit = 50, before?: string): Promise<Message[]> {
     const params = new URLSearchParams({ limit: limit.toString() });
     if (before) params.append('before', before);
-    return this.request<Message[]>(`/api/channels/${channelId}/messages?${params}`);
+    const response = await this.request<{ messages: Message[]; has_more: boolean; next_cursor?: string }>(`/api/channels/${channelId}/messages?${params}`);
+    return response.messages;
+  }
+
+  async markChannelAsRead(channelId: string, lastMessageId?: string): Promise<void> {
+    const body: MarkAsReadRequest = lastMessageId ? { last_message_id: lastMessageId } : {};
+    return this.request<void>(`/api/channels/${channelId}/read`, {
+      method: 'POST',
+      body: JSON.stringify(body),
+    });
+  }
+
+  async getChannelUnreadCount(channelId: string): Promise<number> {
+    const response = await this.request<UnreadCountResponse>(`/api/channels/${channelId}/unread`);
+    return response.unread_count;
   }
 
   // Direct Message endpoints
@@ -155,7 +240,21 @@ class ApiClient {
   async listDmMessages(dmId: string, limit = 50, before?: string): Promise<Message[]> {
     const params = new URLSearchParams({ limit: limit.toString() });
     if (before) params.append('before', before);
-    return this.request<Message[]>(`/api/dms/${dmId}/messages?${params}`);
+    const response = await this.request<{ messages: Message[]; has_more: boolean; next_cursor?: string }>(`/api/dms/${dmId}/messages?${params}`);
+    return response.messages;
+  }
+
+  async markDmAsRead(dmId: string, lastMessageId?: string): Promise<void> {
+    const body: MarkAsReadRequest = lastMessageId ? { last_message_id: lastMessageId } : {};
+    return this.request<void>(`/api/dms/${dmId}/read`, {
+      method: 'POST',
+      body: JSON.stringify(body),
+    });
+  }
+
+  async getDmUnreadCount(dmId: string): Promise<number> {
+    const response = await this.request<UnreadCountResponse>(`/api/dms/${dmId}/unread`);
+    return response.unread_count;
   }
 
   // Message endpoints
@@ -177,6 +276,10 @@ class ApiClient {
     return this.request<void>(`/api/messages/${id}`, {
       method: 'DELETE',
     });
+  }
+
+  async getMessageThread(id: string): Promise<ThreadResponse> {
+    return this.request<ThreadResponse>(`/api/messages/${id}/thread`);
   }
 
   // Reaction endpoints
@@ -224,9 +327,154 @@ class ApiClient {
     });
   }
 
+  async getUserStatus(userId: string): Promise<UserStatus> {
+    return this.request<UserStatus>(`/api/users/${userId}/status`);
+  }
+
+  async updateMyStatus(data: UpdateUserStatusRequest): Promise<UserStatus> {
+    return this.request<UserStatus>('/api/users/me/status', {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+  }
+
+  // Attachment endpoints
+  async uploadAttachment(messageId: string, file: File): Promise<AttachmentUploadResponse[]> {
+    const token = this.getToken();
+    const formData = new FormData();
+    formData.append('message_id', messageId);
+    formData.append('file', file);
+
+    const response = await fetch(`${this.baseUrl}/api/attachments/upload`, {
+      method: 'POST',
+      headers: {
+        'Authorization': token ? `Bearer ${token}` : '',
+      },
+      body: formData,
+    });
+
+    if (!response.ok) {
+      if (response.status === 401) {
+        this.clearToken();
+        if (typeof window !== 'undefined' && !window.location.pathname.includes('/sso/callback')) {
+          window.location.href = '/';
+        }
+        throw new Error('Authentication required');
+      }
+      const error = await response.json().catch(() => ({
+        message: `HTTP ${response.status}: ${response.statusText}`,
+      }));
+      throw new Error(error.message || 'Upload failed');
+    }
+
+    return response.json();
+  }
+
+  async downloadAttachment(attachmentId: string): Promise<Blob> {
+    const token = this.getToken();
+    const response = await fetch(`${this.baseUrl}/api/attachments/${attachmentId}/download`, {
+      method: 'GET',
+      headers: {
+        'Authorization': token ? `Bearer ${token}` : '',
+      },
+    });
+
+    if (!response.ok) {
+      if (response.status === 401) {
+        this.clearToken();
+        if (typeof window !== 'undefined' && !window.location.pathname.includes('/sso/callback')) {
+          window.location.href = '/';
+        }
+        throw new Error('Authentication required');
+      }
+      throw new Error('Download failed');
+    }
+
+    return response.blob();
+  }
+
+  async deleteAttachment(attachmentId: string): Promise<void> {
+    return this.request<void>(`/api/attachments/${attachmentId}`, {
+      method: 'DELETE',
+    });
+  }
+
+  async getMessageAttachments(messageId: string): Promise<Attachment[]> {
+    return this.request<Attachment[]>(`/api/messages/${messageId}/attachments`);
+  }
+
+  // Custom Emoji endpoints
+  async uploadCustomEmoji(name: string, file: File): Promise<EmojiUploadResponse> {
+    const token = this.getToken();
+    const formData = new FormData();
+    formData.append('name', name);
+    formData.append('file', file);
+
+    const response = await fetch(`${this.baseUrl}/api/emojis/upload`, {
+      method: 'POST',
+      headers: {
+        'Authorization': token ? `Bearer ${token}` : '',
+      },
+      body: formData,
+    });
+
+    if (!response.ok) {
+      if (response.status === 401) {
+        this.clearToken();
+        if (typeof window !== 'undefined' && !window.location.pathname.includes('/sso/callback')) {
+          window.location.href = '/';
+        }
+      }
+      const error = await response.text();
+      throw new Error(error || 'Failed to upload emoji');
+    }
+
+    return response.json();
+  }
+
+  async getCustomEmojis(): Promise<CustomEmoji[]> {
+    return this.request<CustomEmoji[]>('/api/emojis');
+  }
+
+  async deleteCustomEmoji(emojiId: string): Promise<void> {
+    return this.request<void>(`/api/emojis/${emojiId}`, {
+      method: 'DELETE',
+    });
+  }
+
+  getEmojiImage(emojiId: string): string {
+    return `${this.baseUrl}/api/emojis/${emojiId}/image`;
+  }
+
   // SSO endpoints
-  async exchangeSSOCode(code: string): Promise<{ access_token: string; token_type: string; expires_in: number }> {
-    return this.request<{ access_token: string; token_type: string; expires_in: number }>('/api/sso/exchange', {
+  async exchangeSSOCode(code: string): Promise<{
+    access_token: string;
+    token_type: string;
+    expires_in: number;
+    refresh_token?: string;
+    id_token?: string;
+    user_claims?: {
+      sub: string;
+      email?: string;
+      name?: string;
+      org_id?: string;
+      org_name?: string;
+    };
+  }> {
+    return this.request<{
+      access_token: string;
+      token_type: string;
+      expires_in: number;
+      refresh_token?: string;
+      id_token?: string;
+      user_claims?: {
+        sub: string;
+        email?: string;
+        name?: string;
+        org_id?: string;
+        org_name?: string;
+      };
+    }>('/api/sso/exchange', {
       method: 'POST',
       body: JSON.stringify({ code }),
     });
@@ -252,6 +500,115 @@ class ApiClient {
     }
 
     return response.json();
+  }
+
+  // Search endpoints
+  async searchMessages(query: string, scope?: string, channelId?: string, dmId?: string, limit?: number): Promise<{
+    messages: Message[];
+    total_count: number;
+  }> {
+    const params = new URLSearchParams({ q: query });
+    if (scope) params.append('scope', scope);
+    if (channelId) params.append('channel_id', channelId);
+    if (dmId) params.append('dm_id', dmId);
+    if (limit) params.append('limit', limit.toString());
+
+    return this.request<{ messages: Message[]; total_count: number }>(`/api/search/messages?${params}`);
+  }
+
+  // Notification endpoints
+  async listNotifications(limit?: number, offset?: number, unreadOnly?: boolean): Promise<{
+    notifications: Array<{
+      id: string;
+      user_id: string;
+      notification_type: string;
+      message_id?: string;
+      channel_id?: string;
+      dm_id?: string;
+      read: boolean;
+      created_at: string;
+    }>;
+    total: number;
+  }> {
+    const params = new URLSearchParams();
+    if (limit) params.append('limit', limit.toString());
+    if (offset) params.append('offset', offset.toString());
+    if (unreadOnly !== undefined) params.append('unread_only', unreadOnly.toString());
+
+    return this.request(`/api/notifications?${params}`);
+  }
+
+  async getUnreadNotificationCount(): Promise<{ count: number }> {
+    return this.request<{ count: number }>('/api/notifications/unread-count');
+  }
+
+  async markNotificationAsRead(notificationId: string): Promise<void> {
+    return this.request<void>(`/api/notifications/${notificationId}/read`, {
+      method: 'POST',
+    });
+  }
+
+  async markAllNotificationsAsRead(): Promise<{ success: boolean; count: number }> {
+    return this.request<{ success: boolean; count: number }>('/api/notifications/read-all', {
+      method: 'POST',
+    });
+  }
+
+  // Pin endpoints
+  async pinMessage(messageId: string): Promise<PinnedMessage> {
+    return this.request<PinnedMessage>(`/api/messages/${messageId}/pin`, {
+      method: 'POST',
+    });
+  }
+
+  async unpinMessage(messageId: string): Promise<void> {
+    return this.request<void>(`/api/messages/${messageId}/pin`, {
+      method: 'DELETE',
+    });
+  }
+
+  async getChannelPins(channelId: string): Promise<PinnedMessage[]> {
+    return this.request<PinnedMessage[]>(`/api/channels/${channelId}/pins`);
+  }
+
+  // Bookmark endpoints
+  async bookmarkMessage(messageId: string): Promise<Bookmark> {
+    return this.request<Bookmark>('/api/bookmarks', {
+      method: 'POST',
+      body: JSON.stringify({ message_id: messageId }),
+    });
+  }
+
+  async unbookmarkMessage(messageId: string): Promise<void> {
+    return this.request<void>(`/api/bookmarks/${messageId}`, {
+      method: 'DELETE',
+    });
+  }
+
+  async getUserBookmarks(): Promise<Bookmark[]> {
+    return this.request<Bookmark[]>('/api/bookmarks');
+  }
+
+  // Link Preview endpoints
+  async getLinkPreview(url: string): Promise<LinkPreview> {
+    const encodedUrl = encodeURIComponent(url);
+    return this.request<LinkPreview>(`/api/links/preview?url=${encodedUrl}`);
+  }
+
+  // Read Receipt endpoints
+  async recordReadReceipt(messageId: string): Promise<void> {
+    return this.request<void>(`/api/messages/${messageId}/read`, {
+      method: 'POST',
+    });
+  }
+
+  async getMessageReceipts(messageId: string): Promise<ReadReceiptWithUser[]> {
+    return this.request<ReadReceiptWithUser[]>(`/api/messages/${messageId}/receipts`);
+  }
+
+  // Message Edit History endpoints
+  async getMessageHistory(messageId: string): Promise<MessageEditWithUser[]> {
+    return this.request<MessageEditWithUser[]>(`/api/messages/${messageId}/history`);
   }
 }
 

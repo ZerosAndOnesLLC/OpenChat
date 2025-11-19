@@ -18,6 +18,7 @@ pub enum PubSubEvent {
         channel_id: Option<Uuid>,
         dm_id: Option<Uuid>,
         user_id: Uuid,
+        user_name: String,
         org_id: Uuid,
         content: String,
         parent_message_id: Option<Uuid>,
@@ -62,6 +63,31 @@ pub enum PubSubEvent {
         user_id: Uuid,
         org_id: Uuid,
         emoji: String,
+    },
+    /// Unread count updated
+    UnreadCountUpdated {
+        user_id: Uuid,
+        channel_id: Option<Uuid>,
+        dm_id: Option<Uuid>,
+        org_id: Uuid,
+        unread_count: i32,
+    },
+    /// New notification created
+    NewNotification {
+        user_id: Uuid,
+        notification_id: Uuid,
+        notification_type: String,
+        message_id: Option<Uuid>,
+        channel_id: Option<Uuid>,
+        dm_id: Option<Uuid>,
+        org_id: Uuid,
+        created_at: String,
+    },
+    /// Notification count updated
+    NotificationCountUpdated {
+        user_id: Uuid,
+        org_id: Uuid,
+        unread_count: i32,
     },
 }
 
@@ -145,6 +171,7 @@ impl RedisPubSub {
                 channel_id,
                 dm_id,
                 user_id,
+                user_name,
                 org_id,
                 content,
                 parent_message_id,
@@ -158,6 +185,7 @@ impl RedisPubSub {
                         channel_id,
                         dm_id,
                         user_id,
+                        user_name,
                         content,
                         parent_message_id,
                         created_at,
@@ -245,6 +273,57 @@ impl RedisPubSub {
                         user_id,
                         emoji,
                     },
+                });
+            }
+            PubSubEvent::UnreadCountUpdated {
+                user_id: _,
+                channel_id,
+                dm_id,
+                org_id,
+                unread_count,
+            } => {
+                ws_server.do_send(super::server::BroadcastMessage {
+                    org_id,
+                    channel_id,
+                    message: ServerMessage::UnreadCountUpdated {
+                        channel_id,
+                        dm_id,
+                        unread_count,
+                    },
+                });
+            }
+            PubSubEvent::NewNotification {
+                user_id,
+                notification_id,
+                notification_type,
+                message_id,
+                channel_id,
+                dm_id,
+                org_id,
+                created_at,
+            } => {
+                ws_server.do_send(super::server::BroadcastToUser {
+                    org_id,
+                    user_id,
+                    message: ServerMessage::NewNotification {
+                        notification_id,
+                        notification_type,
+                        message_id,
+                        channel_id,
+                        dm_id,
+                        created_at,
+                    },
+                });
+            }
+            PubSubEvent::NotificationCountUpdated {
+                user_id,
+                org_id,
+                unread_count,
+            } => {
+                ws_server.do_send(super::server::BroadcastToUser {
+                    org_id,
+                    user_id,
+                    message: ServerMessage::NotificationCountUpdated { unread_count },
                 });
             }
         }

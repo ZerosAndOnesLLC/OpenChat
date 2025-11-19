@@ -1,5 +1,8 @@
 'use client';
 
+import { useEffect, useState } from 'react';
+import { apiClient } from '@/lib/api';
+import { useWebSocketStore } from '@/lib/websocket';
 import type { DirectMessage } from '@/lib/types';
 
 interface DirectMessageListProps {
@@ -8,11 +11,40 @@ interface DirectMessageListProps {
   onSelectDm: (dm: DirectMessage) => void;
 }
 
-export default function DirectMessageList({
-  dms,
-  activeDm,
-  onSelectDm,
-}: DirectMessageListProps) {
+function DirectMessageItem({
+  dm,
+  isActive,
+  onSelect
+}: {
+  dm: DirectMessage;
+  isActive: boolean;
+  onSelect: () => void;
+}) {
+  const [initiallyLoaded, setInitiallyLoaded] = useState(false);
+
+  // Get unread count from WebSocket store
+  const wsUnreadCount = useWebSocketStore((state) => state.unreadCounts[dm.id]);
+  const unreadCount = wsUnreadCount ?? 0;
+
+  // Load initial unread count
+  useEffect(() => {
+    if (!initiallyLoaded) {
+      apiClient.getDmUnreadCount(dm.id).then((count) => {
+        useWebSocketStore.setState((state) => ({
+          unreadCounts: {
+            ...state.unreadCounts,
+            [dm.id]: count,
+          },
+        }));
+        setInitiallyLoaded(true);
+      }).catch((error) => {
+        console.error('Failed to load initial DM unread count:', error);
+      });
+    }
+  }, [dm.id, initiallyLoaded]);
+
+  const hasUnread = unreadCount > 0;
+
   const getDmName = (dm: DirectMessage) => {
     if (!dm.participants || dm.participants.length === 0) {
       return 'Unknown';
@@ -21,22 +53,45 @@ export default function DirectMessageList({
   };
 
   return (
+    <button
+      onClick={onSelect}
+      className={`w-full rounded px-2 py-1.5 text-left text-sm transition-colors ${
+        isActive
+          ? 'bg-blue-600 text-white'
+          : 'text-gray-300 hover:bg-gray-800'
+      }`}
+    >
+      <div className="flex items-center justify-between">
+        <div className="flex items-center min-w-0 flex-1">
+          <span className="mr-1.5">💬</span>
+          <span className={`truncate ${hasUnread && !isActive ? 'font-bold' : ''}`}>
+            {getDmName(dm)}
+          </span>
+        </div>
+        {hasUnread && !isActive && (
+          <span className="ml-2 flex-shrink-0 rounded-full bg-red-500 px-2 py-0.5 text-xs font-semibold text-white">
+            {unreadCount > 99 ? '99+' : unreadCount}
+          </span>
+        )}
+      </div>
+    </button>
+  );
+}
+
+export default function DirectMessageList({
+  dms,
+  activeDm,
+  onSelectDm,
+}: DirectMessageListProps) {
+  return (
     <div className="space-y-1">
       {dms.map((dm) => (
-        <button
+        <DirectMessageItem
           key={dm.id}
-          onClick={() => onSelectDm(dm)}
-          className={`w-full rounded px-2 py-1.5 text-left text-sm transition-colors ${
-            activeDm?.id === dm.id
-              ? 'bg-blue-600 text-white'
-              : 'text-gray-300 hover:bg-gray-800'
-          }`}
-        >
-          <div className="flex items-center">
-            <span className="mr-1.5">💬</span>
-            <span className="truncate">{getDmName(dm)}</span>
-          </div>
-        </button>
+          dm={dm}
+          isActive={activeDm?.id === dm.id}
+          onSelect={() => onSelectDm(dm)}
+        />
       ))}
       {dms.length === 0 && (
         <p className="px-2 py-2 text-xs text-gray-500">No direct messages yet</p>

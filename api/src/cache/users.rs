@@ -1,6 +1,4 @@
-// Cache functions for future Redis integration (Phase 9-11)
-#![allow(dead_code)]
-
+// Cache functions for Redis integration
 use redis::AsyncCommands;
 use serde_json;
 use uuid::Uuid;
@@ -26,11 +24,15 @@ pub async fn get_user_from_cache(
 
     match cached {
         Some(json) => {
+            super::metrics::record_hit(redis, super::metrics::CacheType::Users).await;
             let user: User = serde_json::from_str(&json)
                 .map_err(|e| crate::errors::ApiError::Internal(format!("Cache deserialization error: {}", e)))?;
             Ok(Some(user))
         }
-        None => Ok(None),
+        None => {
+            super::metrics::record_miss(redis, super::metrics::CacheType::Users).await;
+            Ok(None)
+        }
     }
 }
 
@@ -73,6 +75,45 @@ pub async fn invalidate_org_users_cache(
     if !keys.is_empty() {
         let _: () = redis.del(&keys).await?;
     }
+
+    Ok(())
+}
+
+/// Get user from cache by TitaniumVault user ID
+/// This uses a secondary index pattern to map tv_user_id -> user_id -> user data
+pub async fn get_user_by_tv_id_from_cache(
+    redis: &mut redis::aio::MultiplexedConnection,
+    tv_user_id: Uuid,
+) -> ApiResult<Option<User>> {
+    let index_key = format!("{}:tv_index:{}", USER_CACHE_PREFIX, tv_user_id);
+
+    // First, get the actual user_id from the index
+    let user_id: Option<String> = redis.get(&index_key).await?;
+
+    match user_id {
+        Some(id_str) => {
+            let user_id = Uuid::parse_str(&id_str)
+                .map_err(|e| crate::errors::ApiError::Internal(format!("Invalid UUID in cache: {}", e)))?;
+            get_user_from_cache(redis, user_id).await
+        }
+        None => {
+            super::metrics::record_miss(redis, super::metrics::CacheType::Users).await;
+            Ok(None)
+        }
+    }
+}
+
+/// Store user in cache with TV user ID index
+pub async fn set_user_with_tv_index_in_cache(
+    redis: &mut redis::aio::MultiplexedConnection,
+    user: &User,
+) -> ApiResult<()> {
+    // Store the main user data
+    set_user_in_cache(redis, user).await?;
+
+    // Store the tv_user_id -> user_id index
+    let index_key = format!("{}:tv_index:{}", USER_CACHE_PREFIX, user.tv_user_id);
+    let _: () = redis.set_ex(&index_key, user.id.to_string(), USER_CACHE_TTL).await?;
 
     Ok(())
 }

@@ -18,17 +18,40 @@ mod middleware;
 mod models;
 mod routes;
 mod services;
+mod storage;
+mod tasks;
 mod websocket;
 
 use config::Config;
 use handlers::{
+    attachment as attachment_handlers,
+    audit_logs as audit_log_handlers,
+    bookmarks as bookmark_handlers,
     channels as channel_handlers,
     dms as dm_handlers,
+    drafts as draft_handlers,
+    emoji as emoji_handlers,
+    link_preview as link_preview_handlers,
+    mentions as mention_handlers,
     messages as message_handlers,
+    metrics as metrics_handlers,
+    notifications as notification_handlers,
+    pins as pin_handlers,
     reactions as reaction_handlers,
+    read_receipts as read_receipt_handlers,
+    read_status as read_status_handlers,
+    retention as retention_handlers,
+    roles as role_handlers,
+    search as search_handlers,
+    storage_settings as storage_settings_handlers,
+    user_status as user_status_handlers,
     users as user_handlers,
 };
+use middleware::auth::AuthMiddleware;
+use middleware::permissions::PermissionMiddleware;
+use middleware::rate_limit::RateLimitMiddleware;
 use services::tv_api::TvApiClient;
+use storage::StorageFactory;
 
 async fn health_check() -> impl Responder {
     HttpResponse::Ok().json(serde_json::json!({
@@ -96,9 +119,23 @@ async fn main() -> std::io::Result<()> {
         .expect("Failed to initialize database pool");
     info!("Database connection established");
 
+    // Initialize Redis connection
+    info!("Connecting to Redis...");
+    let redis_conn = db::init_redis(&config.redis_url)
+        .await
+        .expect("Failed to initialize Redis connection");
+    info!("Redis connection established");
+
+    // Warm the cache with frequently accessed data
+    info!("Warming cache...");
+    let mut redis_warming_conn = redis_conn.clone();
+    if let Err(e) = cache::warming::warm_cache(&db_pool, &mut redis_warming_conn).await {
+        tracing::warn!("Cache warming failed (non-critical): {}", e);
+    }
+
     // Start WebSocket server
     info!("Starting WebSocket server...");
-    let ws_server = websocket::server::WsServer::new().start();
+    let ws_server = websocket::server::WsServer::new(db_pool.clone()).start();
     info!("WebSocket server started");
 
     // Start Redis Pub/Sub for WebSocket scaling
@@ -116,6 +153,17 @@ async fn main() -> std::io::Result<()> {
     // Create TV API client
     let tv_api_client = Arc::new(TvApiClient::new(config.tv_api_url.clone()));
 
+    // Create storage factory
+    let local_storage_path = std::env::var("LOCAL_STORAGE_PATH")
+        .unwrap_or_else(|_| "/var/openchat/uploads".to_string());
+    let storage_factory = Arc::new(StorageFactory::new(db_pool.clone(), local_storage_path));
+    info!("Storage factory initialized");
+
+    // Start background tasks
+    info!("Starting background tasks...");
+    tasks::start_background_tasks(db_pool.clone(), ws_server.clone());
+    info!("Background tasks started");
+
     // Build HTTP server
     let server = HttpServer::new(move || {
         // Configure CORS
@@ -130,54 +178,227 @@ async fn main() -> std::io::Result<()> {
             ])
             .max_age(3600);
 
+        // Create auth middleware that requires "openchat" role
+        let openchat_auth = AuthMiddleware::with_openchat_role(config.tv_api_url.clone());
+
+        // Create rate limiting middleware
+        let api_rate_limit = RateLimitMiddleware::api_request();
+
         App::new()
             .wrap(cors)
             .app_data(web::Data::new(db_pool.clone()))
+            .app_data(web::Data::new(redis_conn.clone()))
             .app_data(web::Data::new(ws_server.clone()))
             .app_data(web::Data::new(tv_api_client.clone()))
+            .app_data(web::Data::new(storage_factory.clone()))
             .route("/health", web::get().to(health_check))
             .route("/api/ws", web::get().to(websocket::ws_route))
-            // User routes
+            // User routes - require "openchat" role
             .service(
                 web::scope("/api/users")
+                    .wrap(api_rate_limit.clone())
+                    .wrap(openchat_auth.clone())
                     .route("", web::get().to(user_handlers::list_users))
                     .route("/{id}", web::get().to(user_handlers::get_user))
                     .route("/{id}", web::put().to(user_handlers::update_user))
                     .route("/{id}/status", web::put().to(user_handlers::update_user_status))
+                    // Advanced status endpoints
+                    .route("/me/status", web::put().to(user_status_handlers::update_my_status))
+                    .route("/me/status/online", web::post().to(user_status_handlers::set_online))
+                    .route("/me/status/away", web::post().to(user_status_handlers::set_away))
+                    .route("/me/status/offline", web::post().to(user_status_handlers::set_offline))
+                    .route("/{id}/status", web::get().to(user_status_handlers::get_user_status))
+                    .route("/status/active", web::get().to(user_status_handlers::get_active_users))
             )
-            // Channel routes
+            // Channel routes - require "openchat" role
             .service(
                 web::scope("/api/channels")
+                    .wrap(api_rate_limit.clone())
+                    .wrap(openchat_auth.clone())
                     .route("", web::get().to(channel_handlers::list_channels))
                     .route("", web::post().to(channel_handlers::create_channel))
+                    .route("/public", web::get().to(channel_handlers::list_public_channels))
                     .route("/{id}", web::get().to(channel_handlers::get_channel))
                     .route("/{id}", web::put().to(channel_handlers::update_channel))
                     .route("/{id}", web::delete().to(channel_handlers::delete_channel))
+                    .route("/{id}/join", web::post().to(channel_handlers::join_channel))
                     .route("/{id}/members", web::get().to(channel_handlers::list_members))
                     .route("/{id}/members", web::post().to(channel_handlers::add_member))
                     .route("/{id}/members/{user_id}", web::delete().to(channel_handlers::remove_member))
                     .route("/{id}/messages", web::get().to(message_handlers::list_channel_messages))
+                    .route("/{id}/read", web::post().to(read_status_handlers::mark_channel_as_read))
+                    .route("/{id}/unread", web::get().to(read_status_handlers::get_channel_unread_count))
+                    .route("/{id}/pins", web::get().to(pin_handlers::list_channel_pins))
+                    .route("/{id}/legal-hold", web::post().to(retention_handlers::create_legal_hold))
+                    .route("/{id}/legal-hold", web::get().to(retention_handlers::get_legal_hold))
+                    .route("/{id}/legal-hold", web::delete().to(retention_handlers::disable_legal_hold))
             )
-            // Message routes
+            // Message routes - require "openchat" role
             .service(
                 web::scope("/api/messages")
+                    .wrap(api_rate_limit.clone())
+                    .wrap(openchat_auth.clone())
                     .route("", web::post().to(message_handlers::send_message))
                     .route("/{id}", web::put().to(message_handlers::update_message))
                     .route("/{id}", web::delete().to(message_handlers::delete_message))
+                    .route("/{id}/thread", web::get().to(message_handlers::get_message_thread))
+                    .route("/{id}/history", web::get().to(message_handlers::get_message_history))
                     .route("/{id}/reactions", web::post().to(reaction_handlers::add_reaction))
                     .route("/{id}/reactions", web::get().to(reaction_handlers::list_reactions))
                     .route("/{id}/reactions/counts", web::get().to(reaction_handlers::get_reaction_counts))
                     .route("/{id}/reactions/{emoji}", web::delete().to(reaction_handlers::remove_reaction))
+                    .route("/{id}/attachments", web::get().to(attachment_handlers::get_message_attachments))
+                    .route("/{id}/pin", web::post().to(pin_handlers::pin_message))
+                    .route("/{id}/pin", web::delete().to(pin_handlers::unpin_message))
+                    .route("/{id}/read", web::post().to(read_receipt_handlers::record_read_receipt))
+                    .route("/{id}/receipts", web::get().to(read_receipt_handlers::get_message_receipts))
             )
-            // Direct Message routes
+            // Read Receipt routes - require "openchat" role
+            .service(
+                web::scope("/api/read-receipts")
+                    .wrap(api_rate_limit.clone())
+                    .wrap(openchat_auth.clone())
+                    .route("/batch", web::post().to(read_receipt_handlers::record_batch_read_receipts))
+            )
+            // Attachment routes - require "openchat" role
+            .service(
+                web::scope("/api/attachments")
+                    .wrap(api_rate_limit.clone())
+                    .wrap(openchat_auth.clone())
+                    .route("/upload", web::post().to(attachment_handlers::upload_attachment))
+                    .route("/{id}/download", web::get().to(attachment_handlers::download_attachment))
+                    .route("/{id}", web::delete().to(attachment_handlers::delete_attachment))
+            )
+            // Direct Message routes - require "openchat" role
             .service(
                 web::scope("/api/dms")
+                    .wrap(api_rate_limit.clone())
+                    .wrap(openchat_auth.clone())
                     .route("", web::get().to(dm_handlers::list_dms))
                     .route("", web::post().to(dm_handlers::create_dm))
                     .route("/{id}", web::get().to(dm_handlers::get_dm))
                     .route("/{id}/messages", web::get().to(dm_handlers::list_dm_messages))
+                    .route("/{id}/read", web::post().to(read_status_handlers::mark_dm_as_read))
+                    .route("/{id}/unread", web::get().to(read_status_handlers::get_dm_unread_count))
             )
-            // SSO routes
+            // Search routes - require "openchat" role
+            .service(
+                web::scope("/api/search")
+                    .wrap(api_rate_limit.clone())
+                    .wrap(openchat_auth.clone())
+                    .route("/messages", web::get().to(search_handlers::search_messages))
+            )
+            // Storage settings routes - require "openchat" role and admin permissions
+            .service(
+                web::scope("/api/settings/storage")
+                    .wrap(api_rate_limit.clone())
+                    .wrap(openchat_auth.clone())
+                    .route("", web::get().to(storage_settings_handlers::get_storage_settings))
+                    .route("", web::post().to(storage_settings_handlers::update_storage_settings))
+            )
+            // Retention policy routes - require "openchat" role and admin permissions
+            .service(
+                web::scope("/api/settings/retention")
+                    .wrap(api_rate_limit.clone())
+                    .wrap(openchat_auth.clone())
+                    .route("", web::get().to(retention_handlers::get_retention_policies))
+                    .route("", web::post().to(retention_handlers::update_retention_policy))
+            )
+            // Mention routes - require "openchat" role
+            .service(
+                web::scope("/api/mentions")
+                    .wrap(api_rate_limit.clone())
+                    .wrap(openchat_auth.clone())
+                    .route("", web::get().to(mention_handlers::list_mentions))
+                    .route("/unread-count", web::get().to(mention_handlers::get_unread_mention_count))
+            )
+            // Notification routes - require "openchat" role
+            .service(
+                web::scope("/api/notifications")
+                    .wrap(api_rate_limit.clone())
+                    .wrap(openchat_auth.clone())
+                    .route("", web::get().to(notification_handlers::list_notifications))
+                    .route("/unread-count", web::get().to(notification_handlers::get_unread_count))
+                    .route("/{id}/read", web::post().to(notification_handlers::mark_notification_as_read))
+                    .route("/read-all", web::post().to(notification_handlers::mark_all_notifications_as_read))
+            )
+            // Bookmark routes - require "openchat" role
+            .service(
+                web::scope("/api/bookmarks")
+                    .wrap(api_rate_limit.clone())
+                    .wrap(openchat_auth.clone())
+                    .route("", web::get().to(bookmark_handlers::list_bookmarks))
+                    .route("", web::post().to(bookmark_handlers::create_bookmark))
+                    .route("/{message_id}", web::delete().to(bookmark_handlers::delete_bookmark))
+            )
+            // Draft routes - require "openchat" role
+            .service(
+                web::scope("/api/drafts")
+                    .wrap(api_rate_limit.clone())
+                    .wrap(openchat_auth.clone())
+                    .route("", web::post().to(draft_handlers::save_draft))
+                    .route("", web::get().to(draft_handlers::get_all_drafts))
+                    .route("", web::delete().to(draft_handlers::delete_all_drafts))
+                    .route("/channel/{channel_id}", web::get().to(draft_handlers::get_channel_draft))
+                    .route("/channel/{channel_id}", web::delete().to(draft_handlers::delete_channel_draft))
+                    .route("/dm/{dm_id}", web::get().to(draft_handlers::get_dm_draft))
+                    .route("/dm/{dm_id}", web::delete().to(draft_handlers::delete_dm_draft))
+            )
+            // Link Preview routes - require "openchat" role
+            .service(
+                web::scope("/api/links")
+                    .wrap(api_rate_limit.clone())
+                    .wrap(openchat_auth.clone())
+                    .route("/preview", web::get().to(link_preview_handlers::get_link_preview))
+            )
+            // Role and Permission routes - require "openchat" role
+            .service(
+                web::scope("/api/roles")
+                    .wrap(api_rate_limit.clone())
+                    .wrap(openchat_auth.clone())
+                    .route("", web::get().to(role_handlers::list_roles))
+                    .route("", web::post().to(role_handlers::create_role))
+                    .route("/{id}", web::get().to(role_handlers::get_role))
+                    .route("/{id}", web::put().to(role_handlers::update_role))
+                    .route("/{id}", web::delete().to(role_handlers::delete_role))
+                    .route("/{id}/permissions", web::post().to(role_handlers::assign_permissions))
+            )
+            .service(
+                web::scope("/api/permissions")
+                    .wrap(api_rate_limit.clone())
+                    .wrap(openchat_auth.clone())
+                    .route("", web::get().to(role_handlers::list_permissions))
+            )
+            // Custom Emoji routes - require "openchat" role
+            .service(
+                web::scope("/api/emojis")
+                    .wrap(api_rate_limit.clone())
+                    .wrap(openchat_auth.clone())
+                    .route("/upload", web::post().to(emoji_handlers::upload_emoji))
+                    .route("", web::get().to(emoji_handlers::get_org_emojis))
+                    .route("/{id}", web::delete().to(emoji_handlers::delete_emoji))
+                    .route("/{id}/image", web::get().to(emoji_handlers::get_emoji_image))
+            )
+            // Audit Log routes - require "openchat" role and "org.view_audit_logs" permission
+            .service(
+                web::scope("/api/audit-logs")
+                    .wrap(api_rate_limit.clone())
+                    .wrap(PermissionMiddleware::require("org.view_audit_logs"))
+                    .wrap(openchat_auth.clone())
+                    .route("", web::get().to(audit_log_handlers::list_audit_logs))
+                    .route("/export", web::get().to(audit_log_handlers::export_audit_logs))
+                    .route("/actions", web::get().to(audit_log_handlers::list_actions))
+                    .route("/resource-types", web::get().to(audit_log_handlers::list_resource_types))
+            )
+            // Metrics routes - require "openchat" role (admin should have additional checks in production)
+            .service(
+                web::scope("/api/metrics")
+                    .wrap(api_rate_limit.clone())
+                    .wrap(openchat_auth.clone())
+                    .route("/cache", web::get().to(metrics_handlers::get_cache_metrics))
+                    .route("/cache/reset", web::post().to(metrics_handlers::reset_cache_metrics))
+            )
+            // SSO routes - no auth required (they handle authentication themselves)
             .configure(routes::sso::configure)
     });
 

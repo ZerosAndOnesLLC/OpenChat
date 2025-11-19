@@ -1,12 +1,16 @@
 use actix_web::{web, HttpMessage, HttpRequest, HttpResponse};
+use redis::aio::MultiplexedConnection;
 use serde::{Deserialize, Serialize};
 use sqlx::PgPool;
 use uuid::Uuid;
 
 use crate::{
+    cache::dms as dm_cache,
+    cache::messages as message_cache,
     errors::{ApiError, ApiResult},
     models::direct_message::{DirectMessage, DmParticipant},
     models::message::{Message, PaginatedMessages},
+    models::reaction::Reaction,
     models::user::User,
     services::tv_api::TokenClaims,
 };
@@ -31,11 +35,59 @@ pub struct DmResponse {
     pub participants: Vec<Uuid>,
 }
 
+#[derive(Debug, Serialize, Clone)]
+pub struct UserResponse {
+    pub id: Uuid,
+    pub email: String,
+    pub display_name: String,
+    pub org_id: Uuid,
+    pub tv_user_id: Uuid,
+    pub status: String,
+    pub created_at: String,
+    pub updated_at: String,
+}
+
+impl From<User> for UserResponse {
+    fn from(user: User) -> Self {
+        Self {
+            id: user.id,
+            email: user.email,
+            display_name: user.display_name,
+            org_id: user.org_id,
+            tv_user_id: user.tv_user_id,
+            status: user.status,
+            created_at: user.created_at.to_rfc3339(),
+            updated_at: user.updated_at.to_rfc3339(),
+        }
+    }
+}
+
 #[derive(Debug, Serialize)]
 pub struct PaginatedMessagesResponse {
     pub messages: Vec<MessageResponse>,
     pub has_more: bool,
     pub next_cursor: Option<String>,
+}
+
+#[derive(Debug, Serialize, Clone)]
+pub struct ReactionResponse {
+    pub id: Uuid,
+    pub message_id: Uuid,
+    pub user_id: Uuid,
+    pub emoji: String,
+    pub created_at: String,
+}
+
+impl From<Reaction> for ReactionResponse {
+    fn from(reaction: Reaction) -> Self {
+        Self {
+            id: reaction.id,
+            message_id: reaction.message_id,
+            user_id: reaction.user_id,
+            emoji: reaction.emoji,
+            created_at: reaction.created_at.to_rfc3339(),
+        }
+    }
 }
 
 #[derive(Debug, Serialize)]
@@ -48,6 +100,8 @@ pub struct MessageResponse {
     pub parent_message_id: Option<Uuid>,
     pub created_at: String,
     pub edited_at: Option<String>,
+    pub user: Option<UserResponse>,
+    pub reactions: Vec<ReactionResponse>,
 }
 
 impl From<crate::models::message::Message> for MessageResponse {
@@ -61,7 +115,21 @@ impl From<crate::models::message::Message> for MessageResponse {
             parent_message_id: message.parent_message_id,
             created_at: message.created_at.to_rfc3339(),
             edited_at: message.edited_at.map(|dt| dt.to_rfc3339()),
+            user: None,
+            reactions: vec![],
         }
+    }
+}
+
+impl MessageResponse {
+    pub fn with_user(mut self, user: User) -> Self {
+        self.user = Some(UserResponse::from(user));
+        self
+    }
+
+    pub fn with_reactions(mut self, reactions: Vec<Reaction>) -> Self {
+        self.reactions = reactions.into_iter().map(ReactionResponse::from).collect();
+        self
     }
 }
 
@@ -198,6 +266,7 @@ pub async fn create_dm(
 /// GET /api/dms/:id - Get DM details
 pub async fn get_dm(
     pool: web::Data<PgPool>,
+    redis: web::Data<MultiplexedConnection>,
     dm_id: web::Path<Uuid>,
     req: HttpRequest,
 ) -> ApiResult<HttpResponse> {
@@ -212,10 +281,25 @@ pub async fn get_dm(
         .await?
         .ok_or_else(|| ApiError::NotFound("Current user not found".to_string()))?;
 
-    // Get DM
-    let dm = DirectMessage::get_by_id(pool.get_ref(), *dm_id)
-        .await?
-        .ok_or_else(|| ApiError::NotFound("DM not found".to_string()))?;
+    let mut redis_conn = redis.as_ref().clone();
+
+    // Try to get DM from cache first
+    let dm = match dm_cache::get_dm_from_cache(&mut redis_conn, *dm_id).await? {
+        Some(cached_dm) => cached_dm,
+        None => {
+            // Cache miss - fetch from database
+            let dm = DirectMessage::get_by_id(pool.get_ref(), *dm_id)
+                .await?
+                .ok_or_else(|| ApiError::NotFound("DM not found".to_string()))?;
+
+            // Store in cache for next time
+            if let Err(e) = dm_cache::set_dm_in_cache(&mut redis_conn, &dm).await {
+                tracing::warn!("Failed to cache DM: {}", e);
+            }
+
+            dm
+        }
+    };
 
     // Verify user is a participant
     let is_participant = DirectMessage::is_participant(pool.get_ref(), *dm_id, current_user.id).await?;
@@ -225,7 +309,7 @@ pub async fn get_dm(
         ));
     }
 
-    // Get participants
+    // Get participants (could also be cached, but it's fast enough for now)
     let participants = DmParticipant::list_by_dm(pool.get_ref(), dm.id).await?;
     let participant_ids: Vec<Uuid> = participants.into_iter().map(|p| p.user_id).collect();
 
@@ -241,6 +325,7 @@ pub async fn get_dm(
 /// GET /api/dms/:id/messages - List messages in a DM
 pub async fn list_dm_messages(
     pool: web::Data<PgPool>,
+    redis: web::Data<MultiplexedConnection>,
     dm_id: web::Path<Uuid>,
     query: web::Query<ListMessagesQuery>,
     req: HttpRequest,
@@ -271,13 +356,103 @@ pub async fn list_dm_messages(
 
     // Get messages with pagination
     let limit = query.limit.unwrap_or(50);
-    let paginated = Message::list_by_dm(
-        pool.get_ref(),
-        *dm_id,
-        limit,
-        query.cursor.clone(),
-    )
-    .await?;
 
-    Ok(HttpResponse::Ok().json(PaginatedMessagesResponse::from(paginated)))
+    // Try to get from cache if this is the first page
+    let paginated = if query.cursor.is_none() {
+        let mut redis_conn = redis.as_ref().clone();
+
+        match message_cache::get_dm_messages_from_cache(&mut redis_conn, *dm_id).await? {
+            Some(cached) => cached,
+            None => {
+                // Cache miss - fetch from database
+                let paginated = Message::list_by_dm(
+                    pool.get_ref(),
+                    *dm_id,
+                    limit,
+                    query.cursor.clone(),
+                )
+                .await?;
+
+                // Store in cache for next time
+                if let Err(e) = message_cache::set_dm_messages_in_cache(&mut redis_conn, *dm_id, &paginated).await {
+                    tracing::warn!("Failed to cache DM messages: {}", e);
+                }
+
+                paginated
+            }
+        }
+    } else {
+        // Not first page - don't use cache
+        Message::list_by_dm(
+            pool.get_ref(),
+            *dm_id,
+            limit,
+            query.cursor.clone(),
+        )
+        .await?
+    };
+
+    // Fetch users for all messages
+    let user_ids: Vec<Uuid> = paginated.messages.iter().map(|m| m.user_id).collect();
+    let users = if !user_ids.is_empty() {
+        sqlx::query_as::<_, User>(
+            "SELECT * FROM users WHERE id = ANY($1)"
+        )
+        .bind(&user_ids)
+        .fetch_all(pool.get_ref())
+        .await?
+    } else {
+        vec![]
+    };
+
+    // Create a map of user_id -> User for quick lookup
+    let user_map: std::collections::HashMap<Uuid, User> = users
+        .into_iter()
+        .map(|u| (u.id, u))
+        .collect();
+
+    // Fetch reactions for all messages
+    let message_ids: Vec<Uuid> = paginated.messages.iter().map(|m| m.id).collect();
+    let reactions = if !message_ids.is_empty() {
+        sqlx::query_as::<_, Reaction>(
+            "SELECT * FROM reactions WHERE message_id = ANY($1) ORDER BY created_at"
+        )
+        .bind(&message_ids)
+        .fetch_all(pool.get_ref())
+        .await?
+    } else {
+        vec![]
+    };
+
+    // Create a map of message_id -> Vec<Reaction> for quick lookup
+    let mut reaction_map: std::collections::HashMap<Uuid, Vec<Reaction>> = std::collections::HashMap::new();
+    for reaction in reactions {
+        reaction_map
+            .entry(reaction.message_id)
+            .or_insert_with(Vec::new)
+            .push(reaction);
+    }
+
+    // Enrich messages with user data and reactions
+    let messages_with_users: Vec<MessageResponse> = paginated.messages
+        .into_iter()
+        .map(|msg| {
+            let mut response = MessageResponse::from(msg.clone());
+            if let Some(user) = user_map.get(&msg.user_id) {
+                response = response.with_user(user.clone());
+            }
+            if let Some(reactions) = reaction_map.get(&msg.id) {
+                response = response.with_reactions(reactions.clone());
+            }
+            response
+        })
+        .collect();
+
+    let response = PaginatedMessagesResponse {
+        messages: messages_with_users,
+        has_more: paginated.has_more,
+        next_cursor: paginated.next_cursor,
+    };
+
+    Ok(HttpResponse::Ok().json(response))
 }

@@ -1,9 +1,11 @@
 'use client';
 
 import { useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth';
-import { useWebSocketStore } from '@/lib/websocket';
 import type { User } from '@/lib/types';
+import StatusPicker from './StatusPicker';
+import UserAvatar from './UserAvatar';
 
 interface UserProfileProps {
   user: User | null;
@@ -11,63 +13,41 @@ interface UserProfileProps {
 
 export default function UserProfile({ user }: UserProfileProps) {
   const { logout } = useAuth();
-  const { updateStatus } = useWebSocketStore();
+  const router = useRouter();
   const [showMenu, setShowMenu] = useState(false);
 
   if (!user) return null;
 
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'online':
-        return 'bg-green-500';
-      case 'away':
-        return 'bg-yellow-500';
-      case 'offline':
-        return 'bg-gray-500';
-      default:
-        return 'bg-gray-500';
-    }
-  };
-
-  const handleStatusChange = (status: 'online' | 'offline' | 'away') => {
-    updateStatus(status);
-    setShowMenu(false);
-  };
+  const isAdmin = user.roles?.includes('openchat-admin') || false;
 
   return (
-    <div className="relative">
-      <button
-        onClick={() => setShowMenu(!showMenu)}
-        className="flex w-full items-center gap-3 px-4 py-3 hover:bg-gray-800 transition-colors"
-      >
-        <div className="relative">
-          <div className="flex h-8 w-8 items-center justify-center rounded-full bg-blue-600 text-sm font-semibold">
-            {user.display_name.charAt(0).toUpperCase()}
-          </div>
-          <div
-            className={`absolute bottom-0 right-0 h-3 w-3 rounded-full border-2 border-gray-900 ${getStatusColor(
-              user.status
-            )}`}
-          />
-        </div>
+    <div className="relative border-t border-gray-800 p-4">
+      <div className="mb-3 flex items-center gap-3">
+        <UserAvatar user={user} size="md" showStatus={true} />
         <div className="flex-1 text-left">
-          <p className="text-sm font-medium">{user.display_name}</p>
-          <p className="text-xs text-gray-400 capitalize">{user.status}</p>
+          <p className="text-sm font-medium text-white">{user.display_name}</p>
+          <p className="text-xs text-gray-400">{user.email}</p>
         </div>
-        <svg
-          className="h-4 w-4 text-gray-400"
-          fill="none"
-          stroke="currentColor"
-          viewBox="0 0 24 24"
+        <button
+          onClick={() => setShowMenu(!showMenu)}
+          className="rounded-lg p-2 text-gray-400 hover:bg-gray-800 hover:text-white"
         >
-          <path
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            strokeWidth={2}
-            d="M19 9l-7 7-7-7"
-          />
-        </svg>
-      </button>
+          <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M12 5v.01M12 12v.01M12 19v.01M12 6a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2z"
+            />
+          </svg>
+        </button>
+      </div>
+
+      <StatusPicker
+        currentStatus={user.status}
+        currentCustomMessage={user.user_status?.custom_message}
+        currentEmoji={user.user_status?.emoji}
+      />
 
       {showMenu && (
         <>
@@ -75,37 +55,60 @@ export default function UserProfile({ user }: UserProfileProps) {
             className="fixed inset-0 z-10"
             onClick={() => setShowMenu(false)}
           />
-          <div className="absolute bottom-full left-0 right-0 z-20 mb-2 rounded-lg bg-gray-800 shadow-lg">
+          <div className="absolute bottom-full left-0 right-0 z-20 mb-2 rounded-lg border border-gray-700 bg-gray-800 shadow-lg">
             <div className="p-2">
-              <div className="mb-2 border-b border-gray-700 pb-2">
-                <p className="px-2 py-1 text-xs font-semibold text-gray-400">
-                  Set Status
-                </p>
-                <button
-                  onClick={() => handleStatusChange('online')}
-                  className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-sm hover:bg-gray-700"
-                >
-                  <div className="h-2 w-2 rounded-full bg-green-500" />
-                  Online
-                </button>
-                <button
-                  onClick={() => handleStatusChange('away')}
-                  className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-sm hover:bg-gray-700"
-                >
-                  <div className="h-2 w-2 rounded-full bg-yellow-500" />
-                  Away
-                </button>
-                <button
-                  onClick={() => handleStatusChange('offline')}
-                  className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-sm hover:bg-gray-700"
-                >
-                  <div className="h-2 w-2 rounded-full bg-gray-500" />
-                  Offline
-                </button>
-              </div>
+              <button
+                onClick={() => {
+                  router.push('/settings/');
+                  setShowMenu(false);
+                }}
+                className="w-full rounded px-3 py-2 text-left text-sm text-gray-300 hover:bg-gray-700 flex items-center gap-2"
+              >
+                <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                </svg>
+                Settings
+              </button>
+              {isAdmin && (
+                <>
+                  <div className="my-1 border-t border-gray-700" />
+                  <div className="px-2 py-1 text-xs font-semibold text-gray-500 uppercase">
+                    Admin
+                  </div>
+                  <button
+                    onClick={() => {
+                      router.push('/admin/storage/');
+                      setShowMenu(false);
+                    }}
+                    className="w-full rounded px-3 py-2 text-left text-sm text-gray-300 hover:bg-gray-700"
+                  >
+                    Storage Settings
+                  </button>
+                  <button
+                    onClick={() => {
+                      router.push('/admin/audit-logs/');
+                      setShowMenu(false);
+                    }}
+                    className="w-full rounded px-3 py-2 text-left text-sm text-gray-300 hover:bg-gray-700"
+                  >
+                    Audit Logs
+                  </button>
+                  <button
+                    onClick={() => {
+                      router.push('/admin/retention/');
+                      setShowMenu(false);
+                    }}
+                    className="w-full rounded px-3 py-2 text-left text-sm text-gray-300 hover:bg-gray-700"
+                  >
+                    Retention Policies
+                  </button>
+                </>
+              )}
+              <div className="my-1 border-t border-gray-700" />
               <button
                 onClick={logout}
-                className="w-full rounded px-2 py-1.5 text-left text-sm text-red-400 hover:bg-gray-700"
+                className="w-full rounded px-3 py-2 text-left text-sm text-red-400 hover:bg-gray-700"
               >
                 Logout
               </button>

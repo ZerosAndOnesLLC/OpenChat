@@ -1,13 +1,15 @@
 use actix_web::{web, HttpMessage, HttpRequest, HttpResponse};
+use redis::aio::MultiplexedConnection;
 use serde::{Deserialize, Serialize};
 use sqlx::PgPool;
 use uuid::Uuid;
 
 use crate::{
+    cache::channels as channel_cache,
     errors::{ApiError, ApiResult},
     models::channel::{Channel, ChannelMember},
     models::user::User,
-    services::tv_api::TokenClaims,
+    services::{audit_logger::AuditLogger, tv_api::TokenClaims},
 };
 
 #[derive(Debug, Deserialize)]
@@ -56,7 +58,7 @@ impl From<Channel> for ChannelResponse {
     }
 }
 
-/// GET /api/channels - List all channels in the organization
+/// GET /api/channels - List channels where the user is a member
 pub async fn list_channels(
     pool: web::Data<PgPool>,
     req: HttpRequest,
@@ -67,7 +69,13 @@ pub async fn list_channels(
         .cloned()
         .ok_or_else(|| ApiError::Authentication("Missing authentication".to_string()))?;
 
-    let channels = Channel::list_by_org(pool.get_ref(), claims.org_id).await?;
+    // Get current user
+    let current_user = User::get_by_tv_user_id(pool.get_ref(), claims.user_id)
+        .await?
+        .ok_or_else(|| ApiError::NotFound("Current user not found".to_string()))?;
+
+    // Only return channels where the user is a member
+    let channels = Channel::list_by_user_membership(pool.get_ref(), claims.org_id, current_user.id).await?;
     let response: Vec<ChannelResponse> = channels.into_iter().map(ChannelResponse::from).collect();
 
     Ok(HttpResponse::Ok().json(response))
@@ -111,12 +119,26 @@ pub async fn create_channel(
     // Add creator as admin member
     ChannelMember::add(pool.get_ref(), channel.id, current_user.id, "admin").await?;
 
+    // Log channel creation in audit log
+    if let Err(e) = AuditLogger::log_channel_created(
+        pool.get_ref(),
+        current_user.id,
+        channel.id,
+        &channel.name,
+        Some(&req),
+    )
+    .await
+    {
+        tracing::warn!("Failed to create audit log for channel creation: {}", e);
+    }
+
     Ok(HttpResponse::Created().json(ChannelResponse::from(channel)))
 }
 
 /// GET /api/channels/:id - Get channel details
 pub async fn get_channel(
     pool: web::Data<PgPool>,
+    redis: web::Data<MultiplexedConnection>,
     channel_id: web::Path<Uuid>,
     req: HttpRequest,
 ) -> ApiResult<HttpResponse> {
@@ -126,9 +148,22 @@ pub async fn get_channel(
         .cloned()
         .ok_or_else(|| ApiError::Authentication("Missing authentication".to_string()))?;
 
+    let mut redis_conn = redis.as_ref().clone();
+
+    // Try to get from cache first
+    if let Some(channel) = channel_cache::get_channel_from_cache(&mut redis_conn, *channel_id).await? {
+        return Ok(HttpResponse::Ok().json(ChannelResponse::from(channel)));
+    }
+
+    // Cache miss - fetch from database
     let channel = Channel::get_by_id(pool.get_ref(), *channel_id)
         .await?
         .ok_or_else(|| ApiError::NotFound("Channel not found".to_string()))?;
+
+    // Store in cache for next time
+    if let Err(e) = channel_cache::set_channel_in_cache(&mut redis_conn, &channel).await {
+        tracing::warn!("Failed to cache channel: {}", e);
+    }
 
     Ok(HttpResponse::Ok().json(ChannelResponse::from(channel)))
 }
@@ -136,6 +171,7 @@ pub async fn get_channel(
 /// PUT /api/channels/:id - Update channel
 pub async fn update_channel(
     pool: web::Data<PgPool>,
+    redis: web::Data<MultiplexedConnection>,
     channel_id: web::Path<Uuid>,
     body: web::Json<UpdateChannelRequest>,
     req: HttpRequest,
@@ -171,12 +207,19 @@ pub async fn update_channel(
     )
     .await?;
 
+    // Invalidate cache after update
+    let mut redis_conn = redis.as_ref().clone();
+    if let Err(e) = channel_cache::invalidate_channel_cache(&mut redis_conn, *channel_id).await {
+        tracing::warn!("Failed to invalidate channel cache: {}", e);
+    }
+
     Ok(HttpResponse::Ok().json(ChannelResponse::from(updated_channel)))
 }
 
 /// DELETE /api/channels/:id - Delete channel
 pub async fn delete_channel(
     pool: web::Data<PgPool>,
+    redis: web::Data<MultiplexedConnection>,
     channel_id: web::Path<Uuid>,
     req: HttpRequest,
 ) -> ApiResult<HttpResponse> {
@@ -203,7 +246,32 @@ pub async fn delete_channel(
         ));
     }
 
+    // Store channel name for audit log before deletion
+    let channel_name = channel.name.clone();
+
     Channel::delete(pool.get_ref(), *channel_id).await?;
+
+    // Log channel deletion in audit log
+    if let Err(e) = AuditLogger::log_channel_deleted(
+        pool.get_ref(),
+        current_user.id,
+        *channel_id,
+        &channel_name,
+        Some(&req),
+    )
+    .await
+    {
+        tracing::warn!("Failed to create audit log for channel deletion: {}", e);
+    }
+
+    // Invalidate cache after deletion
+    let mut redis_conn = redis.as_ref().clone();
+    if let Err(e) = channel_cache::invalidate_channel_cache(&mut redis_conn, *channel_id).await {
+        tracing::warn!("Failed to invalidate channel cache: {}", e);
+    }
+    if let Err(e) = channel_cache::invalidate_channel_members_cache(&mut redis_conn, *channel_id).await {
+        tracing::warn!("Failed to invalidate channel members cache: {}", e);
+    }
 
     Ok(HttpResponse::NoContent().finish())
 }
@@ -211,6 +279,7 @@ pub async fn delete_channel(
 /// GET /api/channels/:id/members - List channel members
 pub async fn list_members(
     pool: web::Data<PgPool>,
+    redis: web::Data<MultiplexedConnection>,
     channel_id: web::Path<Uuid>,
     req: HttpRequest,
 ) -> ApiResult<HttpResponse> {
@@ -220,12 +289,25 @@ pub async fn list_members(
         .cloned()
         .ok_or_else(|| ApiError::Authentication("Missing authentication".to_string()))?;
 
+    let mut redis_conn = redis.as_ref().clone();
+
+    // Try to get from cache first
+    if let Some(members) = channel_cache::get_channel_members_from_cache(&mut redis_conn, *channel_id).await? {
+        return Ok(HttpResponse::Ok().json(members));
+    }
+
     // Verify channel exists
     Channel::get_by_id(pool.get_ref(), *channel_id)
         .await?
         .ok_or_else(|| ApiError::NotFound("Channel not found".to_string()))?;
 
+    // Cache miss - fetch from database
     let members = ChannelMember::list_by_channel(pool.get_ref(), *channel_id).await?;
+
+    // Store in cache for next time
+    if let Err(e) = channel_cache::set_channel_members_in_cache(&mut redis_conn, *channel_id, &members).await {
+        tracing::warn!("Failed to cache channel members: {}", e);
+    }
 
     Ok(HttpResponse::Ok().json(members))
 }
@@ -233,6 +315,7 @@ pub async fn list_members(
 /// POST /api/channels/:id/members - Add member to channel
 pub async fn add_member(
     pool: web::Data<PgPool>,
+    redis: web::Data<MultiplexedConnection>,
     channel_id: web::Path<Uuid>,
     body: web::Json<AddMemberRequest>,
     req: HttpRequest,
@@ -268,12 +351,32 @@ pub async fn add_member(
     let role = body.role.as_deref().unwrap_or("member");
     let member = ChannelMember::add(pool.get_ref(), *channel_id, body.user_id, role).await?;
 
+    // Log member addition in audit log
+    if let Err(e) = AuditLogger::log_channel_member_added(
+        pool.get_ref(),
+        current_user.id,
+        *channel_id,
+        body.user_id,
+        Some(&req),
+    )
+    .await
+    {
+        tracing::warn!("Failed to create audit log for member addition: {}", e);
+    }
+
+    // Invalidate members cache after adding a new member
+    let mut redis_conn = redis.as_ref().clone();
+    if let Err(e) = channel_cache::invalidate_channel_members_cache(&mut redis_conn, *channel_id).await {
+        tracing::warn!("Failed to invalidate channel members cache: {}", e);
+    }
+
     Ok(HttpResponse::Created().json(member))
 }
 
 /// DELETE /api/channels/:id/members/:user_id - Remove member from channel
 pub async fn remove_member(
     pool: web::Data<PgPool>,
+    redis: web::Data<MultiplexedConnection>,
     path: web::Path<(Uuid, Uuid)>,
     req: HttpRequest,
 ) -> ApiResult<HttpResponse> {
@@ -304,5 +407,117 @@ pub async fn remove_member(
 
     ChannelMember::remove(pool.get_ref(), channel_id, user_id).await?;
 
+    // Log member removal in audit log
+    if let Err(e) = AuditLogger::log_channel_member_removed(
+        pool.get_ref(),
+        current_user.id,
+        channel_id,
+        user_id,
+        Some(&req),
+    )
+    .await
+    {
+        tracing::warn!("Failed to create audit log for member removal: {}", e);
+    }
+
+    // Invalidate members cache after removing a member
+    let mut redis_conn = redis.as_ref().clone();
+    if let Err(e) = channel_cache::invalidate_channel_members_cache(&mut redis_conn, channel_id).await {
+        tracing::warn!("Failed to invalidate channel members cache: {}", e);
+    }
+
     Ok(HttpResponse::NoContent().finish())
+}
+
+/// GET /api/channels/public - List public channels available to join (excludes already-joined channels)
+pub async fn list_public_channels(
+    pool: web::Data<PgPool>,
+    req: HttpRequest,
+) -> ApiResult<HttpResponse> {
+    let claims = req
+        .extensions()
+        .get::<TokenClaims>()
+        .cloned()
+        .ok_or_else(|| ApiError::Authentication("Missing authentication".to_string()))?;
+
+    // Get current user
+    let current_user = User::get_by_tv_user_id(pool.get_ref(), claims.user_id)
+        .await?
+        .ok_or_else(|| ApiError::NotFound("Current user not found".to_string()))?;
+
+    // Only return public channels the user is NOT already a member of
+    let channels = Channel::list_public_channels(pool.get_ref(), claims.org_id, current_user.id).await?;
+    let response: Vec<ChannelResponse> = channels.into_iter().map(ChannelResponse::from).collect();
+
+    Ok(HttpResponse::Ok().json(response))
+}
+
+/// POST /api/channels/:id/join - Join a public channel
+pub async fn join_channel(
+    pool: web::Data<PgPool>,
+    redis: web::Data<MultiplexedConnection>,
+    channel_id: web::Path<Uuid>,
+    req: HttpRequest,
+) -> ApiResult<HttpResponse> {
+    let claims = req
+        .extensions()
+        .get::<TokenClaims>()
+        .cloned()
+        .ok_or_else(|| ApiError::Authentication("Missing authentication".to_string()))?;
+
+    // Get current user
+    let current_user = User::get_by_tv_user_id(pool.get_ref(), claims.user_id)
+        .await?
+        .ok_or_else(|| ApiError::NotFound("Current user not found".to_string()))?;
+
+    // Get channel
+    let channel = Channel::get_by_id(pool.get_ref(), *channel_id)
+        .await?
+        .ok_or_else(|| ApiError::NotFound("Channel not found".to_string()))?;
+
+    // Verify channel is in the same org
+    if channel.org_id != claims.org_id {
+        return Err(ApiError::Authorization(
+            "Channel does not belong to your organization".to_string(),
+        ));
+    }
+
+    // Only public channels can be joined
+    if channel.channel_type != "public" {
+        return Err(ApiError::BadRequest(
+            "Only public channels can be joined. Private channels require an invitation.".to_string(),
+        ));
+    }
+
+    // Check if already a member
+    let is_member = ChannelMember::is_member(pool.get_ref(), *channel_id, current_user.id).await?;
+    if is_member {
+        return Err(ApiError::BadRequest(
+            "You are already a member of this channel".to_string(),
+        ));
+    }
+
+    // Add user as a member
+    let member = ChannelMember::add(pool.get_ref(), *channel_id, current_user.id, "member").await?;
+
+    // Log channel join in audit log
+    if let Err(e) = AuditLogger::log_channel_member_added(
+        pool.get_ref(),
+        current_user.id,
+        *channel_id,
+        current_user.id,
+        Some(&req),
+    )
+    .await
+    {
+        tracing::warn!("Failed to create audit log for channel join: {}", e);
+    }
+
+    // Invalidate members cache after adding a new member
+    let mut redis_conn = redis.as_ref().clone();
+    if let Err(e) = channel_cache::invalidate_channel_members_cache(&mut redis_conn, *channel_id).await {
+        tracing::warn!("Failed to invalidate channel members cache: {}", e);
+    }
+
+    Ok(HttpResponse::Created().json(member))
 }

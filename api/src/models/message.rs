@@ -249,7 +249,36 @@ impl Message {
     }
 
     /// Update a message (edit)
-    pub async fn update(pool: &PgPool, id: Uuid, content: &str) -> ApiResult<Message> {
+    /// This function saves the old content to message_edits table before updating
+    pub async fn update(pool: &PgPool, id: Uuid, content: &str, user_id: Uuid) -> ApiResult<Message> {
+        // Start a transaction to ensure atomicity
+        let mut tx = pool.begin().await?;
+
+        // Fetch the current message content before updating
+        let old_message = sqlx::query_as::<_, Message>(
+            r#"
+            SELECT * FROM messages
+            WHERE id = $1 AND deleted_at IS NULL
+            "#,
+        )
+        .bind(id)
+        .fetch_one(&mut *tx)
+        .await?;
+
+        // Save the old content to message_edits table
+        sqlx::query(
+            r#"
+            INSERT INTO message_edits (message_id, old_content, edited_by)
+            VALUES ($1, $2, $3)
+            "#,
+        )
+        .bind(id)
+        .bind(&old_message.content)
+        .bind(user_id)
+        .execute(&mut *tx)
+        .await?;
+
+        // Update the message with new content
         let message = sqlx::query_as::<_, Message>(
             r#"
             UPDATE messages
@@ -261,8 +290,11 @@ impl Message {
         )
         .bind(content)
         .bind(id)
-        .fetch_one(pool)
+        .fetch_one(&mut *tx)
         .await?;
+
+        // Commit the transaction
+        tx.commit().await?;
 
         Ok(message)
     }
@@ -282,5 +314,86 @@ impl Message {
         .await?;
 
         Ok(message)
+    }
+
+    /// Get thread messages (replies) for a parent message
+    pub async fn list_thread_messages(
+        pool: &PgPool,
+        parent_message_id: Uuid,
+    ) -> ApiResult<Vec<Message>> {
+        let messages = sqlx::query_as::<_, Message>(
+            r#"
+            SELECT * FROM messages
+            WHERE parent_message_id = $1 AND deleted_at IS NULL
+            ORDER BY created_at ASC
+            "#,
+        )
+        .bind(parent_message_id)
+        .fetch_all(pool)
+        .await?;
+
+        Ok(messages)
+    }
+
+    /// Count replies for multiple messages (batch operation)
+    pub async fn count_replies_batch(
+        pool: &PgPool,
+        message_ids: &[Uuid],
+    ) -> ApiResult<std::collections::HashMap<Uuid, i64>> {
+        if message_ids.is_empty() {
+            return Ok(std::collections::HashMap::new());
+        }
+
+        #[derive(sqlx::FromRow)]
+        struct ReplyCount {
+            parent_message_id: Uuid,
+            count: i64,
+        }
+
+        let results = sqlx::query_as::<_, ReplyCount>(
+            r#"
+            SELECT parent_message_id, COUNT(*) as count
+            FROM messages
+            WHERE parent_message_id = ANY($1) AND deleted_at IS NULL
+            GROUP BY parent_message_id
+            "#,
+        )
+        .bind(message_ids)
+        .fetch_all(pool)
+        .await?;
+
+        Ok(results
+            .into_iter()
+            .map(|r| (r.parent_message_id, r.count))
+            .collect())
+    }
+
+    /// Get first reply for multiple messages (batch operation)
+    /// Returns a map of parent_message_id -> first_reply
+    pub async fn get_first_replies_batch(
+        pool: &PgPool,
+        message_ids: &[Uuid],
+    ) -> ApiResult<std::collections::HashMap<Uuid, Message>> {
+        if message_ids.is_empty() {
+            return Ok(std::collections::HashMap::new());
+        }
+
+        // Use DISTINCT ON to get the first reply for each parent message
+        let results = sqlx::query_as::<_, Message>(
+            r#"
+            SELECT DISTINCT ON (parent_message_id) *
+            FROM messages
+            WHERE parent_message_id = ANY($1) AND deleted_at IS NULL
+            ORDER BY parent_message_id, created_at ASC
+            "#,
+        )
+        .bind(message_ids)
+        .fetch_all(pool)
+        .await?;
+
+        Ok(results
+            .into_iter()
+            .filter_map(|msg| msg.parent_message_id.map(|pid| (pid, msg)))
+            .collect())
     }
 }

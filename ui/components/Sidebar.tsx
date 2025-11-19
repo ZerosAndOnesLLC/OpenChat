@@ -8,6 +8,7 @@ import ChannelList from './ChannelList';
 import DirectMessageList from './DirectMessageList';
 import BookmarksList from './BookmarksList';
 import UserProfile from './UserProfile';
+import BrowseChannelsModal from './BrowseChannelsModal';
 import { useState } from 'react';
 
 interface SidebarProps {
@@ -25,6 +26,7 @@ export default function Sidebar({
 }: SidebarProps) {
   const { user } = useAuth();
   const [showCreateChannel, setShowCreateChannel] = useState(false);
+  const [showBrowseChannels, setShowBrowseChannels] = useState(false);
   const [newChannelName, setNewChannelName] = useState('');
   const [newChannelType, setNewChannelType] = useState<'public' | 'private'>('public');
 
@@ -71,15 +73,26 @@ export default function Sidebar({
           <div className="mb-4">
             <div className="mb-2 flex items-center justify-between px-2">
               <h2 className="text-sm font-semibold text-gray-400">Channels</h2>
-              <button
-                onClick={() => setShowCreateChannel(!showCreateChannel)}
-                className="text-gray-400 hover:text-white"
-                title="Create channel"
-              >
-                <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                </svg>
-              </button>
+              <div className="flex items-center gap-1">
+                <button
+                  onClick={() => setShowBrowseChannels(true)}
+                  className="rounded p-1 text-gray-400 hover:bg-gray-800 hover:text-white"
+                  title="Browse channels"
+                >
+                  <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                  </svg>
+                </button>
+                <button
+                  onClick={() => setShowCreateChannel(!showCreateChannel)}
+                  className="rounded p-1 text-gray-400 hover:bg-gray-800 hover:text-white"
+                  title="Create channel"
+                >
+                  <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                  </svg>
+                </button>
+              </div>
             </div>
 
             {showCreateChannel && (
@@ -165,6 +178,13 @@ export default function Sidebar({
       <div className="border-t border-gray-700">
         <UserProfile user={user} />
       </div>
+
+      <BrowseChannelsModal
+        isOpen={showBrowseChannels}
+        onClose={() => setShowBrowseChannels(false)}
+        onSelectChannel={onSelectChannel}
+        currentChannels={channelsList}
+      />
     </div>
   );
 }

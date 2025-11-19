@@ -745,6 +745,27 @@ Infrastructure is managed via Terraform in `~/dev/terraform/prod/us-east-1/openc
 
 ## Version History
 
+### v0.40.0 (Phase 5.4 - Data Retention Policies)
+- Added database migration for retention_policies table (messages/files retention configuration)
+- Added database migration for legal_holds table (freeze deletion for specific channels)
+- Created RetentionPolicy and LegalHold models with FromRow derive macros
+- Implemented retention policy handlers: GET/POST /api/settings/retention
+- Implemented legal hold handlers: POST/GET/DELETE /api/channels/{id}/legal-hold
+- Retention policies support separate configuration for messages and files
+- Configurable retention period in days (must be > 0)
+- Enable/disable toggle for each policy type
+- Legal holds prevent automatic deletion in specific channels
+- Only one active legal hold allowed per channel (enforced via partial unique index)
+- Audit logging for all retention policy and legal hold changes
+- Validates channel ownership before creating/disabling legal holds
+- Admin UI at /admin/retention for policy management
+- UI provides message and file retention configuration
+- Warning messages about data permanence and legal compliance
+- Legal hold information panel in UI
+- Admin menu now includes Retention Policies link (openchat-admin role only)
+- User roles now stored in auth state from SSO userinfo
+- Background job enforcement deferred to Phase 10 (Background Workers)
+
 ### v0.39.0 (Phase 5.3 - Audit Logging)
 - Added database migration for audit_logs table with monthly partitioning
 - Implemented AuditLog model with create, list, and count operations

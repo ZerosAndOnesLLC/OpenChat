@@ -257,6 +257,21 @@ Increment version before commits:
 
 ### Recent Changes
 
+**v0.18.0** - Data Retention Policies UI (Phase 5.4 Complete)
+- Added retention policies management page at /admin/retention
+- Separate message and file retention policy configuration
+- Configurable retention period in days with enable/disable toggles
+- Legal hold information panel explaining freeze functionality
+- Warning messages about data permanence and compliance requirements
+- Real-time policy updates with success/error feedback
+- Admin menu enhanced with Retention Policies link
+- User roles field added to User type (from SSO userinfo)
+- Admin navigation menu now checks for openchat-admin role
+- Settings menu item added for all users
+- Admin section (Storage, Audit Logs, Retention) only visible to admins
+- UserProfile component enhanced with router navigation
+- Background job enforcement deferred to Phase 10 (Background Workers)
+
 **v0.17.0** - Audit Logging UI (Phase 5.3 Complete)
 - Added comprehensive audit log viewer at /admin/audit-logs
 - Advanced filtering: user ID, action, resource type, resource ID, date range

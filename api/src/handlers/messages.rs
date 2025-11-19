@@ -14,6 +14,10 @@ use crate::{
     models::reaction::Reaction,
     models::user::User,
     services::{audit_logger::AuditLogger, mention_parser, tv_api::TokenClaims},
+    websocket::{
+        messages::ServerMessage,
+        server::{BroadcastMessage, WsServer},
+    },
 };
 
 #[derive(Debug, Deserialize)]
@@ -163,6 +167,7 @@ pub async fn send_message(
     redis: web::Data<MultiplexedConnection>,
     body: web::Json<SendMessageRequest>,
     req: HttpRequest,
+    ws_server: web::Data<actix::Addr<WsServer>>,
 ) -> ApiResult<HttpResponse> {
     let claims = req
         .extensions()
@@ -311,6 +316,22 @@ pub async fn send_message(
             tracing::warn!("Failed to invalidate DM messages cache: {}", e);
         }
     }
+
+    // Broadcast message to WebSocket clients
+    ws_server.do_send(BroadcastMessage {
+        org_id: current_user.org_id,
+        channel_id: message.channel_id,
+        message: ServerMessage::NewMessage {
+            id: message.id,
+            channel_id: message.channel_id,
+            dm_id: message.dm_id,
+            user_id: message.user_id,
+            user_name: current_user.display_name.clone(),
+            content: message.content.clone(),
+            parent_message_id: message.parent_message_id,
+            created_at: message.created_at.to_rfc3339(),
+        },
+    });
 
     Ok(HttpResponse::Created().json(MessageResponse::from(message)))
 }

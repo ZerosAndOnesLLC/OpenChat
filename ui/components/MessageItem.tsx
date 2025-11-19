@@ -264,7 +264,7 @@ export default function MessageItem({ message, onReply, onOpenThread, onPin, onB
           </div>
 
           {/* Thread indicator - show if message has replies */}
-          {message.reply_count && message.reply_count > 0 && (
+          {(message.reply_count ?? 0) > 0 && (
             <button
               onClick={() => onOpenThread?.(message)}
               className="mt-2 rounded-md border border-gray-700 bg-gray-900 p-2 text-left hover:border-gray-600 hover:bg-gray-800"

@@ -293,24 +293,6 @@ export default function MessageItem({ message, onReply, onOpenThread, onPin, onB
             </button>
           )}
 
-          {/* Read receipts indicator - show on own messages only */}
-          {isOwnMessage && showActions && (
-            <button
-              onClick={() => setShowReadReceiptModal(true)}
-              className="mt-1 flex items-center gap-1 text-xs text-gray-400 hover:text-gray-300"
-              title="View read receipts"
-            >
-              <svg className="h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M5 13l4 4L19 7"
-                />
-              </svg>
-              <span>Seen by</span>
-            </button>
-          )}
         </div>
       </div>
 

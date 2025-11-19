@@ -429,7 +429,7 @@ pub async fn remove_member(
     Ok(HttpResponse::NoContent().finish())
 }
 
-/// GET /api/channels/public - List all public channels for browsing/discovery
+/// GET /api/channels/public - List public channels available to join (excludes already-joined channels)
 pub async fn list_public_channels(
     pool: web::Data<PgPool>,
     req: HttpRequest,
@@ -440,7 +440,13 @@ pub async fn list_public_channels(
         .cloned()
         .ok_or_else(|| ApiError::Authentication("Missing authentication".to_string()))?;
 
-    let channels = Channel::list_public_channels(pool.get_ref(), claims.org_id).await?;
+    // Get current user
+    let current_user = User::get_by_tv_user_id(pool.get_ref(), claims.user_id)
+        .await?
+        .ok_or_else(|| ApiError::NotFound("Current user not found".to_string()))?;
+
+    // Only return public channels the user is NOT already a member of
+    let channels = Channel::list_public_channels(pool.get_ref(), claims.org_id, current_user.id).await?;
     let response: Vec<ChannelResponse> = channels.into_iter().map(ChannelResponse::from).collect();
 
     Ok(HttpResponse::Ok().json(response))

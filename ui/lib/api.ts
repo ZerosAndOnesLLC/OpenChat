@@ -150,10 +150,20 @@ class ApiClient {
     return this.request<Channel[]>('/api/channels');
   }
 
+  async listPublicChannels(): Promise<Channel[]> {
+    return this.request<Channel[]>('/api/channels/public');
+  }
+
   async createChannel(data: CreateChannelRequest): Promise<Channel> {
     return this.request<Channel>('/api/channels', {
       method: 'POST',
       body: JSON.stringify(data),
+    });
+  }
+
+  async joinChannel(channelId: string): Promise<ChannelMember> {
+    return this.request<ChannelMember>(`/api/channels/${channelId}/join`, {
+      method: 'POST',
     });
   }
 

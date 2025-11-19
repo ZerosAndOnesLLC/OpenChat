@@ -11,6 +11,7 @@ export interface User {
   updated_at: string;
   user_status?: UserStatus;
   disable_read_receipts?: boolean;
+  roles?: string[];
 }
 
 export interface UserStatus {

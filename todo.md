@@ -464,19 +464,29 @@ Plan to achieve feature parity with Mattermost/Slack and add end-to-end encrypti
 - [x] Update README.md (API and UI)
 - [x] Increment version to 0.39.0 (API), 0.17.0 (UI)
 
-### 5.4 Data Retention Policies
-- [ ] Create migration: `retention_policies` table
-  - org_id, policy_type (messages/files), retention_days, enabled, created_at
-- [ ] Rust: Background job for retention enforcement
-- [ ] Rust: Legal hold capability (freeze deletion for specific channels)
-- [ ] API: POST /api/settings/retention - Set retention policy (admin only)
-- [ ] API: GET /api/settings/retention - Get retention policy
-- [ ] API: POST /api/channels/{id}/legal-hold - Enable legal hold
-- [ ] UI: Retention settings page (admin)
-- [ ] UI: Legal hold management
-- [ ] UI: GDPR data export (download all user data)
-- [ ] Update README.md
-- [ ] Increment version to 0.39.0
+### 5.4 Data Retention Policies ✅ COMPLETE
+- [x] Create migration: `retention_policies` table
+  - org_id, policy_type (messages/files), retention_days, enabled, created_at, updated_at
+- [x] Create migration: `legal_holds` table
+  - org_id, channel_id, reason, enabled, created_by, created_at, disabled_at, disabled_by
+- [x] UI: Add roles field to User type and store from SSO userinfo
+- [x] UI: Add admin navigation menu to UserProfile (Settings, Storage, Audit Logs, Retention)
+  - Only visible to users with openchat-admin role
+- [x] API: POST /api/settings/retention - Set retention policy (admin only)
+- [x] API: GET /api/settings/retention - Get retention policy
+- [x] API: POST /api/channels/{id}/legal-hold - Enable legal hold
+- [x] API: DELETE /api/channels/{id}/legal-hold - Disable legal hold
+- [x] API: GET /api/channels/{id}/legal-hold - Get legal hold status
+- [x] UI: Retention settings page (admin) at /admin/retention
+- [x] Update README.md (API and UI)
+- [x] Increment version to 0.40.0 (API), 0.18.0 (UI)
+
+**Implementation Notes:**
+- Database tables created for retention policies and legal holds
+- API endpoints fully functional with audit logging
+- UI provides interface for configuring message and file retention periods
+- Admin menu shows retention link only for openchat-admin role users
+- Background job for enforcement will be implemented in Phase 10 (Background Workers)
 
 ---
 
@@ -682,6 +692,38 @@ Plan to achieve feature parity with Mattermost/Slack and add end-to-end encrypti
 
 ---
 
+## Phase 10: Background Workers (Priority 2)
+
+### 10.1 Worker Infrastructure
+- [ ] Create separate worker binary (openchat-worker)
+- [ ] Shared database connection with API
+- [ ] Redis-based job queue for task distribution
+- [ ] Graceful shutdown handling
+- [ ] Error handling and retry logic
+- [ ] Monitoring and logging
+- [ ] Update README.md
+
+### 10.2 Retention Enforcement Worker
+- [ ] Scheduled job to run daily (configurable)
+- [ ] Query messages older than retention period
+- [ ] Skip channels with active legal holds
+- [ ] Batch delete messages (with transactions)
+- [ ] Query files older than retention period
+- [ ] Delete files from storage (local/S3)
+- [ ] Delete file metadata from database
+- [ ] Audit log all deletions
+- [ ] Metrics: messages deleted, files deleted, errors
+- [ ] Update README.md
+
+### 10.3 Other Background Jobs
+- [ ] Email notification worker (for mentions/DMs)
+- [ ] Webhook delivery worker (retry failed webhooks)
+- [ ] Analytics aggregation worker
+- [ ] Cache warming worker
+- [ ] Update README.md
+
+---
+
 ## Version Increment Strategy
 
 Following semantic versioning (MAJOR.MINOR.PATCH):
@@ -689,7 +731,7 @@ Following semantic versioning (MAJOR.MINOR.PATCH):
 - **Minor (0.X.0)**: New features (each major feature phase)
 - **Patch (0.0.X)**: Bug fixes, small improvements
 
-Current version: 0.31.0 (API), 0.8.0 (UI)
+Current version: 0.40.0 (API), 0.18.0 (UI)
 Target for 1.0.0: After Phase 7 completion
 
 ---

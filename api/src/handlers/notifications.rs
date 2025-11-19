@@ -134,6 +134,7 @@ pub async fn mark_notification_as_read(
     redis: web::Data<MultiplexedConnection>,
     notification_id: web::Path<Uuid>,
     req: HttpRequest,
+    ws_server: web::Data<actix::Addr<crate::websocket::server::WsServer>>,
 ) -> ApiResult<HttpResponse> {
     let claims = req
         .extensions()
@@ -154,6 +155,16 @@ pub async fn mark_notification_as_read(
     let mut redis_conn = redis.as_ref().clone();
     let _ = notif_cache::decrement_notification_count_in_cache(&mut redis_conn, &user_id_str).await;
 
+    // Get the new unread count and broadcast via WebSocket
+    let unread_count = Notification::count_unread_by_user(pool.get_ref(), current_user.id).await? as i32;
+    ws_server.do_send(crate::websocket::server::BroadcastToUser {
+        org_id: current_user.org_id,
+        user_id: current_user.id,
+        message: crate::websocket::messages::ServerMessage::NotificationCountUpdated {
+            unread_count,
+        },
+    });
+
     Ok(HttpResponse::Ok().json(serde_json::json!({ "success": true })))
 }
 
@@ -162,6 +173,7 @@ pub async fn mark_all_notifications_as_read(
     pool: web::Data<PgPool>,
     redis: web::Data<MultiplexedConnection>,
     req: HttpRequest,
+    ws_server: web::Data<actix::Addr<crate::websocket::server::WsServer>>,
 ) -> ApiResult<HttpResponse> {
     let claims = req
         .extensions()
@@ -181,6 +193,15 @@ pub async fn mark_all_notifications_as_read(
     let user_id_str = current_user.id.to_string();
     let mut redis_conn = redis.as_ref().clone();
     let _ = notif_cache::set_notification_count_in_cache(&mut redis_conn, &user_id_str, 0).await;
+
+    // Broadcast notification count update via WebSocket
+    ws_server.do_send(crate::websocket::server::BroadcastToUser {
+        org_id: current_user.org_id,
+        user_id: current_user.id,
+        message: crate::websocket::messages::ServerMessage::NotificationCountUpdated {
+            unread_count: 0,
+        },
+    });
 
     Ok(HttpResponse::Ok().json(serde_json::json!({
         "success": true,

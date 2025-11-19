@@ -1,7 +1,8 @@
 'use client';
 
-import { useQuery } from '@tanstack/react-query';
+import { useEffect, useState } from 'react';
 import { apiClient } from '@/lib/api';
+import { useWebSocketStore } from '@/lib/websocket';
 import type { DirectMessage } from '@/lib/types';
 
 interface DirectMessageListProps {
@@ -19,11 +20,28 @@ function DirectMessageItem({
   isActive: boolean;
   onSelect: () => void;
 }) {
-  const { data: unreadCount = 0 } = useQuery({
-    queryKey: ['dm-unread', dm.id],
-    queryFn: () => apiClient.getDmUnreadCount(dm.id),
-    refetchInterval: 30000, // Refetch every 30 seconds
-  });
+  const [initiallyLoaded, setInitiallyLoaded] = useState(false);
+
+  // Get unread count from WebSocket store
+  const wsUnreadCount = useWebSocketStore((state) => state.unreadCounts[dm.id]);
+  const unreadCount = wsUnreadCount ?? 0;
+
+  // Load initial unread count
+  useEffect(() => {
+    if (!initiallyLoaded) {
+      apiClient.getDmUnreadCount(dm.id).then((count) => {
+        useWebSocketStore.setState((state) => ({
+          unreadCounts: {
+            ...state.unreadCounts,
+            [dm.id]: count,
+          },
+        }));
+        setInitiallyLoaded(true);
+      }).catch((error) => {
+        console.error('Failed to load initial DM unread count:', error);
+      });
+    }
+  }, [dm.id, initiallyLoaded]);
 
   const hasUnread = unreadCount > 0;
 

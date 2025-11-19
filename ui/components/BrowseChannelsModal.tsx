@@ -23,20 +23,19 @@ export default function BrowseChannelsModal({
   const [searchQuery, setSearchQuery] = useState('');
   const queryClient = useQueryClient();
 
-  const { data: allChannels, isLoading } = useQuery({
-    queryKey: ['all-channels'],
-    queryFn: () => apiClient.listChannels(),
+  const { data: publicChannels, isLoading } = useQuery({
+    queryKey: ['public-channels'],
+    queryFn: () => apiClient.listPublicChannels(),
     enabled: isOpen,
   });
 
   const joinChannelMutation = useMutation({
     mutationFn: async (channelId: string) => {
-      if (!user?.id) throw new Error('User not found');
-      await apiClient.addChannelMember(channelId, { user_id: user.id });
+      await apiClient.joinChannel(channelId);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['channels'] });
-      queryClient.invalidateQueries({ queryKey: ['all-channels'] });
+      queryClient.invalidateQueries({ queryKey: ['public-channels'] });
     },
   });
 
@@ -52,17 +51,14 @@ export default function BrowseChannelsModal({
 
   if (!isOpen) return null;
 
-  const currentChannelIds = new Set(currentChannels.map((c) => c.id));
+  // API now returns only public channels user is NOT a member of
+  const availableChannels = publicChannels || [];
 
-  // Filter to show only public channels
-  const publicChannels = (allChannels || []).filter((c) => c.channel_type === 'public');
-
-  // Separate into joined and available channels
-  const joinedChannels = publicChannels.filter((c) => currentChannelIds.has(c.id));
-  const availableChannels = publicChannels.filter((c) => !currentChannelIds.has(c.id));
+  // Current channels that are public (for "Already Joined" section)
+  const joinedPublicChannels = currentChannels.filter((c) => c.channel_type === 'public');
 
   // Filter by search query
-  const filteredJoined = joinedChannels.filter((c) =>
+  const filteredJoined = joinedPublicChannels.filter((c) =>
     c.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
     c.description?.toLowerCase().includes(searchQuery.toLowerCase())
   );

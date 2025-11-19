@@ -62,15 +62,22 @@ impl Channel {
     }
 
     /// List public channels in an organization (for browsing/discovery)
-    pub async fn list_public_channels(pool: &PgPool, org_id: Uuid) -> ApiResult<Vec<Channel>> {
+    /// Excludes channels the user is already a member of
+    pub async fn list_public_channels(pool: &PgPool, org_id: Uuid, user_id: Uuid) -> ApiResult<Vec<Channel>> {
         let channels = sqlx::query_as::<_, Channel>(
             r#"
-            SELECT * FROM channels
-            WHERE org_id = $1 AND channel_type = 'public'
-            ORDER BY created_at DESC
+            SELECT c.* FROM channels c
+            WHERE c.org_id = $1
+            AND c.channel_type = 'public'
+            AND NOT EXISTS (
+                SELECT 1 FROM channel_members cm
+                WHERE cm.channel_id = c.id AND cm.user_id = $2
+            )
+            ORDER BY c.created_at DESC
             "#,
         )
         .bind(org_id)
+        .bind(user_id)
         .fetch_all(pool)
         .await?;
 

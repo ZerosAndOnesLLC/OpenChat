@@ -26,6 +26,8 @@ pub struct CacheMetrics {
     pub read_status_misses: i64,
     pub notifications_hits: i64,
     pub notifications_misses: i64,
+    pub organizations_hits: i64,
+    pub organizations_misses: i64,
 }
 
 impl CacheMetrics {
@@ -39,6 +41,7 @@ impl CacheMetrics {
             + self.messages_hits
             + self.read_status_hits
             + self.notifications_hits
+            + self.organizations_hits
     }
 
     /// Calculate total misses across all cache types
@@ -48,6 +51,7 @@ impl CacheMetrics {
             + self.dms_misses
             + self.dm_participants_misses
             + self.users_misses
+            + self.organizations_misses
             + self.messages_misses
             + self.read_status_misses
             + self.notifications_misses
@@ -80,6 +84,7 @@ pub enum CacheType {
     Messages,
     ReadStatus,
     Notifications,
+    Organizations,
 }
 
 /// Record a cache hit
@@ -96,6 +101,7 @@ pub async fn record_hit(
         CacheType::Messages => "messages_hits",
         CacheType::ReadStatus => "read_status_hits",
         CacheType::Notifications => "notifications_hits",
+        CacheType::Organizations => "organizations_hits",
     };
 
     if let Err(e) = increment_metric(redis, field).await {
@@ -117,6 +123,7 @@ pub async fn record_miss(
         CacheType::Messages => "messages_misses",
         CacheType::ReadStatus => "read_status_misses",
         CacheType::Notifications => "notifications_misses",
+        CacheType::Organizations => "organizations_misses",
     };
 
     if let Err(e) = increment_metric(redis, field).await {

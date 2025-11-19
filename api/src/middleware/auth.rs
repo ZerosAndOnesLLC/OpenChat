@@ -3,15 +3,16 @@ use actix_web::{
     Error, HttpMessage,
 };
 use futures_util::future::LocalBoxFuture;
+use redis::aio::MultiplexedConnection;
 use sqlx::PgPool;
 use std::{
     future::{ready, Ready},
     rc::Rc,
 };
-use tracing::error;
+use tracing::{debug, error};
 
 use crate::{
-    db,
+    cache, db,
     errors::ApiError,
     models::{organization::Organization, user::User},
     services::tv_api::TvApiClient,
@@ -113,6 +114,16 @@ where
                     actix_web::error::ErrorInternalServerError("Database pool not configured")
                 })?;
 
+            // Get Redis connection
+            let redis_conn = req
+                .app_data::<actix_web::web::Data<MultiplexedConnection>>()
+                .ok_or_else(|| {
+                    error!("Redis connection not found in app data");
+                    actix_web::error::ErrorInternalServerError("Redis not configured")
+                })?;
+
+            let mut redis = redis_conn.as_ref().clone();
+
             // Set RLS context for this request
             db::set_rls_context(pool.get_ref(), claims.org_id)
                 .await
@@ -121,27 +132,83 @@ where
                     actix_web::error::ErrorInternalServerError(e)
                 })?;
 
-            // Create or update organization first (required foreign key for users)
-            Organization::upsert(pool.get_ref(), claims.org_id, &claims.org_name)
+            // Check cache for organization first
+            let cached_org = cache::organizations::get_org_from_cache(&mut redis, claims.org_id)
                 .await
-                .map_err(|e| {
-                    error!("Failed to upsert organization: {}", e);
-                    actix_web::error::ErrorInternalServerError(e)
-                })?;
+                .ok()
+                .flatten();
 
-            // Create or update user in database
-            User::upsert(
-                pool.get_ref(),
-                claims.user_id,
-                &claims.org_id,
-                &claims.email,
-                &claims.display_name,
-            )
-            .await
-            .map_err(|e| {
-                error!("Failed to upsert user: {}", e);
-                actix_web::error::ErrorInternalServerError(e)
-            })?;
+            if cached_org.is_none() {
+                debug!("Organization cache miss for {}, upserting", claims.org_id);
+                // Create or update organization (required foreign key for users)
+                let org = Organization::upsert(pool.get_ref(), claims.org_id, &claims.org_name)
+                    .await
+                    .map_err(|e| {
+                        error!("Failed to upsert organization: {}", e);
+                        actix_web::error::ErrorInternalServerError(e)
+                    })?;
+
+                // Cache the organization
+                if let Err(e) = cache::organizations::set_org_in_cache(&mut redis, &org).await {
+                    error!("Failed to cache organization: {}", e);
+                }
+            } else {
+                debug!("Organization cache hit for {}", claims.org_id);
+            }
+
+            // Check cache for user first
+            let cached_user = cache::users::get_user_by_tv_id_from_cache(&mut redis, claims.user_id)
+                .await
+                .ok()
+                .flatten();
+
+            match cached_user {
+                Some(user) => {
+                    debug!("User cache hit for {}", claims.user_id);
+                    // Check if user data needs updating (email or display name changed)
+                    if user.email != claims.email || user.display_name != claims.display_name {
+                        debug!("User data changed, upserting and invalidating cache");
+                        let updated_user = User::upsert(
+                            pool.get_ref(),
+                            claims.user_id,
+                            &claims.org_id,
+                            &claims.email,
+                            &claims.display_name,
+                        )
+                        .await
+                        .map_err(|e| {
+                            error!("Failed to upsert user: {}", e);
+                            actix_web::error::ErrorInternalServerError(e)
+                        })?;
+
+                        // Update cache with new user data
+                        if let Err(e) = cache::users::set_user_with_tv_index_in_cache(&mut redis, &updated_user).await {
+                            error!("Failed to cache updated user: {}", e);
+                        }
+                    }
+                }
+                None => {
+                    debug!("User cache miss for {}, upserting", claims.user_id);
+                    // Create or update user in database
+                    let user = User::upsert(
+                        pool.get_ref(),
+                        claims.user_id,
+                        &claims.org_id,
+                        &claims.email,
+                        &claims.display_name,
+                    )
+                    .await
+                    .map_err(|e| {
+                        error!("Failed to upsert user: {}", e);
+                        actix_web::error::ErrorInternalServerError(e)
+                    })?;
+
+                    // Cache the user
+                    if let Err(e) = cache::users::set_user_with_tv_index_in_cache(&mut redis, &user).await {
+                        error!("Failed to cache user: {}", e);
+                    }
+                }
+            }
 
             // Store claims in request extensions for handlers to use
             req.extensions_mut().insert(claims);

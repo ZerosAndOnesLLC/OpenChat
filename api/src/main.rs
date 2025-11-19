@@ -40,6 +40,7 @@ use handlers::{
     reactions as reaction_handlers,
     read_receipts as read_receipt_handlers,
     read_status as read_status_handlers,
+    retention as retention_handlers,
     roles as role_handlers,
     search as search_handlers,
     storage_settings as storage_settings_handlers,
@@ -226,6 +227,9 @@ async fn main() -> std::io::Result<()> {
                     .route("/{id}/read", web::post().to(read_status_handlers::mark_channel_as_read))
                     .route("/{id}/unread", web::get().to(read_status_handlers::get_channel_unread_count))
                     .route("/{id}/pins", web::get().to(pin_handlers::list_channel_pins))
+                    .route("/{id}/legal-hold", web::post().to(retention_handlers::create_legal_hold))
+                    .route("/{id}/legal-hold", web::get().to(retention_handlers::get_legal_hold))
+                    .route("/{id}/legal-hold", web::delete().to(retention_handlers::disable_legal_hold))
             )
             // Message routes - require "openchat" role
             .service(
@@ -289,6 +293,14 @@ async fn main() -> std::io::Result<()> {
                     .wrap(openchat_auth.clone())
                     .route("", web::get().to(storage_settings_handlers::get_storage_settings))
                     .route("", web::post().to(storage_settings_handlers::update_storage_settings))
+            )
+            // Retention policy routes - require "openchat" role and admin permissions
+            .service(
+                web::scope("/api/settings/retention")
+                    .wrap(api_rate_limit.clone())
+                    .wrap(openchat_auth.clone())
+                    .route("", web::get().to(retention_handlers::get_retention_policies))
+                    .route("", web::post().to(retention_handlers::update_retention_policy))
             )
             // Mention routes - require "openchat" role
             .service(

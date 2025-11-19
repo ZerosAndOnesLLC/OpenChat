@@ -59,27 +59,27 @@ export default function MarkdownToolbar({ onFormat, onTogglePreview, showPreview
   ];
 
   return (
-    <div className="flex items-center gap-1 border-b border-gray-700 bg-gray-900 px-2 py-1">
+    <div className="flex items-center gap-0.5 border-t border-gray-700 bg-gray-950 px-2 py-1.5 mt-1 rounded-b-md">
       {buttons.map((btn, idx) => (
         <button
           key={idx}
           type="button"
           onClick={btn.action}
-          className={`rounded px-2 py-1 text-gray-300 hover:bg-gray-800 hover:text-white ${btn.className}`}
+          className={`rounded px-1.5 py-1 text-gray-400 hover:bg-gray-800 hover:text-white transition-colors ${btn.className}`}
           title={btn.title}
         >
-          {btn.icon}
+          <span className="text-xs">{btn.icon}</span>
         </button>
       ))}
 
-      <div className="ml-auto flex items-center gap-2">
+      <div className="ml-auto flex items-center gap-1">
         <button
           type="button"
           onClick={onTogglePreview}
-          className={`rounded px-3 py-1 text-xs transition-colors ${
+          className={`rounded px-2 py-1 text-xs font-medium transition-colors ${
             showPreview
-              ? 'bg-blue-600 text-white'
-              : 'bg-gray-800 text-gray-300 hover:bg-gray-700'
+              ? 'bg-blue-600 text-white hover:bg-blue-700'
+              : 'text-gray-400 hover:bg-gray-800 hover:text-white'
           }`}
           title="Toggle preview"
         >

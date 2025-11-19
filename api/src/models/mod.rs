@@ -14,6 +14,7 @@ pub mod pin;
 pub mod reaction;
 pub mod read_receipt;
 pub mod read_status;
+pub mod retention;
 pub mod role;
 pub mod storage_settings;
 pub mod user;

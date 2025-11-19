@@ -500,12 +500,7 @@ export default function MessageInput({ channelId, dmId, replyTo, onClearReply }:
       )}
 
       <form onSubmit={handleSubmit} className="flex flex-col">
-        <MarkdownToolbar
-          onFormat={handleFormat}
-          onTogglePreview={handleTogglePreview}
-          showPreview={showPreview}
-        />
-        <div className="flex gap-2 px-6 py-4">
+        <div className="flex gap-2 px-4 py-3">
           <input
             ref={fileInputRef}
             type="file"
@@ -517,38 +512,47 @@ export default function MessageInput({ channelId, dmId, replyTo, onClearReply }:
           <button
             type="button"
             onClick={() => fileInputRef.current?.click()}
-            className="flex-shrink-0 rounded-lg border border-gray-600 bg-gray-800 p-2 text-gray-300 transition-colors hover:bg-gray-700 hover:text-white"
+            className="flex-shrink-0 rounded-md p-2 text-gray-400 transition-colors hover:bg-gray-800 hover:text-white self-end mb-1"
             title="Attach files"
           >
             <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
             </svg>
           </button>
-          {showPreview ? (
-            <div className="flex-1 min-h-[100px] rounded-lg border border-gray-600 bg-gray-900 px-4 py-2 text-white">
-              {message.trim() ? (
-                <MarkdownRenderer content={message} />
-              ) : (
-                <div className="text-gray-400">Nothing to preview...</div>
-              )}
-            </div>
-          ) : (
-            <textarea
-              ref={textareaRef}
-              value={message}
-              onChange={handleChange}
-              onKeyDown={handleKeyDown}
-              placeholder={replyTo ? "Type your reply..." : "Type a message..."}
-              className="flex-1 min-h-[100px] max-h-[300px] rounded-lg border border-gray-600 bg-gray-900 px-4 py-2 text-white placeholder-gray-400 focus:border-blue-500 focus:outline-none resize-y"
-              rows={3}
+          <div className="flex-1 flex flex-col">
+            {showPreview ? (
+              <div className="min-h-[48px] max-h-[200px] overflow-y-auto rounded-md border border-gray-600 bg-gray-900 px-3 py-2 text-sm text-white">
+                {message.trim() ? (
+                  <MarkdownRenderer content={message} />
+                ) : (
+                  <div className="text-gray-400">Nothing to preview...</div>
+                )}
+              </div>
+            ) : (
+              <textarea
+                ref={textareaRef}
+                value={message}
+                onChange={handleChange}
+                onKeyDown={handleKeyDown}
+                placeholder={replyTo ? "Type your reply..." : "Type a message..."}
+                className="flex-1 min-h-[48px] max-h-[200px] rounded-md border border-gray-600 bg-gray-900 px-3 py-2 text-sm text-white placeholder-gray-500 focus:border-blue-500 focus:outline-none resize-none overflow-y-auto leading-relaxed"
+                rows={2}
+              />
+            )}
+            <MarkdownToolbar
+              onFormat={handleFormat}
+              onTogglePreview={handleTogglePreview}
+              showPreview={showPreview}
             />
-          )}
+          </div>
           <button
             type="submit"
             disabled={!message.trim() && selectedFiles.length === 0}
-            className="rounded-lg bg-blue-600 px-6 py-2 font-medium text-white transition-colors hover:bg-blue-700 disabled:bg-gray-700 disabled:cursor-not-allowed h-fit"
+            className="flex-shrink-0 rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-700 disabled:bg-gray-700 disabled:text-gray-400 disabled:cursor-not-allowed self-end mb-1"
           >
-            Send
+            <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
+            </svg>
           </button>
         </div>
       </form>

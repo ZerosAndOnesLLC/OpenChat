@@ -132,7 +132,7 @@ export default function StatusPicker({
 
       {/* Dropdown */}
       {isOpen && (
-        <div className="absolute left-0 top-full z-50 mt-2 w-96 rounded-lg border border-gray-700 bg-gray-900 shadow-lg">
+        <div className="absolute bottom-full left-0 z-50 mb-2 w-96 rounded-lg border border-gray-700 bg-gray-900 shadow-lg">
           <div className="p-4">
             <h3 className="mb-3 font-semibold text-white">Set your status</h3>
 

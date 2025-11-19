@@ -84,6 +84,7 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
                 status: 'online',
                 created_at: new Date().toISOString(),
                 updated_at: new Date().toISOString(),
+                roles: userInfo.roles || [],
               };
 
               console.log('Token validated, setting auth state');

@@ -1,7 +1,8 @@
 'use client';
 
-import { useQuery } from '@tanstack/react-query';
+import { useEffect, useState } from 'react';
 import { apiClient } from '@/lib/api';
+import { useWebSocketStore } from '@/lib/websocket';
 import type { Channel } from '@/lib/types';
 
 interface ChannelListProps {
@@ -19,11 +20,28 @@ function ChannelItem({
   isActive: boolean;
   onSelect: () => void;
 }) {
-  const { data: unreadCount = 0 } = useQuery({
-    queryKey: ['channel-unread', channel.id],
-    queryFn: () => apiClient.getChannelUnreadCount(channel.id),
-    refetchInterval: 30000, // Refetch every 30 seconds
-  });
+  const [initiallyLoaded, setInitiallyLoaded] = useState(false);
+
+  // Get unread count from WebSocket store
+  const wsUnreadCount = useWebSocketStore((state) => state.unreadCounts[channel.id]);
+  const unreadCount = wsUnreadCount ?? 0;
+
+  // Load initial unread count
+  useEffect(() => {
+    if (!initiallyLoaded) {
+      apiClient.getChannelUnreadCount(channel.id).then((count) => {
+        useWebSocketStore.setState((state) => ({
+          unreadCounts: {
+            ...state.unreadCounts,
+            [channel.id]: count,
+          },
+        }));
+        setInitiallyLoaded(true);
+      }).catch((error) => {
+        console.error('Failed to load initial unread count:', error);
+      });
+    }
+  }, [channel.id, initiallyLoaded]);
 
   const hasUnread = unreadCount > 0;
 

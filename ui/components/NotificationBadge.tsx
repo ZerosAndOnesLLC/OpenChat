@@ -2,22 +2,25 @@
 
 import { useState, useEffect } from 'react';
 import { apiClient } from '@/lib/api';
+import { useWebSocketStore } from '@/lib/websocket';
 import NotificationsPanel from './NotificationsPanel';
 
 export default function NotificationBadge() {
-  const [count, setCount] = useState(0);
   const [isOpen, setIsOpen] = useState(false);
 
+  // Get notification count from WebSocket store
+  const notificationCount = useWebSocketStore((state) => state.notificationCount);
+
+  // Load initial count on mount
   useEffect(() => {
     loadCount();
-    const interval = setInterval(loadCount, 30000); // Poll every 30 seconds
-    return () => clearInterval(interval);
   }, []);
 
   const loadCount = async () => {
     try {
       const data = await apiClient.getUnreadNotificationCount();
-      setCount(data.count);
+      // Update the WebSocket store with initial count
+      useWebSocketStore.setState({ notificationCount: data.count });
     } catch (error) {
       console.error('Failed to load notification count:', error);
     }
@@ -25,9 +28,6 @@ export default function NotificationBadge() {
 
   const handleClick = () => {
     setIsOpen(!isOpen);
-    if (!isOpen && count > 0) {
-      setTimeout(loadCount, 1000);
-    }
   };
 
   return (
@@ -50,9 +50,9 @@ export default function NotificationBadge() {
             d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"
           />
         </svg>
-        {count > 0 && (
+        {notificationCount > 0 && (
           <span className="absolute top-0 right-0 inline-flex items-center justify-center px-2 py-1 text-xs font-bold leading-none text-white transform translate-x-1/2 -translate-y-1/2 bg-red-500 rounded-full min-w-[20px]">
-            {count > 99 ? '99+' : count}
+            {notificationCount > 99 ? '99+' : notificationCount}
           </span>
         )}
       </button>

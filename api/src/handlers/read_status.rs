@@ -37,6 +37,7 @@ pub async fn mark_channel_as_read(
     channel_id: web::Path<Uuid>,
     body: web::Json<MarkAsReadRequest>,
     req: HttpRequest,
+    ws_server: web::Data<actix::Addr<crate::websocket::server::WsServer>>,
 ) -> ApiResult<HttpResponse> {
     let claims = req
         .extensions()
@@ -64,6 +65,18 @@ pub async fn mark_channel_as_read(
     // Invalidate the cache
     let mut redis_conn = redis.get_ref().clone();
     invalidate_channel_unread_cache(&mut redis_conn, user.id, *channel_id).await?;
+
+    // Get the new unread count and broadcast via WebSocket
+    let unread_count = ChannelReadStatus::get_unread_count(pool.get_ref(), user.id, *channel_id).await?;
+    ws_server.do_send(crate::websocket::server::BroadcastToUser {
+        org_id: user.org_id,
+        user_id: user.id,
+        message: crate::websocket::messages::ServerMessage::UnreadCountUpdated {
+            channel_id: Some(*channel_id),
+            dm_id: None,
+            unread_count,
+        },
+    });
 
     Ok(HttpResponse::Ok().json(serde_json::json!({
         "message": "Channel marked as read"
@@ -121,6 +134,7 @@ pub async fn mark_dm_as_read(
     dm_id: web::Path<Uuid>,
     body: web::Json<MarkAsReadRequest>,
     req: HttpRequest,
+    ws_server: web::Data<actix::Addr<crate::websocket::server::WsServer>>,
 ) -> ApiResult<HttpResponse> {
     let claims = req
         .extensions()
@@ -147,6 +161,18 @@ pub async fn mark_dm_as_read(
     // Invalidate the cache
     let mut redis_conn = redis.get_ref().clone();
     invalidate_dm_unread_cache(&mut redis_conn, user.id, *dm_id).await?;
+
+    // Get the new unread count and broadcast via WebSocket
+    let unread_count = DmReadStatus::get_unread_count(pool.get_ref(), user.id, *dm_id).await?;
+    ws_server.do_send(crate::websocket::server::BroadcastToUser {
+        org_id: user.org_id,
+        user_id: user.id,
+        message: crate::websocket::messages::ServerMessage::UnreadCountUpdated {
+            channel_id: None,
+            dm_id: Some(*dm_id),
+            unread_count,
+        },
+    });
 
     Ok(HttpResponse::Ok().json(serde_json::json!({
         "message": "DM marked as read"

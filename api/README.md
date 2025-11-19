@@ -105,8 +105,10 @@ src/
 **Note**: All API endpoints except SSO routes require authentication with the "openchat" role.
 
 ### Channels (Phase 5+)
-- `GET /api/channels` - List channels
+- `GET /api/channels` - List channels where user is a member
+- `GET /api/channels/public` - List all public channels (for browsing/discovery)
 - `POST /api/channels` - Create channel
+- `POST /api/channels/:id/join` - Join a public channel
 - `GET /api/channels/:id` - Get channel details
 - `PUT /api/channels/:id` - Update channel
 - `DELETE /api/channels/:id` - Delete channel

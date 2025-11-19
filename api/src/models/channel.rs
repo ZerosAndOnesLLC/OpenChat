@@ -43,6 +43,40 @@ impl Channel {
         Ok(channels)
     }
 
+    /// List channels where the user is a member
+    pub async fn list_by_user_membership(pool: &PgPool, org_id: Uuid, user_id: Uuid) -> ApiResult<Vec<Channel>> {
+        let channels = sqlx::query_as::<_, Channel>(
+            r#"
+            SELECT c.* FROM channels c
+            INNER JOIN channel_members cm ON c.id = cm.channel_id
+            WHERE c.org_id = $1 AND cm.user_id = $2
+            ORDER BY c.created_at DESC
+            "#,
+        )
+        .bind(org_id)
+        .bind(user_id)
+        .fetch_all(pool)
+        .await?;
+
+        Ok(channels)
+    }
+
+    /// List public channels in an organization (for browsing/discovery)
+    pub async fn list_public_channels(pool: &PgPool, org_id: Uuid) -> ApiResult<Vec<Channel>> {
+        let channels = sqlx::query_as::<_, Channel>(
+            r#"
+            SELECT * FROM channels
+            WHERE org_id = $1 AND channel_type = 'public'
+            ORDER BY created_at DESC
+            "#,
+        )
+        .bind(org_id)
+        .fetch_all(pool)
+        .await?;
+
+        Ok(channels)
+    }
+
     /// Get a channel by ID
     pub async fn get_by_id(pool: &PgPool, id: Uuid) -> ApiResult<Option<Channel>> {
         let channel = sqlx::query_as::<_, Channel>(

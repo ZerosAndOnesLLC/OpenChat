@@ -17,6 +17,8 @@ interface WebSocketStore {
   messages: Record<string, Message[]>; // channelId/dmId -> messages
   typing: TypingIndicator[];
   userStatuses: Record<string, 'online' | 'offline' | 'away'>;
+  unreadCounts: Record<string, number>; // channelId/dmId -> unread count
+  notificationCount: number;
 
   connect: (token: string) => void;
   disconnect: () => void;
@@ -40,6 +42,8 @@ export const useWebSocketStore = create<WebSocketStore>((set, get) => ({
   messages: {},
   typing: [],
   userStatuses: {},
+  unreadCounts: {},
+  notificationCount: 0,
 
   connect: (token: string) => {
     const ws = new WebSocket(`${WS_URL}?token=${token}`);
@@ -201,6 +205,36 @@ export const useWebSocketStore = create<WebSocketStore>((set, get) => ({
 
           case 'pong': {
             // Response to ping, can be used for latency monitoring
+            break;
+          }
+
+          case 'unread_count_updated': {
+            if (message.unread_count === undefined) {
+              console.error('Received unread_count_updated without unread_count:', message);
+              break;
+            }
+            const key = message.channel_id || message.dm_id || '';
+            set((state) => ({
+              unreadCounts: {
+                ...state.unreadCounts,
+                [key]: message.unread_count,
+              },
+            }));
+            break;
+          }
+
+          case 'notification_count_updated': {
+            if (message.unread_count === undefined) {
+              console.error('Received notification_count_updated without unread_count:', message);
+              break;
+            }
+            set({ notificationCount: message.unread_count });
+            break;
+          }
+
+          case 'new_notification': {
+            // Notification details are received, could be used to show a toast
+            console.log('New notification received:', message);
             break;
           }
 

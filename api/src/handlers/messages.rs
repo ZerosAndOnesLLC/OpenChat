@@ -261,7 +261,32 @@ pub async fn send_message(
                                 channel_id: message.channel_id,
                                 dm_id: message.dm_id,
                             };
-                            Notification::create(pool.get_ref(), notification).await?;
+                            let created_notif = Notification::create(pool.get_ref(), notification).await?;
+
+                            // Broadcast notification count update
+                            if let Ok(notif_count) = Notification::count_unread_by_user(pool.get_ref(), mentioned_user_id).await {
+                                ws_server.do_send(crate::websocket::server::BroadcastToUser {
+                                    org_id: current_user.org_id,
+                                    user_id: mentioned_user_id,
+                                    message: ServerMessage::NotificationCountUpdated {
+                                        unread_count: notif_count as i32,
+                                    },
+                                });
+                            }
+
+                            // Broadcast new notification event
+                            ws_server.do_send(crate::websocket::server::BroadcastToUser {
+                                org_id: current_user.org_id,
+                                user_id: mentioned_user_id,
+                                message: ServerMessage::NewNotification {
+                                    notification_id: created_notif.id,
+                                    notification_type: "mention".to_string(),
+                                    message_id: Some(message.id),
+                                    channel_id: message.channel_id,
+                                    dm_id: message.dm_id,
+                                    created_at: created_notif.created_at.to_rfc3339(),
+                                },
+                            });
                         }
                     }
                 }
@@ -279,7 +304,31 @@ pub async fn send_message(
                                     channel_id: Some(channel_id),
                                     dm_id: None,
                                 };
-                                Notification::create(pool.get_ref(), notification).await?;
+                                let created_notif = Notification::create(pool.get_ref(), notification).await?;
+
+                                // Broadcast notification count and new notification
+                                if let Ok(notif_count) = Notification::count_unread_by_user(pool.get_ref(), member_id).await {
+                                    ws_server.do_send(crate::websocket::server::BroadcastToUser {
+                                        org_id: current_user.org_id,
+                                        user_id: member_id,
+                                        message: ServerMessage::NotificationCountUpdated {
+                                            unread_count: notif_count as i32,
+                                        },
+                                    });
+                                }
+
+                                ws_server.do_send(crate::websocket::server::BroadcastToUser {
+                                    org_id: current_user.org_id,
+                                    user_id: member_id,
+                                    message: ServerMessage::NewNotification {
+                                        notification_id: created_notif.id,
+                                        notification_type: "mention".to_string(),
+                                        message_id: Some(message.id),
+                                        channel_id: Some(channel_id),
+                                        dm_id: None,
+                                        created_at: created_notif.created_at.to_rfc3339(),
+                                    },
+                                });
                             }
                         }
                     }
@@ -300,7 +349,31 @@ pub async fn send_message(
                     channel_id: message.channel_id,
                     dm_id: message.dm_id,
                 };
-                Notification::create(pool.get_ref(), notification).await?;
+                let created_notif = Notification::create(pool.get_ref(), notification).await?;
+
+                // Broadcast notification count and new notification
+                if let Ok(notif_count) = Notification::count_unread_by_user(pool.get_ref(), parent_message.user_id).await {
+                    ws_server.do_send(crate::websocket::server::BroadcastToUser {
+                        org_id: current_user.org_id,
+                        user_id: parent_message.user_id,
+                        message: ServerMessage::NotificationCountUpdated {
+                            unread_count: notif_count as i32,
+                        },
+                    });
+                }
+
+                ws_server.do_send(crate::websocket::server::BroadcastToUser {
+                    org_id: current_user.org_id,
+                    user_id: parent_message.user_id,
+                    message: ServerMessage::NewNotification {
+                        notification_id: created_notif.id,
+                        notification_type: "thread_reply".to_string(),
+                        message_id: Some(message.id),
+                        channel_id: message.channel_id,
+                        dm_id: message.dm_id,
+                        created_at: created_notif.created_at.to_rfc3339(),
+                    },
+                });
             }
         }
     }
@@ -332,6 +405,60 @@ pub async fn send_message(
             created_at: message.created_at.to_rfc3339(),
         },
     });
+
+    // Broadcast unread count updates to channel members (except sender)
+    if let Some(channel_id) = message.channel_id {
+        use crate::websocket::server::BroadcastToUser;
+        use crate::models::read_status::ChannelReadStatus;
+
+        // Get all channel members
+        let members = ChannelMember::list_by_channel(pool.get_ref(), channel_id).await?;
+        for member in members {
+            // Skip the sender
+            if member.user_id == current_user.id {
+                continue;
+            }
+
+            // Get unread count for this user
+            if let Ok(unread_count) = ChannelReadStatus::get_unread_count(pool.get_ref(), member.user_id, channel_id).await {
+                ws_server.do_send(BroadcastToUser {
+                    org_id: current_user.org_id,
+                    user_id: member.user_id,
+                    message: ServerMessage::UnreadCountUpdated {
+                        channel_id: Some(channel_id),
+                        dm_id: None,
+                        unread_count,
+                    },
+                });
+            }
+        }
+    } else if let Some(dm_id) = message.dm_id {
+        use crate::websocket::server::BroadcastToUser;
+        use crate::models::{direct_message::DmParticipant, read_status::DmReadStatus};
+
+        // Get DM participants
+        if let Ok(participants) = DmParticipant::list_by_dm(pool.get_ref(), dm_id).await {
+            for participant in participants {
+                // Skip the sender
+                if participant.user_id == current_user.id {
+                    continue;
+                }
+
+                // Get unread count for this participant
+                if let Ok(unread_count) = DmReadStatus::get_unread_count(pool.get_ref(), participant.user_id, dm_id).await {
+                    ws_server.do_send(BroadcastToUser {
+                        org_id: current_user.org_id,
+                        user_id: participant.user_id,
+                        message: ServerMessage::UnreadCountUpdated {
+                            channel_id: None,
+                            dm_id: Some(dm_id),
+                            unread_count,
+                        },
+                    });
+                }
+            }
+        }
+    }
 
     Ok(HttpResponse::Created().json(MessageResponse::from(message)))
 }

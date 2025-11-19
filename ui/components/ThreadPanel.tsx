@@ -20,8 +20,7 @@ export default function ThreadPanel({ messageId, onClose }: ThreadPanelProps) {
   const { data: threadData, isLoading, error } = useQuery<ThreadResponse>({
     queryKey: ['thread', messageId],
     queryFn: () => apiClient.getMessageThread(messageId),
-    refetchInterval: 2000, // Refresh every 2 seconds for near-realtime updates
-    refetchOnWindowFocus: true, // Refetch when window regains focus
+    // No polling - rely on WebSocket updates for real-time thread updates
   });
 
   // Auto-scroll to bottom when new replies arrive

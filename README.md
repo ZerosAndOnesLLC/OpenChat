@@ -271,6 +271,14 @@ OpenChat is a powerful alternative to Slack and Microsoft Teams that you can sel
 
 ## Quick Start
 
+### Desktop Application
+
+Want the desktop experience? OpenChat now has native desktop applications for Windows, macOS, and Linux!
+
+**Download**: See [Desktop Application](#desktop-application) section below for installation instructions.
+
+### Web Application
+
 ### Prerequisites
 - Docker and Docker Compose
 - PostgreSQL 14+
@@ -490,11 +498,12 @@ OpenChat implements a comprehensive role-based permission system integrated with
 - [ ] Advanced analytics
 - [ ] LDAP/Active Directory sync
 
-### 📱 Phase 4 - Native Applications (Planned)
+### 📱 Phase 4 - Native Applications (In Progress)
 - [ ] Android Application
 - [ ] iOS Application
-- [ ] Windows Application
-- [ ] macOS Application
+- [x] Windows Application (Tauri-based desktop app)
+- [x] macOS Application (Tauri-based desktop app)
+- [x] Linux Application (Tauri-based desktop app)
 
 > **Note**: OpenChat is under heavy development and the roadmap is subject to change. Features, timelines, and priorities may be adjusted based on community feedback and project needs.
 
@@ -653,6 +662,74 @@ OpenChat uses OAuth 2.0 with PKCE for secure authentication:
 - Audit logging for compliance tracking
 - Data retention policies
 - Self-hosted for data sovereignty
+
+---
+
+## Desktop Application
+
+OpenChat Desktop is a native desktop application built with **Tauri** and **Rust**, providing a lightweight, fast, and secure desktop experience for Windows, macOS, and Linux.
+
+### Features
+
+- **Native Performance**: Built with Rust for maximum performance and minimal resource usage
+- **Lightweight**: 3-10MB bundle size (vs 50-100MB for Electron-based apps)
+- **Cross-Platform**: Single codebase for Windows, macOS, and Linux
+- **Shared UI**: Uses the same Next.js interface as the web application
+- **System Integration**: Native notifications, tray icon, and OS-level features
+- **Secure**: Tauri's capabilities-based security model ensures safe operation
+
+### Download & Installation
+
+#### Windows
+1. Download the latest `.msi` installer from [Releases](https://github.com/yourusername/openchat/releases)
+2. Run the installer and follow the setup wizard
+3. Launch OpenChat from the Start Menu or Desktop shortcut
+
+**System Requirements:**
+- Windows 10 or later
+- WebView2 Runtime (usually pre-installed)
+
+#### macOS
+1. Download the latest `.dmg` file from [Releases](https://github.com/yourusername/openchat/releases)
+2. Open the `.dmg` and drag OpenChat to Applications
+3. Launch from Applications folder
+
+**System Requirements:**
+- macOS 10.13 (High Sierra) or later
+
+#### Linux
+Download your preferred package format:
+- **Debian/Ubuntu**: `.deb` package
+- **AppImage**: Universal `.AppImage` (no installation required)
+- **RPM**: For Fedora, RHEL, openSUSE
+
+```bash
+# Debian/Ubuntu
+sudo dpkg -i openchat_0.1.0_amd64.deb
+
+# AppImage (no installation needed)
+chmod +x OpenChat-0.1.0.AppImage
+./OpenChat-0.1.0.AppImage
+
+# Fedora/RHEL
+sudo rpm -i openchat-0.1.0.x86_64.rpm
+```
+
+**System Requirements:**
+- Modern Linux distribution with GTK 3.24+
+- WebKit2GTK 4.1
+
+### Development
+
+Want to build from source or contribute to the desktop app? See the [Desktop Development Guide](src-tauri/README.md).
+
+### Technical Details
+
+- **Framework**: Tauri 2.x
+- **Backend**: Rust 2024 edition
+- **Frontend**: Next.js (shared with web app)
+- **Size**: ~5MB installed
+- **Plugins**: Shell, Dialog, FileSystem, Notifications
 
 ---
 

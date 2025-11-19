@@ -2,7 +2,7 @@
 
 **Open-source, self-hosted team collaboration platform - Your data, your control**
 
-[![Version](https://img.shields.io/badge/version-0.14.1-blue.svg)](https://github.com/yourusername/openchat)
+[![Version](https://img.shields.io/badge/version-0.38.0-blue.svg)](https://github.com/yourusername/openchat)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 [![Rust](https://img.shields.io/badge/rust-2024-orange.svg)](https://www.rust-lang.org/)
 [![Next.js](https://img.shields.io/badge/next.js-16-black.svg)](https://nextjs.org/)
@@ -30,6 +30,188 @@ OpenChat is a powerful alternative to Slack and Microsoft Teams that you can sel
 
 ---
 
+## Recent Updates
+
+### Version 0.38.0 (API) / 0.16.0 (UI) - Enterprise Audit Logging & Enhanced Custom Emojis
+
+**New Features:**
+- **Comprehensive Audit Logging**: Track all important security and administrative events
+  - Automatic logging of message deletions (with content preservation)
+  - Channel creation, deletion, and membership changes
+  - Permission and role assignment tracking
+  - Settings modifications
+  - User authentication events (login, logout, failed attempts)
+  - IP address and user agent tracking for security analysis
+  - Monthly table partitioning for scalable long-term storage
+- **Audit Log Management**:
+  - Admin-only audit log viewer with advanced filtering
+  - Filter by user, action type, resource type, resource ID, and date range
+  - Expandable row details with full metadata display
+  - CSV export functionality for compliance and analysis
+  - Pagination support for large datasets
+  - Retention period: 7 years (configurable for compliance)
+- **Enhanced Custom Emojis**:
+  - Automatic image resizing to 128x128 pixels for consistency
+  - Support for PNG, JPEG, GIF, and WebP formats
+  - High-quality Lanczos3 filtering for crisp emoji rendering
+  - Fallback to original if resize fails
+
+**API Endpoints:**
+- `GET /api/audit-logs` - List audit logs with filters (requires org.view_audit_logs permission)
+- `GET /api/audit-logs/export` - Export audit logs to CSV
+- `GET /api/audit-logs/actions` - Get list of all unique action types
+- `GET /api/audit-logs/resource-types` - Get list of all resource types
+
+**Database:**
+- New `audit_logs` table with partitioning by timestamp (monthly partitions)
+- Indexes on (user_id, timestamp), (resource_type, resource_id), action, and timestamp
+- Composite primary key (id, timestamp) for partition compatibility
+
+**Technical:**
+- AuditLogger service with helper methods for common audit events
+- Automatic IP address extraction from X-Forwarded-For header (ALB/CloudFront compatible)
+- User agent tracking for security analysis
+- JSONB metadata storage for flexible event details
+- Permission-based access control (org.view_audit_logs)
+- Image processing with `image` crate (resize_emoji_image function)
+
+**Security & Compliance:**
+- Full audit trail for security investigations
+- Compliance support (SOC 2, GDPR, HIPAA audit requirements)
+- Tamper-evident logging with timestamp partitioning
+- IP address tracking for threat detection
+- User agent analysis for anomaly detection
+
+### Version 0.33.0 (API) / 0.11.0 (UI) - Advanced Search & Real-time Notifications
+
+**New Features:**
+- **Advanced Message Search**: Powerful full-text search with advanced filters
+  - Filter by user: `from:@username`
+  - Filter by channel: `in:#channel-name`
+  - Filter by date: `before:2025-01-15` or `after:2025-01-01`
+  - Combine multiple filters for precise results
+  - Search across all channels/DMs or within specific conversations
+  - Cached results for improved performance (1 minute TTL)
+- **Real-time Notifications**: Get instant updates for important events
+  - WebSocket-based notification delivery
+  - Notifications for @mentions, DMs, and thread replies
+  - Redis caching for notification counts (5 minute TTL)
+  - Cross-instance notification support via Redis Pub/Sub
+- **Notification Management**:
+  - Unread notification count tracking
+  - Mark individual notifications as read
+  - Mark all notifications as read at once
+  - Automatic cache invalidation on read status changes
+
+**API Endpoints:**
+- `GET /api/search/messages?q={query}` - Search messages with filters
+- `GET /api/notifications` - List user notifications
+- `GET /api/notifications/unread-count` - Get unread notification count
+- `POST /api/notifications/{id}/read` - Mark notification as read
+- `POST /api/notifications/read-all` - Mark all notifications as read
+
+**Technical:**
+- PostgreSQL full-text search with GIN indexes
+- Advanced query parser for filter extraction (regex-based)
+- Dynamic SQL query building for filtered searches
+- Redis caching for search results and notification counts
+- WebSocket server message types: NewNotification, NotificationCountUpdated
+- BroadcastToUser handler for user-specific WebSocket messages
+
+### Version 0.32.0 (API) / 0.10.0 (UI) - Complete File Attachments & Storage System
+
+**New Features:**
+- **File Attachments**: Upload and share files directly in messages
+  - Drag & drop file upload with visual feedback
+  - Click-to-upload button with file browser
+  - Multiple file attachments per message
+  - Real-time upload progress indicators
+- **Rich Media Display**:
+  - Inline image previews (automatic for images)
+  - Native video player with controls
+  - Document thumbnails with file type icons
+  - File size and type information
+  - Download buttons on all attachments
+- **Configurable Storage**: Choose between local filesystem or Amazon S3
+  - Admin settings page for storage configuration
+  - Local storage (default): Saves files to `/var/openchat/uploads`
+  - S3 storage: AWS S3 bucket support with encrypted credentials
+  - Support for S3-compatible services (MinIO, DigitalOcean Spaces)
+- **Storage Security**:
+  - File type validation (images, videos, documents, PDFs)
+  - File size limits (configurable, default 25MB)
+  - Encrypted credential storage (base64, ready for AES-256)
+  - Access control: Users can only download attachments they have access to
+
+**API Endpoints:**
+- `POST /api/attachments/upload` - Upload file attachments
+- `GET /api/attachments/{id}/download` - Download attachment
+- `DELETE /api/attachments/{id}` - Delete attachment
+- `GET /api/messages/{id}/attachments` - List message attachments
+- `GET /api/settings/storage` - Get storage configuration (admin)
+- `POST /api/settings/storage` - Update storage configuration (admin)
+
+**UI Components:**
+- AttachmentDisplay component with image/video/document rendering
+- File upload button with drag-and-drop zone
+- Upload progress indicators
+- Admin storage settings page at `/admin/storage`
+
+**Technical:**
+- FileStorage trait with Local and S3 implementations
+- Storage factory pattern for org-based storage selection
+- Multipart form upload handling in Rust
+- AWS SDK S3 integration
+- Environment variables: `MAX_FILE_SIZE`, `ALLOWED_FILE_TYPES`, `LOCAL_STORAGE_PATH`
+
+### Version 0.25.0 (API) / 0.6.0 (UI) - Rich Text Formatting with Markdown
+
+**New Features:**
+- **Markdown Support**: Full markdown formatting in messages
+  - **Bold** (`**text**`), *italic* (`*text*`), `inline code` (`` `code` ``)
+  - Code blocks with syntax highlighting (` ```language ````)
+  - Lists (ordered and unordered)
+  - Links, blockquotes, headings
+- **Markdown Toolbar**: Quick formatting buttons for common markdown syntax
+- **Live Preview**: Toggle between edit and preview mode to see rendered markdown
+- **Syntax Highlighting**: Beautiful code syntax highlighting for 100+ languages
+- **XSS Protection**: Sanitized HTML output prevents security vulnerabilities
+
+**UI Components:**
+- Markdown toolbar with formatting buttons (bold, italic, code, links, lists, quotes)
+- Live preview toggle to see how your message will look
+- Syntax-highlighted code blocks using Prism themes
+- Support for GitHub Flavored Markdown (tables, strikethrough, task lists)
+
+**Technical:**
+- `react-markdown` for rendering with `remark-gfm` for GitHub features
+- `rehype-sanitize` for secure HTML output (XSS protection)
+- `react-syntax-highlighter` with VS Code Dark+ theme
+- Messages stored as markdown-compatible text (no schema changes required)
+
+### Version 0.24.0 (API) - Message Pinning & Bookmarks
+
+**New Features:**
+- **Message Pinning**: Pin important messages to channels for all members to see
+- **Personal Bookmarks**: Save messages privately for later reference
+- Real-time WebSocket notifications for pin/unpin actions
+- Access control ensures users can only pin/bookmark messages they can see
+
+**API Endpoints:**
+- `POST /api/messages/{id}/pin` - Pin a message
+- `DELETE /api/messages/{id}/pin` - Unpin a message
+- `GET /api/channels/{id}/pins` - List pinned messages
+- `POST /api/bookmarks` - Bookmark a message
+- `DELETE /api/bookmarks/{message_id}` - Remove bookmark
+- `GET /api/bookmarks` - List your bookmarks
+
+**Technical:**
+- Added `pinned_messages` and `bookmarks` database tables with RLS policies
+- Optimized queries with indexes for performance at scale
+- WebSocket integration for real-time pin/unpin notifications
+
+---
+
 ## Features
 
 ### Core Messaging
@@ -43,9 +225,12 @@ OpenChat is a powerful alternative to Slack and Microsoft Teams that you can sel
 ### Collaboration
 - **Typing Indicators** - See when teammates are composing messages
 - **User Presence** - Online, offline, and away status tracking
-- **File Attachments** - Share images, documents, and more (roadmap)
-- **Search** - Find messages and files quickly (roadmap)
-- **Mentions** - @user and @channel notifications (roadmap)
+- **File Attachments** - Share images, documents, and more
+- **Full-Text Search** - Find messages instantly with PostgreSQL full-text search and Redis caching
+- **@Mentions & Notifications** - @user and @channel notifications with real-time alerts
+- **Message Pinning** - Pin important messages to channels for easy reference
+- **Personal Bookmarks** - Save messages for later with private bookmarks
+- **Rich Text Formatting** - Full markdown support with live preview and syntax highlighting
 
 ### Enterprise Features
 - **Multi-Organization Support** - Host multiple teams on one instance
@@ -78,11 +263,21 @@ OpenChat is a powerful alternative to Slack and Microsoft Teams that you can sel
 - **Docker** - Containerized deployment
 - **AWS ECS** - Scalable container orchestration
 - **CloudFront** - Global CDN for static assets
-- **Application Load Balancer** - High-availability traffic routing
+- **Network Load Balancer (NLB)** - High-availability traffic routing for long-lived WebSocket connections
+  - **Important**: ALB is not suitable for OpenChat due to WebSocket connection timeouts
+  - NLB supports persistent connections required for real-time messaging
 
 ---
 
 ## Quick Start
+
+### Desktop Application
+
+Want the desktop experience? OpenChat now has native desktop applications for Windows, macOS, and Linux!
+
+**Download**: See [Desktop Application](#desktop-application) section below for installation instructions.
+
+### Web Application
 
 ### Prerequisites
 - Docker and Docker Compose
@@ -95,8 +290,13 @@ OpenChat is a powerful alternative to Slack and Microsoft Teams that you can sel
 
 1. **Clone the repository**
    ```bash
-   git clone https://github.com/yourusername/openchat.git
-   cd openchat
+   # HTTPS
+   git clone https://github.com/ZerosAndOnesLLC/OpenChat.git
+   cd OpenChat
+
+   # SSH
+   git clone git@github.com:ZerosAndOnesLLC/OpenChat.git
+   cd OpenChat
    ```
 
 2. **Start PostgreSQL and Redis**
@@ -179,12 +379,60 @@ See [DEPLOYMENT.md](docs/DEPLOYMENT.md) for detailed production setup instructio
 
 OpenChat implements **defense-in-depth** security:
 
-1. **Application Layer** - JWT token validation, role-based access control
+1. **Application Layer** - JWT token validation, role-based access control with fine-grained permissions
 2. **Database Layer** - PostgreSQL Row Level Security (RLS) enforces organization isolation
 3. **Network Layer** - TLS encryption, private VPC networking
 4. **Authentication** - SSO integration with enterprise identity providers
 
 Even if application code has bugs, the database prevents cross-organization data access.
+
+### Role-Based Permissions (v0.36.0)
+
+OpenChat implements a comprehensive role-based permission system integrated with SSO:
+
+**SSO Roles**:
+- `openchat-admin` - Full administrative access to all features
+- `openchat` - Standard user access with basic permissions
+
+**Permission System**:
+- **Granular Permissions**: Fine-grained control over channel, organization, and DM operations
+- **SSO Integration**: Roles are provided by your SSO provider (TitaniumVault)
+- **Redis Caching**: Permission checks are cached for 5 minutes for optimal performance
+- **Automatic Mapping**: SSO roles automatically map to permission sets
+
+**Available Permissions**:
+
+**Channel Permissions**:
+- `channel.read` - Read messages and view channel details
+- `channel.write` - Send messages in channels
+- `channel.delete` - Delete channels
+- `channel.invite_users` - Invite users to channels
+- `channel.manage_members` - Add/remove channel members
+- `channel.delete_messages` - Delete any message in channel
+- `channel.pin_messages` - Pin messages in channels
+- `channel.edit_details` - Edit channel name, description, etc.
+
+**Organization Permissions**:
+- `org.create_channels` - Create new channels
+- `org.manage_users` - Manage organization users
+- `org.manage_roles` - Manage roles and permissions
+- `org.view_audit_logs` - View organization audit logs
+- `org.manage_settings` - Manage organization settings
+- `org.manage_integrations` - Manage webhooks and integrations
+
+**DM Permissions**:
+- `dm.read` - Read direct messages
+- `dm.write` - Send direct messages
+- `dm.delete_own_messages` - Delete own messages in DM
+
+**API Endpoints**:
+- `GET /api/roles` - List all roles for organization
+- `GET /api/roles/{id}` - Get role with permissions
+- `GET /api/permissions` - List all available permissions
+
+**Default Permission Sets**:
+- **openchat-admin**: All permissions
+- **openchat**: Basic channel read/write, DM access, create channels
 
 ---
 
@@ -192,7 +440,7 @@ Even if application code has bugs, the database prevents cross-organization data
 
 | Feature | OpenChat | Slack | Mattermost | Rocket.Chat |
 |---------|----------|-------|------------|-------------|
-| **Open Source** | ✅ MIT | ❌ Proprietary | ✅ MIT | ✅ MIT |
+| **Open Source** | ✅ SSPL | ❌ Proprietary | ✅ MIT | ✅ MIT |
 | **Self-Hosted** | ✅ Full control | ❌ Cloud only | ✅ Available | ✅ Available |
 | **Built with Rust** | ✅ Memory safe | ❌ | ❌ | ❌ |
 | **Modern Tech Stack** | ✅ 2024 | ⚠️ Legacy | ⚠️ Mixed | ⚠️ Mixed |
@@ -200,7 +448,7 @@ Even if application code has bugs, the database prevents cross-organization data
 | **WebSocket Real-time** | ✅ Native | ✅ | ✅ | ✅ |
 | **SSO Integration** | ✅ Built-in | ✅ Paid | ✅ Available | ✅ Available |
 | **Horizontal Scaling** | ✅ Redis Pub/Sub | ✅ | ✅ | ✅ |
-| **Free for Commercial** | ✅ MIT | ❌ Paid | ⚠️ Limits | ⚠️ Limits |
+| **Free for Commercial** | ✅ SSPL | ❌ Paid | ⚠️ Limits | ⚠️ Limits |
 | **Docker Deployment** | ✅ | N/A | ✅ | ✅ |
 
 ### Why Choose OpenChat?
@@ -229,15 +477,16 @@ Even if application code has bugs, the database prevents cross-organization data
 - [x] Message editing and deletion
 
 ### 🚧 Phase 2 - Enhanced Features (In Progress)
-- [ ] Threaded conversations
-- [ ] File and image attachments
-- [ ] Full-text search
+- [x] Threaded conversations
+- [x] File and image attachments
+- [x] Full-text search with Redis caching
+- [x] Unread message counts
+- [x] @Mentions & notifications
+- [x] Message pinning
+- [x] Bookmarked messages (personal starred messages)
+- [x] Markdown formatting
+- [x] Code syntax highlighting
 - [ ] Push notifications
-- [ ] User mentions (@user)
-- [ ] Channel mentions (@channel)
-- [ ] Markdown formatting
-- [ ] Code syntax highlighting
-- [ ] Unread message counts
 
 ### 🔮 Phase 3 - Enterprise (Future)
 - [ ] Voice and video calls
@@ -245,12 +494,98 @@ Even if application code has bugs, the database prevents cross-organization data
 - [ ] Webhooks and integrations
 - [ ] Bot framework
 - [ ] Custom emojis
-- [ ] Message pinning
-- [ ] Starred messages
 - [ ] Reminders and scheduled messages
-- [ ] Mobile apps (iOS/Android)
 - [ ] Advanced analytics
 - [ ] LDAP/Active Directory sync
+
+### 📱 Phase 4 - Native Applications (In Progress)
+- [ ] Android Application
+- [ ] iOS Application
+- [x] Windows Application (Tauri-based desktop app)
+- [x] macOS Application (Tauri-based desktop app)
+- [x] Linux Application (Tauri-based desktop app)
+
+> **Note**: OpenChat is under heavy development and the roadmap is subject to change. Features, timelines, and priorities may be adjusted based on community feedback and project needs.
+
+---
+
+## API Features
+
+### Message Search
+
+OpenChat provides powerful full-text search capabilities powered by PostgreSQL and Redis:
+
+**Endpoint**: `GET /api/search/messages`
+
+**Query Parameters**:
+- `q` - Search query text (required)
+- `scope` - Search scope: `all`, `channel`, or `dm` (default: `all`)
+- `channel_id` - Filter by specific channel (required if scope is `channel`)
+- `dm_id` - Filter by specific DM (required if scope is `dm`)
+- `limit` - Number of results (default: 50, max: 100)
+
+**Features**:
+- Full-text search using PostgreSQL GIN indexes
+- Prefix matching for partial word searches
+- Results cached in Redis for 1 minute
+- Returns messages with total count
+- Supports search across all messages, specific channels, or DMs
+
+**Example**:
+```bash
+GET /api/search/messages?q=hello+world&scope=channel&channel_id=abc-123&limit=20
+```
+
+### Message Pinning
+
+Pin important messages to the top of channels for easy reference by all members:
+
+**Endpoints**:
+- `POST /api/messages/{id}/pin` - Pin a message (channel members only)
+- `DELETE /api/messages/{id}/pin` - Unpin a message
+- `GET /api/channels/{id}/pins` - List all pinned messages in a channel
+
+**Features**:
+- Only channel messages can be pinned (not DMs)
+- All channel members can view pinned messages
+- Real-time WebSocket notifications when messages are pinned/unpinned
+- Pins are sorted by pinned date (most recent first)
+
+**Example**:
+```bash
+# Pin a message
+POST /api/messages/msg-123/pin
+
+# List pinned messages
+GET /api/channels/channel-456/pins
+```
+
+### Personal Bookmarks
+
+Save messages for later reference with personal bookmarks:
+
+**Endpoints**:
+- `POST /api/bookmarks` - Bookmark a message
+- `DELETE /api/bookmarks/{message_id}` - Remove a bookmark
+- `GET /api/bookmarks` - List all your bookmarks
+
+**Features**:
+- Bookmarks are private to each user
+- Works with both channel messages and DMs
+- Access verification ensures users can only bookmark messages they can see
+- Sorted by bookmark date (most recent first)
+
+**Example**:
+```bash
+# Bookmark a message
+POST /api/bookmarks
+{
+  "message_id": "msg-789"
+}
+
+# List your bookmarks
+GET /api/bookmarks
+```
 
 ---
 
@@ -264,10 +599,13 @@ OpenChat is built for scale:
 - **Caching**: Aggressive Redis caching reduces database load by 80%+
 - **WebSocket**: Efficient connection pooling and message routing
 - **Latency**: Sub-100ms message delivery in same region
+- **Search Performance**: Full-text search with GIN indexes and 1-minute Redis caching
 
 ### Scalability
 
-- **Horizontal Scaling**: Add more ECS tasks behind load balancer
+- **Horizontal Scaling**: Add more ECS tasks behind Network Load Balancer (NLB)
+  - NLB required for WebSocket connection persistence
+  - Supports thousands of concurrent long-lived connections per instance
 - **Database**: PostgreSQL supports millions of messages
 - **Redis**: Distributed pub/sub for cross-instance messaging
 - **CDN**: CloudFront delivers static assets globally
@@ -275,11 +613,34 @@ OpenChat is built for scale:
 
 ---
 
+## Accessing OpenChat
+
+### Authentication Flow
+
+OpenChat uses **TitaniumVault** for authentication and should be accessed through the TitaniumVault applications portal:
+
+1. **Log in to TitaniumVault** at https://titanium-vault.com
+2. **Navigate to Applications** page
+3. **Click on OpenChat** - this initiates the OAuth flow
+4. OpenChat opens with you automatically authenticated
+
+**Important**: Do not access OpenChat directly. Always go through TitaniumVault's applications portal to ensure proper authentication.
+
+### OAuth Configuration
+
+OpenChat uses OAuth 2.0 with PKCE for secure authentication:
+- **Client ID**: `openchat-api` (registered in TitaniumVault)
+- **Redirect URI**: `https://openchat.zerosandones.us/sso/callback/`
+- **Scopes**: `openid profile email`
+- **Grant Types**: `authorization_code`, `client_credentials`, `refresh_token`
+
+---
+
 ## Security
 
 ### Authentication
 - JWT token-based authentication
-- Single sign-on (SSO) integration
+- Single sign-on (SSO) integration via OAuth 2.0 with PKCE
 - TitaniumVault identity provider support
 - Secure token refresh mechanism
 
@@ -301,6 +662,74 @@ OpenChat is built for scale:
 - Audit logging for compliance tracking
 - Data retention policies
 - Self-hosted for data sovereignty
+
+---
+
+## Desktop Application
+
+OpenChat Desktop is a native desktop application built with **Tauri** and **Rust**, providing a lightweight, fast, and secure desktop experience for Windows, macOS, and Linux.
+
+### Features
+
+- **Native Performance**: Built with Rust for maximum performance and minimal resource usage
+- **Lightweight**: 3-10MB bundle size (vs 50-100MB for Electron-based apps)
+- **Cross-Platform**: Single codebase for Windows, macOS, and Linux
+- **Shared UI**: Uses the same Next.js interface as the web application
+- **System Integration**: Native notifications, tray icon, and OS-level features
+- **Secure**: Tauri's capabilities-based security model ensures safe operation
+
+### Download & Installation
+
+#### Windows
+1. Download the latest `.msi` installer from [Releases](https://github.com/yourusername/openchat/releases)
+2. Run the installer and follow the setup wizard
+3. Launch OpenChat from the Start Menu or Desktop shortcut
+
+**System Requirements:**
+- Windows 10 or later
+- WebView2 Runtime (usually pre-installed)
+
+#### macOS
+1. Download the latest `.dmg` file from [Releases](https://github.com/yourusername/openchat/releases)
+2. Open the `.dmg` and drag OpenChat to Applications
+3. Launch from Applications folder
+
+**System Requirements:**
+- macOS 10.13 (High Sierra) or later
+
+#### Linux
+Download your preferred package format:
+- **Debian/Ubuntu**: `.deb` package
+- **AppImage**: Universal `.AppImage` (no installation required)
+- **RPM**: For Fedora, RHEL, openSUSE
+
+```bash
+# Debian/Ubuntu
+sudo dpkg -i openchat_0.1.0_amd64.deb
+
+# AppImage (no installation needed)
+chmod +x OpenChat-0.1.0.AppImage
+./OpenChat-0.1.0.AppImage
+
+# Fedora/RHEL
+sudo rpm -i openchat-0.1.0.x86_64.rpm
+```
+
+**System Requirements:**
+- Modern Linux distribution with GTK 3.24+
+- WebKit2GTK 4.1
+
+### Development
+
+Want to build from source or contribute to the desktop app? See the [Desktop Development Guide](src-tauri/README.md).
+
+### Technical Details
+
+- **Framework**: Tauri 2.x
+- **Backend**: Rust 2024 edition
+- **Frontend**: Next.js (shared with web app)
+- **Size**: ~5MB installed
+- **Plugins**: Shell, Dialog, FileSystem, Notifications
 
 ---
 
@@ -351,29 +780,17 @@ We are committed to providing a welcoming and inclusive environment. Please read
 
 ## License
 
-OpenChat is open-source software licensed under the [MIT License](LICENSE).
+OpenChat is licensed under the [Server Side Public License (SSPL) v1](LICENSE.md).
 
-```
-Copyright (c) 2024 OpenChat Contributors
+The SSPL is a source-available license that allows free use, modification, and distribution. If you offer OpenChat as a service to third parties, you must open source your service infrastructure.
 
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
+**Key Points:**
+- ✅ Free to use internally
+- ✅ Free to modify and customize
+- ✅ Full source code available
+- ⚠️ Service providers must open source their infrastructure stack
 
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
-```
+See [LICENSE.md](LICENSE.md) for the complete license text and terms.
 
 ---
 

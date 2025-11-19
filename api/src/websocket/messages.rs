@@ -43,6 +43,7 @@ pub enum ServerMessage {
         channel_id: Option<Uuid>,
         dm_id: Option<Uuid>,
         user_id: Uuid,
+        user_name: String,
         content: String,
         parent_message_id: Option<Uuid>,
         created_at: String,
@@ -69,6 +70,13 @@ pub enum ServerMessage {
         user_id: Uuid,
         status: String,
     },
+    /// Advanced user status changed (with custom message and emoji)
+    StatusUpdate {
+        user_id: Uuid,
+        status: String,
+        custom_message: Option<String>,
+        emoji: Option<String>,
+    },
     /// Reaction added to message
     ReactionAdded {
         message_id: Uuid,
@@ -91,4 +99,29 @@ pub enum ServerMessage {
     },
     /// Pong response to ping
     Pong,
+    /// Unread count updated for a channel
+    UnreadCountUpdated {
+        channel_id: Option<Uuid>,
+        dm_id: Option<Uuid>,
+        unread_count: i32,
+    },
+    /// Read receipt recorded for a message
+    ReadReceipt {
+        message_id: Uuid,
+        user_id: Uuid,
+        read_at: String,
+    },
+    /// New notification received
+    NewNotification {
+        notification_id: Uuid,
+        notification_type: String, // "mention", "dm", "thread_reply", "channel_invite"
+        message_id: Option<Uuid>,
+        channel_id: Option<Uuid>,
+        dm_id: Option<Uuid>,
+        created_at: String,
+    },
+    /// Notification count updated
+    NotificationCountUpdated {
+        unread_count: i32,
+    },
 }

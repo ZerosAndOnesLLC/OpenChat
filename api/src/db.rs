@@ -1,3 +1,5 @@
+use redis::aio::MultiplexedConnection;
+use redis::Client;
 use sqlx::postgres::{PgPool, PgPoolOptions};
 use uuid::Uuid;
 
@@ -13,12 +15,19 @@ pub async fn init_pool(database_url: &str) -> ApiResult<PgPool> {
     Ok(pool)
 }
 
-/// Set the RLS (Row Level Security) context for the current database session
+/// Initialize Redis connection
+pub async fn init_redis(redis_url: &str) -> ApiResult<MultiplexedConnection> {
+    let client = Client::open(redis_url)?;
+    let conn = client.get_multiplexed_async_connection().await?;
+    Ok(conn)
+}
+
+/// Set the RLS (Row Level Security) context for the current database connection
 /// This ensures all queries are automatically filtered by org_id
+/// Note: Uses SET instead of SET LOCAL since we're not in an explicit transaction
 #[allow(dead_code)]
 pub async fn set_rls_context(pool: &PgPool, org_id: Uuid) -> ApiResult<()> {
-    sqlx::query("SET LOCAL app.current_org_id = $1")
-        .bind(org_id.to_string())
+    sqlx::query(&format!("SET app.current_org_id = '{}'", org_id))
         .execute(pool)
         .await?;
 

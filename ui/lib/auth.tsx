@@ -15,15 +15,6 @@ function generateCodeVerifier(): string {
     .replace(/=/g, '');
 }
 
-async function generateCodeChallenge(verifier: string): Promise<string> {
-  const encoder = new TextEncoder();
-  const data = encoder.encode(verifier);
-  const digest = await crypto.subtle.digest('SHA-256', data);
-  return btoa(String.fromCharCode.apply(null, Array.from(new Uint8Array(digest))))
-    .replace(/\+/g, '-')
-    .replace(/\//g, '_')
-    .replace(/=/g, '');
-}
 
 interface AuthStore {
   user: User | null;
@@ -66,20 +57,38 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
   initialize: async () => {
     try {
       if (typeof window !== 'undefined') {
+        // Check if we're already authenticated (set by SSO callback)
+        const currentState = get();
+        if (currentState.isAuthenticated && currentState.user) {
+          console.log('Already authenticated, skipping initialization');
+          set({ isLoading: false });
+          return;
+        }
+
         // Check for existing token in localStorage
         const existingToken = apiClient.getToken();
         if (existingToken) {
           try {
-            // Verify token is still valid by making an API call
+            // Verify token is still valid by getting user info
             apiClient.setToken(existingToken);
-            const users = await apiClient.listUsers();
-
-            // Get current user info
             const userInfo = await apiClient.getUserInfo(existingToken);
-            const currentUser = users.find((u) => u.tv_user_id === userInfo.sub);
 
-            if (currentUser) {
-              get().setAuth(existingToken, currentUser);
+            if (userInfo && userInfo.sub) {
+              // Create a minimal user object from userinfo
+              const user: User = {
+                id: userInfo.sub,
+                org_id: userInfo.org_id || '',
+                tv_user_id: userInfo.sub,
+                email: userInfo.email || 'user@openchat.local',
+                display_name: userInfo.name || userInfo.email?.split('@')[0] || 'User',
+                status: 'online',
+                created_at: new Date().toISOString(),
+                updated_at: new Date().toISOString(),
+                roles: userInfo.roles || [],
+              };
+
+              console.log('Token validated, setting auth state');
+              get().setAuth(existingToken, user);
               return;
             }
           } catch (error) {
@@ -88,28 +97,25 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
           }
         }
 
-        // No valid token, redirect to TV-API OAuth authorize
+        // No valid token, initiate OAuth flow with TitaniumVault
         const tvApiUrl = process.env.NEXT_PUBLIC_TV_API_URL || 'https://api.titanium-vault.com';
-        const redirectUri = `${window.location.origin}/sso/callback`;
-        const clientId = 'openchat-ui';
+        const clientId = process.env.NEXT_PUBLIC_OAUTH_CLIENT_ID || 'openchat-api';
+        const redirectUri = `${window.location.origin}/sso/callback/`;
 
-        // OAuth 2.0 PKCE flow parameters
-        const codeVerifier = generateCodeVerifier();
-        const codeChallenge = await generateCodeChallenge(codeVerifier);
+        // Build OAuth authorization URL
+        const authUrl = new URL(`${tvApiUrl}/oauth/authorize`);
+        authUrl.searchParams.set('response_type', 'code');
+        authUrl.searchParams.set('client_id', clientId);
+        authUrl.searchParams.set('redirect_uri', redirectUri);
+        authUrl.searchParams.set('scope', 'openid email profile');
 
-        // Store code verifier for later use in callback
-        sessionStorage.setItem('pkce_code_verifier', codeVerifier);
+        // Generate and store state for CSRF protection
+        const state = generateCodeVerifier();
+        sessionStorage.setItem('oauth_state', state);
+        authUrl.searchParams.set('state', state);
 
-        const authorizeUrl = `${tvApiUrl}/oauth/authorize?` + new URLSearchParams({
-          response_type: 'code',
-          client_id: clientId,
-          redirect_uri: redirectUri,
-          scope: 'openid profile email',
-          code_challenge: codeChallenge,
-          code_challenge_method: 'S256',
-        });
-
-        window.location.href = authorizeUrl;
+        console.log('Redirecting to OAuth authorization:', authUrl.toString());
+        window.location.href = authUrl.toString();
       }
     } catch (error) {
       console.error('Auth initialization error:', error);

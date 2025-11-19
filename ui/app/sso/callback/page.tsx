@@ -17,10 +17,13 @@ function SSOCallbackContent() {
   useEffect(() => {
     const handleSSOCallback = async () => {
       // Prevent multiple exchanges of the same authorization code
+      // This is critical to avoid "Invalid or expired authorization code" errors
       if (hasAttemptedExchange.current) {
         console.log('SSO Callback - Already attempted exchange, skipping');
         return;
       }
+
+      // Mark as attempted before async operations to prevent race conditions
       hasAttemptedExchange.current = true;
 
       try {
@@ -32,12 +35,14 @@ function SSOCallbackContent() {
         console.log('SSO Callback - Search params:', window.location.search);
 
         let code = searchParams.get('code');
+        let state = searchParams.get('state');
         console.log('SSO Callback - Authorization code from searchParams:', code);
 
         // Fallback to reading from window.location.search for S3 static hosting
         if (!code && typeof window !== 'undefined') {
           const urlParams = new URLSearchParams(window.location.search);
           code = urlParams.get('code');
+          state = urlParams.get('state');
           console.log('SSO Callback - Authorization code from window.location:', code);
         }
 
@@ -45,18 +50,33 @@ function SSOCallbackContent() {
           console.error('SSO Callback - No authorization code found in URL');
           setError('No authorization code provided');
           setStatus('error');
+          hasAttemptedExchange.current = false; // Allow retry
           return;
         }
+
+        // Verify state parameter for CSRF protection
+        const savedState = sessionStorage.getItem('oauth_state');
+        if (savedState && state !== savedState) {
+          console.error('SSO Callback - State mismatch (CSRF protection)');
+          setError('Invalid state parameter - possible CSRF attack');
+          setStatus('error');
+          hasAttemptedExchange.current = false; // Allow retry
+          return;
+        }
+        // Clear the saved state
+        sessionStorage.removeItem('oauth_state');
 
         // Exchange authorization code for access token
         console.log('SSO Callback - Exchanging code for access token');
         const tokenData = await apiClient.exchangeSSOCode(code);
-        console.log('SSO Callback - Received token data');
+        console.log('SSO Callback - Received token data with user_claims');
 
-        // Get user info from TitaniumVault via OpenChat API proxy
-        console.log('SSO Callback - Fetching user info');
-        const userInfo = await apiClient.getUserInfo(tokenData.access_token);
-        console.log('SSO Callback - Received user info:', userInfo);
+        // Use user_claims from token exchange response (already includes user info from ID token)
+        const userInfo = tokenData.user_claims;
+        if (!userInfo) {
+          throw new Error('No user claims in token response');
+        }
+        console.log('SSO Callback - Using user claims:', userInfo);
 
         // Create user object for OpenChat
         const user: User = {
@@ -84,6 +104,8 @@ function SSOCallbackContent() {
         console.error('SSO callback error:', err);
         setError(err instanceof Error ? err.message : 'SSO authentication failed');
         setStatus('error');
+        // Don't reset hasAttemptedExchange on error to prevent retry loops
+        // User can manually retry using the "Try Again" button
       }
     };
 

@@ -6,7 +6,9 @@ import { useAuth } from '@/lib/auth';
 import type { Channel, DirectMessage } from '@/lib/types';
 import ChannelList from './ChannelList';
 import DirectMessageList from './DirectMessageList';
+import BookmarksList from './BookmarksList';
 import UserProfile from './UserProfile';
+import BrowseChannelsModal from './BrowseChannelsModal';
 import { useState } from 'react';
 
 interface SidebarProps {
@@ -24,18 +26,23 @@ export default function Sidebar({
 }: SidebarProps) {
   const { user } = useAuth();
   const [showCreateChannel, setShowCreateChannel] = useState(false);
+  const [showBrowseChannels, setShowBrowseChannels] = useState(false);
   const [newChannelName, setNewChannelName] = useState('');
   const [newChannelType, setNewChannelType] = useState<'public' | 'private'>('public');
 
-  const { data: channels = [], refetch: refetchChannels } = useQuery({
+  const { data: channels, refetch: refetchChannels } = useQuery({
     queryKey: ['channels'],
     queryFn: () => apiClient.listChannels(),
   });
 
-  const { data: dms = [] } = useQuery({
+  const { data: dms } = useQuery({
     queryKey: ['dms'],
     queryFn: () => apiClient.listDms(),
   });
+
+  // Safely handle undefined data from queries
+  const channelsList = Array.isArray(channels) ? channels : [];
+  const dmsList = Array.isArray(dms) ? dms : [];
 
   const handleCreateChannel = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -66,15 +73,26 @@ export default function Sidebar({
           <div className="mb-4">
             <div className="mb-2 flex items-center justify-between px-2">
               <h2 className="text-sm font-semibold text-gray-400">Channels</h2>
-              <button
-                onClick={() => setShowCreateChannel(!showCreateChannel)}
-                className="text-gray-400 hover:text-white"
-                title="Create channel"
-              >
-                <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                </svg>
-              </button>
+              <div className="flex items-center gap-1">
+                <button
+                  onClick={() => setShowBrowseChannels(true)}
+                  className="rounded p-1 text-gray-400 hover:bg-gray-800 hover:text-white"
+                  title="Browse channels"
+                >
+                  <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                  </svg>
+                </button>
+                <button
+                  onClick={() => setShowCreateChannel(!showCreateChannel)}
+                  className="rounded p-1 text-gray-400 hover:bg-gray-800 hover:text-white"
+                  title="Create channel"
+                >
+                  <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                  </svg>
+                </button>
+              </div>
             </div>
 
             {showCreateChannel && (
@@ -93,7 +111,7 @@ export default function Sidebar({
                       type="radio"
                       value="public"
                       checked={newChannelType === 'public'}
-                      onChange={(e) => setNewChannelType('public')}
+                      onChange={() => setNewChannelType('public')}
                       className="mr-1"
                     />
                     Public
@@ -103,7 +121,7 @@ export default function Sidebar({
                       type="radio"
                       value="private"
                       checked={newChannelType === 'private'}
-                      onChange={(e) => setNewChannelType('private')}
+                      onChange={() => setNewChannelType('private')}
                       className="mr-1"
                     />
                     Private
@@ -131,7 +149,7 @@ export default function Sidebar({
             )}
 
             <ChannelList
-              channels={channels}
+              channels={channelsList}
               activeChannel={activeChannel}
               onSelectChannel={onSelectChannel}
             />
@@ -142,10 +160,17 @@ export default function Sidebar({
               <h2 className="text-sm font-semibold text-gray-400">Direct Messages</h2>
             </div>
             <DirectMessageList
-              dms={dms}
+              dms={dmsList}
               activeDm={activeDm}
               onSelectDm={onSelectDm}
             />
+          </div>
+
+          <div className="mb-4">
+            <div className="mb-2 px-2">
+              <h2 className="text-sm font-semibold text-gray-400">Bookmarks</h2>
+            </div>
+            <BookmarksList />
           </div>
         </div>
       </div>
@@ -153,6 +178,13 @@ export default function Sidebar({
       <div className="border-t border-gray-700">
         <UserProfile user={user} />
       </div>
+
+      <BrowseChannelsModal
+        isOpen={showBrowseChannels}
+        onClose={() => setShowBrowseChannels(false)}
+        onSelectChannel={onSelectChannel}
+        currentChannels={channelsList}
+      />
     </div>
   );
 }

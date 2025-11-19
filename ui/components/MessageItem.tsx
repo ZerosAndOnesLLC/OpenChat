@@ -1,20 +1,58 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
+import dynamic from 'next/dynamic';
 import { useAuth } from '@/lib/auth';
 import { apiClient } from '@/lib/api';
-import type { Message, ReactionCount } from '@/lib/types';
+import { useWebSocketStore } from '@/lib/websocket';
+import { extractUrls } from '@/lib/url-utils';
+import type { Message } from '@/lib/types';
+import MarkdownRenderer from './MarkdownRenderer';
+import AttachmentDisplay from './AttachmentDisplay';
+import LinkPreview from './LinkPreview';
+import ReadReceiptModal from './ReadReceiptModal';
+import EditHistoryModal from './EditHistoryModal';
+
+// Dynamically import EmojiPicker to avoid SSR issues
+const EmojiPicker = dynamic(() => import('emoji-picker-react'), { ssr: false });
+
+// Import Theme type
+import { Theme } from 'emoji-picker-react';
 
 interface MessageItemProps {
   message: Message;
+  onReply?: (message: Message) => void;
+  onOpenThread?: (message: Message) => void;
+  onPin?: (message: Message) => void;
+  onBookmark?: (message: Message) => void;
+  isPinned?: boolean;
+  isBookmarked?: boolean;
 }
 
-export default function MessageItem({ message }: MessageItemProps) {
+export default function MessageItem({ message, onReply, onOpenThread, onPin, onBookmark, isPinned = false, isBookmarked = false }: MessageItemProps) {
   const { user } = useAuth();
+  const { addReaction: addReactionToStore, removeReaction: removeReactionFromStore } = useWebSocketStore();
   const [showReactionPicker, setShowReactionPicker] = useState(false);
   const [showActions, setShowActions] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [editContent, setEditContent] = useState(message.content);
+  const [showReadReceiptModal, setShowReadReceiptModal] = useState(false);
+  const [showEditHistoryModal, setShowEditHistoryModal] = useState(false);
+  const pickerRef = useRef<HTMLDivElement>(null);
+
+  // Close picker when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (pickerRef.current && !pickerRef.current.contains(event.target as Node)) {
+        setShowReactionPicker(false);
+      }
+    };
+
+    if (showReactionPicker) {
+      document.addEventListener('mousedown', handleClickOutside);
+      return () => document.removeEventListener('mousedown', handleClickOutside);
+    }
+  }, [showReactionPicker]);
 
   const isOwnMessage = user?.id === message.user_id;
 
@@ -28,19 +66,39 @@ export default function MessageItem({ message }: MessageItemProps) {
   };
 
   const handleAddReaction = async (emoji: string) => {
+    if (!user) return;
+
+    // Optimistically update UI immediately
+    addReactionToStore(message.id, user.id, emoji);
+    setShowReactionPicker(false);
+
+    // Then make API call
     try {
       await apiClient.addReaction(message.id, { emoji });
-      setShowReactionPicker(false);
     } catch (error) {
       console.error('Failed to add reaction:', error);
+      // Rollback on error
+      removeReactionFromStore(message.id, user.id, emoji);
     }
   };
 
+  const handleEmojiClick = (emojiData: any) => {
+    handleAddReaction(emojiData.emoji);
+  };
+
   const handleRemoveReaction = async (emoji: string) => {
+    if (!user) return;
+
+    // Optimistically update UI immediately
+    removeReactionFromStore(message.id, user.id, emoji);
+
+    // Then make API call
     try {
       await apiClient.removeReaction(message.id, emoji);
     } catch (error) {
       console.error('Failed to remove reaction:', error);
+      // Rollback on error
+      addReactionToStore(message.id, user.id, emoji);
     }
   };
 
@@ -81,8 +139,6 @@ export default function MessageItem({ message }: MessageItemProps) {
     });
   }
 
-  const commonEmojis = ['👍', '❤️', '😊', '🎉', '👏', '🔥'];
-
   return (
     <div
       className="group relative"
@@ -95,12 +151,18 @@ export default function MessageItem({ message }: MessageItemProps) {
         </div>
         <div className="flex-1">
           <div className="mb-1 flex items-baseline gap-2">
-            <span className="font-semibold text-gray-900">
+            <span className="font-semibold text-white">
               {message.user?.display_name || 'Unknown User'}
             </span>
-            <span className="text-xs text-gray-500">{formatTime(message.created_at)}</span>
+            <span className="text-xs text-gray-400">{formatTime(message.created_at)}</span>
             {message.edited_at && (
-              <span className="text-xs text-gray-400">(edited)</span>
+              <button
+                onClick={() => setShowEditHistoryModal(true)}
+                className="text-xs text-gray-500 hover:text-gray-300 hover:underline"
+                title="View edit history"
+              >
+                (edited)
+              </button>
             )}
           </div>
           {isEditing ? (
@@ -116,13 +178,13 @@ export default function MessageItem({ message }: MessageItemProps) {
                     setEditContent(message.content);
                   }
                 }}
-                className="w-full rounded border border-gray-300 px-2 py-1 text-sm focus:border-blue-500 focus:outline-none"
+                className="w-full rounded border border-gray-600 bg-gray-900 px-2 py-1 text-sm text-white focus:border-blue-500 focus:outline-none"
                 autoFocus
               />
               <div className="mt-1 flex gap-2">
                 <button
                   onClick={handleEdit}
-                  className="text-xs text-blue-600 hover:underline"
+                  className="text-xs text-blue-400 hover:underline"
                 >
                   Save
                 </button>
@@ -131,57 +193,191 @@ export default function MessageItem({ message }: MessageItemProps) {
                     setIsEditing(false);
                     setEditContent(message.content);
                   }}
-                  className="text-xs text-gray-600 hover:underline"
+                  className="text-xs text-gray-400 hover:underline"
                 >
                   Cancel
                 </button>
               </div>
             </div>
           ) : (
-            <p className="text-sm text-gray-900">{message.content}</p>
-          )}
-
-          {Object.keys(reactionCounts).length > 0 && (
-            <div className="mt-1 flex flex-wrap gap-1">
-              {Object.entries(reactionCounts).map(([emoji, data]) => {
-                const hasReacted = user && data.userIds.includes(user.id);
-                return (
-                  <button
-                    key={emoji}
-                    onClick={() => hasReacted ? handleRemoveReaction(emoji) : handleAddReaction(emoji)}
-                    className={`rounded-full border px-2 py-0.5 text-xs transition-colors ${
-                      hasReacted
-                        ? 'border-blue-500 bg-blue-50'
-                        : 'border-gray-300 bg-white hover:border-gray-400'
-                    }`}
-                  >
-                    {emoji} {data.count}
-                  </button>
-                );
-              })}
+            <div className="text-sm">
+              <MarkdownRenderer content={message.content} />
             </div>
           )}
+
+          {/* Attachments */}
+          <AttachmentDisplay messageId={message.id} />
+
+          {/* Link Previews */}
+          {!isEditing && extractUrls(message.content).map((url) => (
+            <LinkPreview key={url} url={url} />
+          ))}
+
+          {/* Reactions - Mattermost style with inline + button */}
+          <div className="relative mt-1 flex flex-wrap items-center gap-1">
+            {Object.entries(reactionCounts).map(([emoji, data]) => {
+              const hasReacted = user && data.userIds.includes(user.id);
+              return (
+                <button
+                  key={emoji}
+                  onClick={() => {
+                    console.log('Reaction clicked:', { emoji, hasReacted, userId: user?.id, userIds: data.userIds });
+                    if (hasReacted) {
+                      handleRemoveReaction(emoji);
+                    } else {
+                      handleAddReaction(emoji);
+                    }
+                  }}
+                  className={`rounded-full border px-2 py-0.5 text-xs transition-colors ${
+                    hasReacted
+                      ? 'border-blue-500 bg-blue-900 text-white'
+                      : 'border-gray-600 bg-gray-800 text-gray-200 hover:border-gray-500'
+                  }`}
+                >
+                  {emoji} {data.count}
+                </button>
+              );
+            })}
+
+            {/* Add reaction button - shows on hover (Mattermost style) */}
+            {showActions && (
+              <button
+                onClick={() => setShowReactionPicker(!showReactionPicker)}
+                className="rounded-full border border-gray-600 bg-gray-800 px-2 py-0.5 text-xs text-gray-400 transition-colors hover:border-gray-500 hover:bg-gray-700 hover:text-gray-300"
+                title="Add reaction"
+              >
+                +
+              </button>
+            )}
+
+            {/* Emoji Picker */}
+            {showReactionPicker && (
+              <div ref={pickerRef} className="absolute left-0 top-8 z-50">
+                <EmojiPicker
+                  onEmojiClick={handleEmojiClick}
+                  theme={Theme.DARK}
+                  width={350}
+                  height={400}
+                />
+              </div>
+            )}
+          </div>
+
+          {/* Thread indicator - show if message has replies */}
+          {(message.reply_count ?? 0) > 0 && (
+            <button
+              onClick={() => onOpenThread?.(message)}
+              className="mt-2 rounded-md border border-gray-700 bg-gray-900 p-2 text-left hover:border-gray-600 hover:bg-gray-800"
+            >
+              <div className="flex items-center gap-2">
+                <svg className="h-4 w-4 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6"
+                  />
+                </svg>
+                <span className="text-xs font-semibold text-blue-400">
+                  {message.reply_count} {message.reply_count === 1 ? 'reply' : 'replies'}
+                </span>
+              </div>
+              {message.first_reply && (
+                <div className="ml-6 mt-1 text-xs text-gray-400">
+                  <span className="font-semibold text-gray-300">
+                    {message.first_reply.user?.display_name || 'Unknown'}:
+                  </span>{' '}
+                  <span className="line-clamp-1">{message.first_reply.content}</span>
+                </div>
+              )}
+            </button>
+          )}
+
         </div>
       </div>
 
+      {/* Modals */}
+      <ReadReceiptModal
+        messageId={message.id}
+        isOpen={showReadReceiptModal}
+        onClose={() => setShowReadReceiptModal(false)}
+      />
+      <EditHistoryModal
+        messageId={message.id}
+        currentContent={message.content}
+        isOpen={showEditHistoryModal}
+        onClose={() => setShowEditHistoryModal(false)}
+      />
+
+      {/* Message actions - Reply, Pin, Bookmark, Edit, and Delete */}
       {showActions && !isEditing && (
-        <div className="absolute right-0 top-0 flex gap-1 rounded-lg border border-gray-200 bg-white p-1 shadow-sm">
+        <div className="absolute right-0 top-0 flex gap-1 rounded-lg border border-gray-700 bg-gray-900 p-1 shadow-sm">
           <button
-            onClick={() => setShowReactionPicker(!showReactionPicker)}
-            className="rounded p-1 hover:bg-gray-100"
-            title="Add reaction"
+            onClick={() => onReply?.(message)}
+            className="rounded p-1 hover:bg-gray-800"
+            title="Reply in thread"
           >
-            <span className="text-sm">😊</span>
+            <svg
+              className="h-4 w-4 text-gray-300"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6"
+              />
+            </svg>
+          </button>
+          <button
+            onClick={() => onPin?.(message)}
+            className="rounded p-1 hover:bg-gray-800"
+            title={isPinned ? "Unpin message" : "Pin message"}
+          >
+            <svg
+              className={`h-4 w-4 ${isPinned ? 'text-yellow-400' : 'text-gray-300'}`}
+              fill={isPinned ? "currentColor" : "none"}
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z"
+              />
+            </svg>
+          </button>
+          <button
+            onClick={() => onBookmark?.(message)}
+            className="rounded p-1 hover:bg-gray-800"
+            title={isBookmarked ? "Remove bookmark" : "Bookmark message"}
+          >
+            <svg
+              className={`h-4 w-4 ${isBookmarked ? 'text-blue-400' : 'text-gray-300'}`}
+              fill={isBookmarked ? "currentColor" : "none"}
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z"
+              />
+            </svg>
           </button>
           {isOwnMessage && (
             <>
               <button
                 onClick={() => setIsEditing(true)}
-                className="rounded p-1 hover:bg-gray-100"
+                className="rounded p-1 hover:bg-gray-800"
                 title="Edit message"
               >
                 <svg
-                  className="h-4 w-4 text-gray-600"
+                  className="h-4 w-4 text-gray-300"
                   fill="none"
                   stroke="currentColor"
                   viewBox="0 0 24 24"
@@ -196,11 +392,11 @@ export default function MessageItem({ message }: MessageItemProps) {
               </button>
               <button
                 onClick={handleDelete}
-                className="rounded p-1 hover:bg-gray-100"
+                className="rounded p-1 hover:bg-gray-800"
                 title="Delete message"
               >
                 <svg
-                  className="h-4 w-4 text-red-600"
+                  className="h-4 w-4 text-red-400"
                   fill="none"
                   stroke="currentColor"
                   viewBox="0 0 24 24"
@@ -215,22 +411,6 @@ export default function MessageItem({ message }: MessageItemProps) {
               </button>
             </>
           )}
-        </div>
-      )}
-
-      {showReactionPicker && (
-        <div className="absolute right-0 top-8 z-10 rounded-lg border border-gray-200 bg-white p-2 shadow-lg">
-          <div className="flex gap-1">
-            {commonEmojis.map((emoji) => (
-              <button
-                key={emoji}
-                onClick={() => handleAddReaction(emoji)}
-                className="rounded p-1 text-lg hover:bg-gray-100"
-              >
-                {emoji}
-              </button>
-            ))}
-          </div>
         </div>
       )}
     </div>

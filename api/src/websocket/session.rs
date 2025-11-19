@@ -1,61 +1,53 @@
-use actix::{Actor, ActorContext, Addr, AsyncContext, Handler, Message as ActixMessage, StreamHandler};
-use actix_web_actors::ws;
+use actix::{Addr, Handler, Message as ActixMessage};
+use actix_ws::Message as WsMessage;
+use futures_util::StreamExt;
+use sqlx::PgPool;
 use std::time::{Duration, Instant};
+use tokio::sync::mpsc;
+use tokio::time::interval;
 use uuid::Uuid;
 
 use super::messages::{ClientMessage, ServerMessage};
 use super::server::{self, WsServer};
+use crate::models::user_status::UserStatus;
 
-/// WebSocket session for a single client connection
-pub struct WsSession {
-    /// Unique session ID
+/// WebSocket session data
+pub struct WsSessionData {
     pub id: Uuid,
-    /// User ID
     pub user_id: Uuid,
-    /// Organization ID
     pub org_id: Uuid,
-    /// User display name
     pub user_name: String,
-    /// Last heartbeat time
-    pub heartbeat: Instant,
-    /// WebSocket server address
     pub server: Addr<WsServer>,
+    pub pool: PgPool,
 }
 
-impl WsSession {
+impl WsSessionData {
     pub fn new(
         user_id: Uuid,
         org_id: Uuid,
         user_name: String,
         server: Addr<WsServer>,
+        pool: PgPool,
     ) -> Self {
         Self {
             id: Uuid::new_v4(),
             user_id,
             org_id,
             user_name,
-            heartbeat: Instant::now(),
             server,
+            pool,
         }
     }
 
-    /// Start heartbeat to check if client is still alive
-    fn start_heartbeat(&self, ctx: &mut ws::WebsocketContext<Self>) {
-        ctx.run_interval(Duration::from_secs(30), |act, ctx| {
-            // Check if heartbeat is too old
-            if Instant::now().duration_since(act.heartbeat) > Duration::from_secs(60) {
-                // Heartbeat timeout - disconnect
-                println!("WebSocket heartbeat timeout, disconnecting session {}", act.id);
-                ctx.stop();
-                return;
-            }
-
-            ctx.ping(b"");
-        });
-    }
-
     /// Handle incoming client messages
-    fn handle_client_message(&mut self, msg: ClientMessage, ctx: &mut ws::WebsocketContext<Self>) {
+    fn handle_client_message(&self, msg: ClientMessage, tx: &mpsc::UnboundedSender<ServerMessage>) {
+        // Track user activity
+        let pool = self.pool.clone();
+        let user_id = self.user_id;
+        tokio::spawn(async move {
+            let _ = UserStatus::touch_activity(&pool, user_id).await;
+        });
+
         match msg {
             ClientMessage::SendMessage {
                 channel_id,
@@ -65,6 +57,7 @@ impl WsSession {
             } => {
                 self.server.do_send(server::SendMessage {
                     user_id: self.user_id,
+                    user_name: self.user_name.clone(),
                     org_id: self.org_id,
                     channel_id,
                     dm_id,
@@ -103,101 +96,141 @@ impl WsSession {
             }
             ClientMessage::Ping => {
                 let pong = ServerMessage::Pong;
-                if let Ok(json) = serde_json::to_string(&pong) {
-                    ctx.text(json);
+                let _ = tx.send(pong);
+            }
+        }
+    }
+}
+
+/// Handle WebSocket connection
+pub async fn handle_ws_session(
+    mut session: actix_ws::Session,
+    mut msg_stream: actix_ws::MessageStream,
+    session_data: WsSessionData,
+) {
+    let session_id = session_data.id;
+    let user_id = session_data.user_id;
+    let org_id = session_data.org_id;
+    let server = session_data.server.clone();
+
+    // Create channel for sending messages to the WebSocket client
+    let (tx, mut rx) = mpsc::unbounded_channel::<ServerMessage>();
+
+    // Create session address for receiving broadcasts from WsServer
+    let session_addr = WsSessionHandle {
+        tx: tx.clone(),
+    };
+    let session_addr = actix::Actor::start(session_addr);
+
+    // Register with server
+    server.do_send(server::Connect {
+        session_id,
+        user_id,
+        org_id,
+        addr: session_addr,
+    });
+
+    // Send connected message
+    let connected_msg = ServerMessage::Connected { user_id };
+    let _ = tx.send(connected_msg);
+
+    // Clone session for the write task
+    let mut session_clone = session.clone();
+
+    // Spawn heartbeat task
+    let mut session_heartbeat = session.clone();
+    let mut heartbeat_interval = interval(Duration::from_secs(30));
+    let heartbeat_task = tokio::spawn(async move {
+        loop {
+            heartbeat_interval.tick().await;
+            if session_heartbeat.ping(b"").await.is_err() {
+                break;
+            }
+        }
+    });
+
+    // Spawn task to write messages to WebSocket
+    let write_task = tokio::spawn(async move {
+        while let Some(msg) = rx.recv().await {
+            if let Ok(json) = serde_json::to_string(&msg) {
+                if session_clone.text(json).await.is_err() {
+                    break;
                 }
             }
         }
-    }
-}
+    });
 
-impl Actor for WsSession {
-    type Context = ws::WebsocketContext<Self>;
-
-    fn started(&mut self, ctx: &mut Self::Context) {
-        // Start heartbeat
-        self.start_heartbeat(ctx);
-
-        // Register with server
-        self.server.do_send(server::Connect {
-            session_id: self.id,
-            user_id: self.user_id,
-            org_id: self.org_id,
-            addr: ctx.address(),
-        });
-
-        // Send connected message
-        let msg = ServerMessage::Connected {
-            user_id: self.user_id,
-        };
-        if let Ok(json) = serde_json::to_string(&msg) {
-            ctx.text(json);
-        }
-    }
-
-    fn stopped(&mut self, _ctx: &mut Self::Context) {
-        // Disconnect from server
-        self.server.do_send(server::Disconnect {
-            session_id: self.id,
-            user_id: self.user_id,
-            org_id: self.org_id,
-        });
-    }
-}
-
-/// Handle WebSocket messages
-impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for WsSession {
-    fn handle(&mut self, msg: Result<ws::Message, ws::ProtocolError>, ctx: &mut Self::Context) {
+    // Handle incoming WebSocket messages
+    let mut last_heartbeat = Instant::now();
+    while let Some(Ok(msg)) = msg_stream.next().await {
         match msg {
-            Ok(ws::Message::Ping(msg)) => {
-                self.heartbeat = Instant::now();
-                ctx.pong(&msg);
+            WsMessage::Ping(bytes) => {
+                last_heartbeat = Instant::now();
+                if session.pong(&bytes).await.is_err() {
+                    break;
+                }
             }
-            Ok(ws::Message::Pong(_)) => {
-                self.heartbeat = Instant::now();
+            WsMessage::Pong(_) => {
+                last_heartbeat = Instant::now();
             }
-            Ok(ws::Message::Text(text)) => {
-                self.heartbeat = Instant::now();
+            WsMessage::Text(text) => {
+                last_heartbeat = Instant::now();
 
                 // Parse client message
                 match serde_json::from_str::<ClientMessage>(&text) {
                     Ok(client_msg) => {
-                        self.handle_client_message(client_msg, ctx);
+                        session_data.handle_client_message(client_msg, &tx);
                     }
                     Err(e) => {
                         println!("Failed to parse client message: {}", e);
                         let error_msg = ServerMessage::Error {
                             message: format!("Invalid message format: {}", e),
                         };
-                        if let Ok(json) = serde_json::to_string(&error_msg) {
-                            ctx.text(json);
-                        }
+                        let _ = tx.send(error_msg);
                     }
                 }
             }
-            Ok(ws::Message::Binary(_)) => {
-                println!("Binary messages not supported");
-            }
-            Ok(ws::Message::Close(reason)) => {
-                ctx.close(reason);
-                ctx.stop();
-            }
-            _ => ctx.stop(),
+            WsMessage::Close(_) => break,
+            _ => {}
+        }
+
+        // Check heartbeat timeout
+        if Instant::now().duration_since(last_heartbeat) > Duration::from_secs(60) {
+            println!("WebSocket heartbeat timeout, disconnecting session {}", session_id);
+            break;
         }
     }
+
+    // Cleanup
+    heartbeat_task.abort();
+    write_task.abort();
+
+    // Disconnect from server
+    server.do_send(server::Disconnect {
+        session_id,
+        user_id,
+        org_id,
+    });
+}
+
+/// Actor wrapper for receiving messages from WsServer
+pub struct WsSessionHandle {
+    tx: mpsc::UnboundedSender<ServerMessage>,
+}
+
+impl actix::Actor for WsSessionHandle {
+    type Context = actix::Context<Self>;
 }
 
 /// Message wrapper for sending to client
 #[derive(ActixMessage)]
 #[rtype(result = "()")]
-pub struct WsMessage(pub ServerMessage);
+pub struct WsSessionMessage(pub ServerMessage);
 
-impl Handler<WsMessage> for WsSession {
+impl Handler<WsSessionMessage> for WsSessionHandle {
     type Result = ();
 
-    fn handle(&mut self, msg: WsMessage, ctx: &mut Self::Context) {
-        if let Ok(json) = serde_json::to_string(&msg.0) {
-            ctx.text(json);
-        }
+    fn handle(&mut self, msg: WsSessionMessage, _: &mut Self::Context) {
+        let _ = self.tx.send(msg.0);
     }
 }

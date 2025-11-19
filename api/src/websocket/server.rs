@@ -1,14 +1,18 @@
-use actix::{Actor, Addr, Context, Handler, Message as ActixMessage};
+use actix::{Actor, ActorFutureExt, Addr, AsyncContext, Context, Handler, Message as ActixMessage, WrapFuture};
+use sqlx::PgPool;
 use std::collections::{HashMap, HashSet};
 use uuid::Uuid;
 
 use super::messages::ServerMessage;
-use super::session::{WsMessage, WsSession};
+use super::session::{WsSessionHandle, WsSessionMessage};
+use crate::models::message::Message as DbMessage;
 
 /// WebSocket server that manages all connections
 pub struct WsServer {
+    /// Database pool for persisting messages
+    db_pool: PgPool,
     /// Map of session_id -> session address
-    sessions: HashMap<Uuid, Addr<WsSession>>,
+    sessions: HashMap<Uuid, Addr<WsSessionHandle>>,
     /// Map of user_id -> set of session_ids (for multi-device support)
     user_sessions: HashMap<Uuid, HashSet<Uuid>>,
     /// Map of org_id -> set of session_ids
@@ -18,8 +22,9 @@ pub struct WsServer {
 }
 
 impl WsServer {
-    pub fn new() -> Self {
+    pub fn new(db_pool: PgPool) -> Self {
         Self {
+            db_pool,
             sessions: HashMap::new(),
             user_sessions: HashMap::new(),
             org_sessions: HashMap::new(),
@@ -30,7 +35,7 @@ impl WsServer {
     /// Send message to a specific session
     fn send_message(&self, session_id: &Uuid, message: ServerMessage) {
         if let Some(addr) = self.sessions.get(session_id) {
-            addr.do_send(WsMessage(message));
+            addr.do_send(WsSessionMessage(message));
         }
     }
 
@@ -56,6 +61,15 @@ impl WsServer {
             }
         }
     }
+
+    /// Send message to all sessions of a specific user
+    fn send_to_user(&self, user_id: &Uuid, message: ServerMessage) {
+        if let Some(session_ids) = self.user_sessions.get(user_id) {
+            for session_id in session_ids {
+                self.send_message(session_id, message.clone());
+            }
+        }
+    }
 }
 
 impl Actor for WsServer {
@@ -69,7 +83,7 @@ pub struct Connect {
     pub session_id: Uuid,
     pub user_id: Uuid,
     pub org_id: Uuid,
-    pub addr: Addr<WsSession>,
+    pub addr: Addr<WsSessionHandle>,
 }
 
 impl Handler<Connect> for WsServer {
@@ -161,6 +175,7 @@ impl Handler<Disconnect> for WsServer {
 #[rtype(result = "()")]
 pub struct SendMessage {
     pub user_id: Uuid,
+    pub user_name: String,
     pub org_id: Uuid,
     pub channel_id: Option<Uuid>,
     pub dm_id: Option<Uuid>,
@@ -171,28 +186,66 @@ pub struct SendMessage {
 impl Handler<SendMessage> for WsServer {
     type Result = ();
 
-    fn handle(&mut self, msg: SendMessage, _: &mut Context<Self>) {
-        // In Phase 9, we just broadcast the message immediately
-        // In Phase 10+, we'll save to DB first, then broadcast
+    fn handle(&mut self, msg: SendMessage, ctx: &mut Context<Self>) {
+        let db_pool = self.db_pool.clone();
+        let channel_id = msg.channel_id;
+        let dm_id = msg.dm_id;
+        let user_id = msg.user_id;
+        let user_name = msg.user_name.clone();
+        let content = msg.content.clone();
+        let parent_message_id = msg.parent_message_id;
+        let org_id = msg.org_id;
 
-        let new_message = ServerMessage::NewMessage {
-            id: Uuid::new_v4(),
-            channel_id: msg.channel_id,
-            dm_id: msg.dm_id,
-            user_id: msg.user_id,
-            content: msg.content,
-            parent_message_id: msg.parent_message_id,
-            created_at: chrono::Utc::now().to_rfc3339(),
-        };
+        // Save message to database, then broadcast
+        let fut = async move {
+            // Save to database
+            let db_message = if let Some(cid) = channel_id {
+                DbMessage::create_channel_message(&db_pool, cid, user_id, &content, parent_message_id).await
+            } else if let Some(did) = dm_id {
+                DbMessage::create_dm_message(&db_pool, did, user_id, &content, parent_message_id).await
+            } else {
+                tracing::error!("Message has neither channel_id nor dm_id");
+                return None;
+            };
 
-        if let Some(channel_id) = msg.channel_id {
-            // Broadcast to channel subscribers
-            self.send_to_channel(&channel_id, new_message);
-        } else if let Some(_dm_id) = msg.dm_id {
-            // For DMs, broadcast to all participants (simplified for Phase 9)
-            // In production, we'd need to check DM participants
-            self.send_to_org(&msg.org_id, new_message, None);
+            match db_message {
+                Ok(message) => {
+                    // Create WebSocket message with actual DB data
+                    Some((
+                        ServerMessage::NewMessage {
+                            id: message.id,
+                            channel_id: message.channel_id,
+                            dm_id: message.dm_id,
+                            user_id: message.user_id,
+                            user_name,
+                            content: message.content,
+                            parent_message_id: message.parent_message_id,
+                            created_at: message.created_at.to_rfc3339(),
+                        },
+                        channel_id,
+                        org_id,
+                    ))
+                }
+                Err(e) => {
+                    tracing::error!("Failed to save message to database: {}", e);
+                    None
+                }
+            }
         }
+        .into_actor(self)
+        .map(move |result, actor, _ctx| {
+            if let Some((new_message, channel_id_opt, org_id)) = result {
+                if let Some(cid) = channel_id_opt {
+                    // Broadcast to channel subscribers
+                    actor.send_to_channel(&cid, new_message);
+                } else {
+                    // For DMs, broadcast to org
+                    actor.send_to_org(&org_id, new_message, None);
+                }
+            }
+        });
+
+        ctx.spawn(fut);
     }
 }
 
@@ -362,5 +415,22 @@ impl Handler<BroadcastStatus> for WsServer {
 
     fn handle(&mut self, msg: BroadcastStatus, _: &mut Context<Self>) {
         self.send_to_org(&msg.org_id, msg.message, None);
+    }
+}
+
+/// Message: Broadcast message to a specific user (all their sessions)
+#[derive(ActixMessage)]
+#[rtype(result = "()")]
+pub struct BroadcastToUser {
+    pub org_id: Uuid,
+    pub user_id: Uuid,
+    pub message: ServerMessage,
+}
+
+impl Handler<BroadcastToUser> for WsServer {
+    type Result = ();
+
+    fn handle(&mut self, msg: BroadcastToUser, _: &mut Context<Self>) {
+        self.send_to_user(&msg.user_id, msg.message);
     }
 }

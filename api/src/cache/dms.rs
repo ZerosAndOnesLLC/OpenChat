@@ -1,6 +1,4 @@
-// Cache functions for future Redis integration (Phase 9-11)
-#![allow(dead_code)]
-
+// Cache functions for Redis integration
 use redis::AsyncCommands;
 use serde_json;
 use uuid::Uuid;
@@ -37,11 +35,15 @@ pub async fn get_dm_from_cache(
 
     match cached {
         Some(json) => {
+            super::metrics::record_hit(redis, super::metrics::CacheType::Dms).await;
             let dm: DirectMessage = serde_json::from_str(&json)
                 .map_err(|e| crate::errors::ApiError::Internal(format!("Cache deserialization error: {}", e)))?;
             Ok(Some(dm))
         }
-        None => Ok(None),
+        None => {
+            super::metrics::record_miss(redis, super::metrics::CacheType::Dms).await;
+            Ok(None)
+        }
     }
 }
 
@@ -80,11 +82,15 @@ pub async fn get_dm_participants_from_cache(
 
     match cached {
         Some(json) => {
+            super::metrics::record_hit(redis, super::metrics::CacheType::DmParticipants).await;
             let participants: Vec<DmParticipant> = serde_json::from_str(&json)
                 .map_err(|e| crate::errors::ApiError::Internal(format!("Cache deserialization error: {}", e)))?;
             Ok(Some(participants))
         }
-        None => Ok(None),
+        None => {
+            super::metrics::record_miss(redis, super::metrics::CacheType::DmParticipants).await;
+            Ok(None)
+        }
     }
 }
 

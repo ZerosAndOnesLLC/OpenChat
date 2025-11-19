@@ -21,7 +21,7 @@ export default function UserProfile({ user }: UserProfileProps) {
   const isAdmin = user.roles?.includes('openchat-admin') || false;
 
   return (
-    <div className="border-t border-gray-800 p-4">
+    <div className="relative border-t border-gray-800 p-4">
       <div className="mb-3 flex items-center gap-3">
         <UserAvatar user={user} size="md" showStatus={true} />
         <div className="flex-1 text-left">

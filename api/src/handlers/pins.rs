@@ -91,10 +91,12 @@ pub async fn pin_message(
     ws_server.do_send(BroadcastMessage {
         org_id: channel.org_id,
         channel_id: Some(channel_id),
-        message: ServerMessage::MessageEdited {
+        message: ServerMessage::MessagePinned {
+            channel_id,
             message_id: *message_id,
-            content: format!("Message pinned by {}", current_user.display_name),
-            edited_at: chrono::Utc::now().to_rfc3339(),
+            pinned_by: current_user.id,
+            pinned_by_name: current_user.display_name.clone(),
+            pinned_at: pin.pinned_at.to_rfc3339(),
         },
     });
 
@@ -153,10 +155,11 @@ pub async fn unpin_message(
     ws_server.do_send(BroadcastMessage {
         org_id: channel.org_id,
         channel_id: Some(channel_id),
-        message: ServerMessage::MessageEdited {
+        message: ServerMessage::MessageUnpinned {
+            channel_id,
             message_id: *message_id,
-            content: format!("Message unpinned by {}", current_user.display_name),
-            edited_at: chrono::Utc::now().to_rfc3339(),
+            unpinned_by: current_user.id,
+            unpinned_by_name: current_user.display_name.clone(),
         },
     });
 

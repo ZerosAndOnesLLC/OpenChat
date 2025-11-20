@@ -1,35 +1,13 @@
 'use client';
 
-import { useState, useEffect } from 'react';
 import { apiClient } from '@/lib/api';
 import type { Attachment } from '@/lib/types';
 
 interface AttachmentDisplayProps {
-  messageId: string;
+  attachments: Attachment[];
 }
 
-export default function AttachmentDisplay({ messageId }: AttachmentDisplayProps) {
-  const [attachments, setAttachments] = useState<Attachment[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    const fetchAttachments = async () => {
-      try {
-        setLoading(true);
-        const data = await apiClient.getMessageAttachments(messageId);
-        setAttachments(data);
-      } catch (err) {
-        console.error('Failed to fetch attachments:', err);
-        setError('Failed to load attachments');
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchAttachments();
-  }, [messageId]);
-
+export default function AttachmentDisplay({ attachments = [] }: AttachmentDisplayProps) {
   const handleDownload = async (attachmentId: string, fileName: string) => {
     try {
       const blob = await apiClient.downloadAttachment(attachmentId);
@@ -88,15 +66,7 @@ export default function AttachmentDisplay({ messageId }: AttachmentDisplayProps)
     }
   };
 
-  if (loading) {
-    return <div className="text-xs text-gray-400">Loading attachments...</div>;
-  }
-
-  if (error) {
-    return <div className="text-xs text-red-400">{error}</div>;
-  }
-
-  if (attachments.length === 0) {
+  if (!attachments || attachments.length === 0) {
     return null;
   }
 

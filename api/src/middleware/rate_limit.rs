@@ -21,27 +21,31 @@ use crate::{
 #[derive(Clone)]
 pub struct RateLimitMiddleware {
     limit_type: RateLimitType,
+    enabled: bool,
 }
 
 impl RateLimitMiddleware {
     /// Create a new rate limit middleware for API requests
-    pub fn api_request() -> Self {
+    pub fn api_request(enabled: bool) -> Self {
         Self {
             limit_type: RateLimitType::ApiRequest,
+            enabled,
         }
     }
 
     /// Create a new rate limit middleware for messages
-    pub fn message() -> Self {
+    pub fn message(enabled: bool) -> Self {
         Self {
             limit_type: RateLimitType::Message,
+            enabled,
         }
     }
 
     /// Create a new rate limit middleware for WebSocket messages
-    pub fn websocket() -> Self {
+    pub fn websocket(enabled: bool) -> Self {
         Self {
             limit_type: RateLimitType::WebSocket,
+            enabled,
         }
     }
 }
@@ -62,6 +66,7 @@ where
         ready(Ok(RateLimitMiddlewareService {
             service: Rc::new(service),
             limit_type: self.limit_type.clone(),
+            enabled: self.enabled,
         }))
     }
 }
@@ -69,6 +74,7 @@ where
 pub struct RateLimitMiddlewareService<S> {
     service: Rc<S>,
     limit_type: RateLimitType,
+    enabled: bool,
 }
 
 impl<S, B> Service<ServiceRequest> for RateLimitMiddlewareService<S>
@@ -86,8 +92,15 @@ where
     fn call(&self, req: ServiceRequest) -> Self::Future {
         let service = self.service.clone();
         let limit_type = self.limit_type.clone();
+        let enabled = self.enabled;
 
         Box::pin(async move {
+            // If rate limiting is disabled, allow all requests through
+            if !enabled {
+                let res = service.call(req).await?;
+                return Ok(res.map_into_left_body());
+            }
+
             // Extract user claims from request extensions (set by AuthMiddleware)
             let claims = req.extensions().get::<TokenClaims>().cloned();
 

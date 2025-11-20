@@ -12,6 +12,7 @@ pub struct Config {
     pub enable_tls: bool,
     pub tls_cert_path: Option<String>,
     pub tls_key_path: Option<String>,
+    pub enable_rate_limiting: bool,
 }
 
 impl Config {
@@ -29,6 +30,11 @@ impl Config {
             .ok()
             .filter(|s| !s.is_empty());
 
+        let enable_rate_limiting = env::var("ENABLE_RATE_LIMITING")
+            .unwrap_or_else(|_| "true".to_string())
+            .parse()
+            .unwrap_or(true);
+
         Ok(Config {
             database_url: env::var("DATABASE_URL")?,
             redis_url: env::var("REDIS_URL")?,
@@ -42,6 +48,7 @@ impl Config {
             enable_tls,
             tls_cert_path,
             tls_key_path,
+            enable_rate_limiting,
         })
     }
 }

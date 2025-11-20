@@ -135,6 +135,61 @@ export interface DmParticipant {
   joined_at: string;
 }
 
+// WebSocket Initial State types
+export interface ChannelMetadata {
+  id: string;
+  name: string;
+  description?: string;
+  channel_type: 'public' | 'private';
+  unread_count: number;
+  last_message_preview?: string;
+  last_message_at?: string;
+}
+
+export interface DmMetadata {
+  id: string;
+  other_user_id: string;
+  other_user_name: string;
+  unread_count: number;
+  last_message_preview?: string;
+  last_message_at?: string;
+}
+
+// Channel data types for WebSocket subscription
+export interface MessageWithDetails {
+  id: string;
+  channel_id?: string;
+  dm_id?: string;
+  user_id: string;
+  user_name: string;
+  content: string;
+  parent_message_id?: string;
+  created_at: string;
+  edited_at?: string;
+  reply_count: number;
+}
+
+export interface PinnedMessageInfo {
+  id: string;
+  message_id: string;
+  pinned_by: string;
+  pinned_at: string;
+}
+
+export interface ChannelMemberInfo {
+  id: string;
+  user_id: string;
+  user_name: string;
+  role: string;
+  joined_at: string;
+}
+
+export interface UnreadInfo {
+  count: number;
+  last_read_message_id?: string;
+  mentions: number;
+}
+
 // WebSocket message types
 export type WSClientMessage =
   | { type: 'send_message'; channel_id?: string; dm_id?: string; content: string; parent_message_id?: string }
@@ -144,6 +199,8 @@ export type WSClientMessage =
   | { type: 'update_status'; status: 'online' | 'offline' | 'away' };
 
 export type WSServerMessage =
+  | { type: 'initial_state'; user_id: string; channels: ChannelMetadata[]; dms: DmMetadata[] }
+  | { type: 'channel_data'; channel_id: string; messages: MessageWithDetails[]; pins: PinnedMessageInfo[]; members: ChannelMemberInfo[]; unread_info: UnreadInfo }
   | { type: 'new_message'; id: string; channel_id?: string; dm_id?: string; user_id: string; user_name: string; content: string; parent_message_id?: string; created_at: string }
   | { type: 'message_edited'; message_id: string; content: string; edited_at: string }
   | { type: 'message_deleted'; message_id: string }

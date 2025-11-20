@@ -22,13 +22,14 @@ function DirectMessageItem({
 }) {
   const [initiallyLoaded, setInitiallyLoaded] = useState(false);
 
-  // Get unread count from WebSocket store
+  // Get unread count and initial state status from WebSocket store
   const wsUnreadCount = useWebSocketStore((state) => state.unreadCounts[dm.id]);
+  const initialStateLoaded = useWebSocketStore((state) => state.initialStateLoaded);
   const unreadCount = wsUnreadCount ?? 0;
 
-  // Load initial unread count
+  // Load initial unread count only if WebSocket initial state hasn't loaded
   useEffect(() => {
-    if (!initiallyLoaded) {
+    if (!initiallyLoaded && !initialStateLoaded) {
       apiClient.getDmUnreadCount(dm.id).then((data) => {
         useWebSocketStore.setState((state) => ({
           unreadCounts: {
@@ -40,8 +41,10 @@ function DirectMessageItem({
       }).catch((error) => {
         console.error('Failed to load initial DM unread count:', error);
       });
+    } else if (initialStateLoaded) {
+      setInitiallyLoaded(true);
     }
-  }, [dm.id, initiallyLoaded]);
+  }, [dm.id, initiallyLoaded, initialStateLoaded]);
 
   const hasUnread = unreadCount > 0;
 

@@ -78,6 +78,7 @@ impl WsSessionData {
             ClientMessage::SubscribeChannel { channel_id } => {
                 self.server.do_send(server::SubscribeChannel {
                     session_id: self.id,
+                    user_id: self.user_id,
                     channel_id,
                 });
             }

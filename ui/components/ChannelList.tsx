@@ -22,13 +22,14 @@ function ChannelItem({
 }) {
   const [initiallyLoaded, setInitiallyLoaded] = useState(false);
 
-  // Get unread count from WebSocket store
+  // Get unread count and initial state status from WebSocket store
   const wsUnreadCount = useWebSocketStore((state) => state.unreadCounts[channel.id]);
+  const initialStateLoaded = useWebSocketStore((state) => state.initialStateLoaded);
   const unreadCount = wsUnreadCount ?? 0;
 
-  // Load initial unread count
+  // Load initial unread count only if WebSocket initial state hasn't loaded
   useEffect(() => {
-    if (!initiallyLoaded) {
+    if (!initiallyLoaded && !initialStateLoaded) {
       apiClient.getChannelUnreadCount(channel.id).then((data) => {
         useWebSocketStore.setState((state) => ({
           unreadCounts: {
@@ -40,8 +41,10 @@ function ChannelItem({
       }).catch((error) => {
         console.error('Failed to load initial unread count:', error);
       });
+    } else if (initialStateLoaded) {
+      setInitiallyLoaded(true);
     }
-  }, [channel.id, initiallyLoaded]);
+  }, [channel.id, initiallyLoaded, initialStateLoaded]);
 
   const hasUnread = unreadCount > 0;
 

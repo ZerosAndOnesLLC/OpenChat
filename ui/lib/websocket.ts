@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { Message, WSClientMessage, WSServerMessage } from './types';
+import type { Message, WSClientMessage, WSServerMessage, ChannelMetadata, DmMetadata } from './types';
 
 const WS_URL = process.env.NEXT_PUBLIC_WS_URL || 'ws://localhost:8080/api/ws';
 
@@ -14,6 +14,9 @@ interface TypingIndicator {
 interface WebSocketStore {
   ws: WebSocket | null;
   connected: boolean;
+  initialStateLoaded: boolean;
+  channels: ChannelMetadata[]; // Channels with metadata from initial state
+  dms: DmMetadata[]; // DMs with metadata from initial state
   messages: Record<string, Message[]>; // channelId/dmId -> messages
   typing: TypingIndicator[];
   userStatuses: Record<string, 'online' | 'offline' | 'away'>;
@@ -41,6 +44,9 @@ interface WebSocketStore {
 export const useWebSocketStore = create<WebSocketStore>((set, get) => ({
   ws: null,
   connected: false,
+  initialStateLoaded: false,
+  channels: [],
+  dms: [],
   messages: {},
   typing: [],
   userStatuses: {},
@@ -78,6 +84,27 @@ export const useWebSocketStore = create<WebSocketStore>((set, get) => ({
         const message: WSServerMessage = JSON.parse(event.data);
 
         switch (message.type) {
+          case 'initial_state': {
+            console.log('Received initial state with', message.channels.length, 'channels and', message.dms.length, 'DMs');
+
+            // Initialize unread counts from channels and DMs
+            const newUnreadCounts: Record<string, number> = {};
+            message.channels.forEach(channel => {
+              newUnreadCounts[channel.id] = channel.unread_count;
+            });
+            message.dms.forEach(dm => {
+              newUnreadCounts[dm.id] = dm.unread_count;
+            });
+
+            set({
+              channels: message.channels,
+              dms: message.dms,
+              unreadCounts: newUnreadCounts,
+              initialStateLoaded: true,
+            });
+            break;
+          }
+
           case 'new_message': {
             // Message fields come directly on the message object now
             const newMessage: Message = {

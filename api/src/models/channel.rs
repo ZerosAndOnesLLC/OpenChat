@@ -301,7 +301,7 @@ impl ChannelMember {
             SELECT
                 cm.id,
                 cm.user_id,
-                COALESCE(u.full_name, u.email) as user_name,
+                COALESCE(u.display_name, u.email) as user_name,
                 cm.role,
                 cm.joined_at
             FROM channel_members cm

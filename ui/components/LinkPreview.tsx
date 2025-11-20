@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { apiClient } from '@/lib/api';
 import type { LinkPreview as LinkPreviewType } from '@/lib/types';
 
@@ -8,20 +8,60 @@ interface LinkPreviewProps {
   url: string;
 }
 
+// Global in-memory cache for link previews
+const linkPreviewCache = new Map<string, LinkPreviewType | null>();
+
 export default function LinkPreview({ url }: LinkPreviewProps) {
   const [preview, setPreview] = useState<LinkPreviewType | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState(false);
+  const [isVisible, setIsVisible] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const linkRef = useRef<HTMLAnchorElement>(null);
+
+  // Intersection observer for lazy loading
+  useEffect(() => {
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          if (entry.isIntersecting) {
+            setIsVisible(true);
+            observer.disconnect();
+          }
+        });
+      },
+      { rootMargin: '50px' }
+    );
+
+    if (containerRef.current) {
+      observer.observe(containerRef.current);
+    }
+
+    return () => {
+      observer.disconnect();
+    };
+  }, []);
 
   useEffect(() => {
+    if (!isVisible) return;
+
+    // Check cache first
+    if (linkPreviewCache.has(url)) {
+      const cached = linkPreviewCache.get(url);
+      setPreview(cached || null);
+      return;
+    }
+
     const fetchPreview = async () => {
       try {
         setLoading(true);
         setError(false);
         const data = await apiClient.getLinkPreview(url);
+        linkPreviewCache.set(url, data);
         setPreview(data);
       } catch (err) {
         console.error('Failed to fetch link preview:', err);
+        linkPreviewCache.set(url, null);
         setError(true);
       } finally {
         setLoading(false);
@@ -29,11 +69,15 @@ export default function LinkPreview({ url }: LinkPreviewProps) {
     };
 
     fetchPreview();
-  }, [url]);
+  }, [url, isVisible]);
+
+  if (!isVisible) {
+    return <div ref={containerRef} className="h-4" />;
+  }
 
   if (loading) {
     return (
-      <div className="mt-2 animate-pulse rounded-lg border border-gray-700 bg-gray-900 p-3">
+      <div ref={containerRef} className="mt-2 animate-pulse rounded-lg border border-gray-700 bg-gray-900 p-3">
         <div className="h-4 w-3/4 rounded bg-gray-700"></div>
         <div className="mt-2 h-3 w-full rounded bg-gray-700"></div>
         <div className="mt-1 h-3 w-2/3 rounded bg-gray-700"></div>
@@ -47,6 +91,7 @@ export default function LinkPreview({ url }: LinkPreviewProps) {
 
   return (
     <a
+      ref={linkRef}
       href={url}
       target="_blank"
       rel="noopener noreferrer"

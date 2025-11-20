@@ -7,6 +7,7 @@ use uuid::Uuid;
 use crate::{
     cache::messages as message_cache,
     errors::{ApiError, ApiResult},
+    models::attachment::Attachment,
     models::channel::{Channel, ChannelMember},
     models::mention::{Mention, MentionType},
     models::message::{Message, PaginatedMessages},
@@ -87,6 +88,29 @@ impl From<Reaction> for ReactionResponse {
     }
 }
 
+#[derive(Debug, Serialize, Clone)]
+pub struct AttachmentResponse {
+    pub id: Uuid,
+    pub file_name: String,
+    pub file_url: String,
+    pub file_type: Option<String>,
+    pub file_size: Option<i64>,
+    pub created_at: String,
+}
+
+impl From<Attachment> for AttachmentResponse {
+    fn from(attachment: Attachment) -> Self {
+        Self {
+            id: attachment.id,
+            file_name: attachment.file_name,
+            file_url: attachment.file_url,
+            file_type: attachment.file_type,
+            file_size: attachment.file_size,
+            created_at: attachment.created_at.to_rfc3339(),
+        }
+    }
+}
+
 #[derive(Debug, Serialize)]
 pub struct MessageResponse {
     pub id: Uuid,
@@ -101,6 +125,7 @@ pub struct MessageResponse {
     pub reactions: Vec<ReactionResponse>,
     pub reply_count: i64,
     pub first_reply: Option<Box<MessageResponse>>,
+    pub attachments: Vec<AttachmentResponse>,
 }
 
 impl From<Message> for MessageResponse {
@@ -118,6 +143,7 @@ impl From<Message> for MessageResponse {
             reactions: vec![],
             reply_count: 0,
             first_reply: None,
+            attachments: vec![],
         }
     }
 }
@@ -140,6 +166,11 @@ impl MessageResponse {
 
     pub fn with_first_reply(mut self, first_reply: MessageResponse) -> Self {
         self.first_reply = Some(Box::new(first_reply));
+        self
+    }
+
+    pub fn with_attachments(mut self, attachments: Vec<Attachment>) -> Self {
+        self.attachments = attachments.into_iter().map(AttachmentResponse::from).collect();
         self
     }
 }
@@ -599,7 +630,28 @@ pub async fn list_channel_messages(
         .map(|u| (u.id, u))
         .collect();
 
-    // Enrich messages with user data, reactions, reply counts, and first replies
+    // Fetch attachments for all messages
+    let attachments = if !message_ids.is_empty() {
+        sqlx::query_as::<_, Attachment>(
+            "SELECT * FROM attachments WHERE message_id = ANY($1) ORDER BY created_at"
+        )
+        .bind(&message_ids)
+        .fetch_all(pool.get_ref())
+        .await?
+    } else {
+        vec![]
+    };
+
+    // Create a map of message_id -> Vec<Attachment> for quick lookup
+    let mut attachment_map: std::collections::HashMap<Uuid, Vec<Attachment>> = std::collections::HashMap::new();
+    for attachment in attachments {
+        attachment_map
+            .entry(attachment.message_id)
+            .or_insert_with(Vec::new)
+            .push(attachment);
+    }
+
+    // Enrich messages with user data, reactions, reply counts, first replies, and attachments
     let messages_with_users: Vec<MessageResponse> = paginated.messages
         .into_iter()
         .map(|msg| {
@@ -622,6 +674,9 @@ pub async fn list_channel_messages(
                         response = response.with_first_reply(first_reply_response);
                     }
                 }
+            }
+            if let Some(attachments) = attachment_map.get(&msg.id) {
+                response = response.with_attachments(attachments.clone());
             }
             response
         })

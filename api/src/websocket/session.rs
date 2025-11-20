@@ -134,6 +134,26 @@ pub async fn handle_ws_session(
     let connected_msg = ServerMessage::Connected { user_id };
     let _ = tx.send(connected_msg);
 
+    // Fetch and send initial state
+    let pool_clone = session_data.pool.clone();
+    let user_id_clone = user_id;
+    let org_id_clone = org_id;
+    let tx_clone = tx.clone();
+    tokio::spawn(async move {
+        match load_initial_state(&pool_clone, org_id_clone, user_id_clone).await {
+            Ok(initial_state) => {
+                let _ = tx_clone.send(initial_state);
+            }
+            Err(e) => {
+                tracing::error!("Failed to load initial state for user {}: {}", user_id_clone, e);
+                let error_msg = ServerMessage::Error {
+                    message: "Failed to load initial state".to_string(),
+                };
+                let _ = tx_clone.send(error_msg);
+            }
+        }
+    });
+
     // Clone session for the write task
     let mut session_clone = session.clone();
 
@@ -233,4 +253,25 @@ impl Handler<WsSessionMessage> for WsSessionHandle {
     fn handle(&mut self, msg: WsSessionMessage, _: &mut Self::Context) {
         let _ = self.tx.send(msg.0);
     }
+}
+
+/// Load initial state (channels and DMs) for a user
+async fn load_initial_state(
+    pool: &PgPool,
+    org_id: Uuid,
+    user_id: Uuid,
+) -> Result<ServerMessage, Box<dyn std::error::Error>> {
+    use crate::models::{channel::Channel, direct_message::DirectMessage};
+
+    // Fetch channels and DMs in parallel
+    let (channels, dms) = tokio::try_join!(
+        Channel::get_metadata_for_user(pool, org_id, user_id),
+        DirectMessage::get_metadata_for_user(pool, user_id),
+    )?;
+
+    Ok(ServerMessage::InitialState {
+        user_id,
+        channels,
+        dms,
+    })
 }

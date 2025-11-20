@@ -12,7 +12,8 @@ use std::{
 use tracing::{debug, error};
 
 use crate::{
-    cache, db,
+    cache::{self, metrics::{CacheType, record_hit, record_miss}},
+    db,
     errors::ApiError,
     models::{organization::Organization, user::User},
     services::tv_api::TvApiClient,
@@ -87,11 +88,45 @@ where
             // Extract token from Authorization header
             let token = extract_token(&req)?;
 
-            // Verify token with TV-API
-            let claims = tv_api_client
-                .verify_token(&token)
+            // Get Redis connection
+            let redis_conn = req
+                .app_data::<actix_web::web::Data<MultiplexedConnection>>()
+                .ok_or_else(|| {
+                    error!("Redis connection not found in app data");
+                    actix_web::error::ErrorInternalServerError("Redis not configured")
+                })?;
+
+            let mut redis = redis_conn.as_ref().clone();
+
+            // Try to get cached token claims first
+            let claims = match cache::tokens::get_cached_token_claims(&mut redis, &token)
                 .await
-                .map_err(|e| actix_web::error::ErrorUnauthorized(e))?;
+                .ok()
+                .flatten()
+            {
+                Some(claims) => {
+                    debug!("Token cache hit");
+                    record_hit(&mut redis, CacheType::Tokens).await;
+                    claims
+                }
+                None => {
+                    debug!("Token cache miss, verifying with TitaniumVault");
+                    record_miss(&mut redis, CacheType::Tokens).await;
+
+                    // Verify token with TV-API
+                    let claims = tv_api_client
+                        .verify_token(&token)
+                        .await
+                        .map_err(|e| actix_web::error::ErrorUnauthorized(e))?;
+
+                    // Cache the token claims for 5 minutes
+                    if let Err(e) = cache::tokens::cache_token_claims(&mut redis, &token, &claims, 300).await {
+                        error!("Failed to cache token claims: {}", e);
+                    }
+
+                    claims
+                }
+            };
 
             // Check if user has the required role
             if let Some(required) = &required_role {
@@ -113,16 +148,6 @@ where
                     error!("Database pool not found in app data");
                     actix_web::error::ErrorInternalServerError("Database pool not configured")
                 })?;
-
-            // Get Redis connection
-            let redis_conn = req
-                .app_data::<actix_web::web::Data<MultiplexedConnection>>()
-                .ok_or_else(|| {
-                    error!("Redis connection not found in app data");
-                    actix_web::error::ErrorInternalServerError("Redis not configured")
-                })?;
-
-            let mut redis = redis_conn.as_ref().clone();
 
             // Set RLS context for this request
             db::set_rls_context(pool.get_ref(), claims.org_id)

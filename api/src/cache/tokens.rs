@@ -1,0 +1,93 @@
+use redis::aio::MultiplexedConnection;
+use redis::AsyncCommands;
+use sha2::{Digest, Sha256};
+use tracing::debug;
+
+use crate::{errors::ApiResult, services::tv_api::TokenClaims};
+
+/// Get cached token claims from Redis
+/// Uses SHA256 hash of token as cache key for security
+pub async fn get_cached_token_claims(
+    redis: &mut MultiplexedConnection,
+    token: &str,
+) -> ApiResult<Option<TokenClaims>> {
+    let hash = hash_token(token);
+    let key = format!("openchat:token:{}", hash);
+
+    let cached: Option<String> = redis.get(&key).await?;
+
+    match cached {
+        Some(json) => {
+            debug!("Token cache hit");
+            let claims: TokenClaims = serde_json::from_str(&json)
+                .map_err(|e| crate::errors::ApiError::Internal(format!("Token cache deserialization error: {}", e)))?;
+            Ok(Some(claims))
+        }
+        None => {
+            debug!("Token cache miss");
+            Ok(None)
+        }
+    }
+}
+
+/// Cache token claims in Redis with TTL
+/// TTL of 300 seconds (5 minutes) balances security and performance
+pub async fn cache_token_claims(
+    redis: &mut MultiplexedConnection,
+    token: &str,
+    claims: &TokenClaims,
+    ttl_seconds: u64,
+) -> ApiResult<()> {
+    let hash = hash_token(token);
+    let key = format!("openchat:token:{}", hash);
+    let value = serde_json::to_string(claims)
+        .map_err(|e| crate::errors::ApiError::Internal(format!("Token cache serialization error: {}", e)))?;
+
+    let _: () = redis.set_ex(&key, value, ttl_seconds).await?;
+
+    debug!("Token cached successfully with TTL: {}s", ttl_seconds);
+    Ok(())
+}
+
+/// Invalidate a cached token (e.g., on logout)
+pub async fn invalidate_token_cache(
+    redis: &mut MultiplexedConnection,
+    token: &str,
+) -> ApiResult<()> {
+    let hash = hash_token(token);
+    let key = format!("openchat:token:{}", hash);
+
+    let _: () = redis.del(&key).await?;
+
+    debug!("Token cache invalidated");
+    Ok(())
+}
+
+/// Hash token using SHA256 for secure cache key
+fn hash_token(token: &str) -> String {
+    let mut hasher = Sha256::new();
+    hasher.update(token.as_bytes());
+    format!("{:x}", hasher.finalize())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_hash_token() {
+        let token = "test_token_123";
+        let hash = hash_token(token);
+        // Hash should be deterministic
+        assert_eq!(hash, hash_token(token));
+        // Hash should be 64 characters (SHA256 hex)
+        assert_eq!(hash.len(), 64);
+    }
+
+    #[test]
+    fn test_different_tokens_different_hashes() {
+        let token1 = "token1";
+        let token2 = "token2";
+        assert_ne!(hash_token(token1), hash_token(token2));
+    }
+}

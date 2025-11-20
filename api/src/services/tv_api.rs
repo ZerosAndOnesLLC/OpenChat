@@ -1,7 +1,9 @@
 use jsonwebtoken::{decode, decode_header, DecodingKey, Validation, Algorithm};
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
-use std::time::Duration;
+use std::sync::Arc;
+use std::time::{Duration, Instant};
+use tokio::sync::RwLock;
 use uuid::Uuid;
 
 use crate::errors::{ApiError, ApiResult};
@@ -41,12 +43,12 @@ struct AccessTokenClaims {
 }
 
 // JWKS structures for fetching public keys
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Clone, Deserialize)]
 struct Jwks {
     keys: Vec<Jwk>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Clone, Deserialize)]
 struct Jwk {
     kid: Option<String>,
     #[allow(dead_code)]
@@ -59,6 +61,8 @@ struct Jwk {
 pub struct TvApiClient {
     base_url: String,
     client: Client,
+    jwks_cache: Arc<RwLock<Option<(Jwks, Instant)>>>,
+    jwks_ttl: Duration,
 }
 
 #[allow(dead_code)]
@@ -67,6 +71,8 @@ impl TvApiClient {
         Self {
             base_url,
             client: Client::new(),
+            jwks_cache: Arc::new(RwLock::new(None)),
+            jwks_ttl: Duration::from_secs(3600), // Cache JWKS for 1 hour
         }
     }
 
@@ -80,22 +86,8 @@ impl TvApiClient {
         let kid = header.kid
             .ok_or_else(|| ApiError::Authentication("Access token missing 'kid' in header".to_string()))?;
 
-        // Fetch JWKS from TitaniumVault
-        let jwks_url = format!("{}/.well-known/jwks.json", self.base_url.trim_end_matches('/'));
-
-        let client = Client::builder()
-            .timeout(Duration::from_secs(10))
-            .build()
-            .map_err(|e| ApiError::Internal(format!("Failed to create HTTP client: {}", e)))?;
-
-        let jwks: Jwks = client
-            .get(&jwks_url)
-            .send()
-            .await
-            .map_err(|e| ApiError::Authentication(format!("Failed to fetch JWKS: {}", e)))?
-            .json()
-            .await
-            .map_err(|e| ApiError::Authentication(format!("Failed to parse JWKS: {}", e)))?;
+        // Get JWKS (from cache or fetch)
+        let jwks = self.get_jwks().await?;
 
         // Find the matching key
         let jwk = jwks
@@ -157,6 +149,53 @@ impl TvApiClient {
         };
 
         Ok(claims)
+    }
+
+    /// Get JWKS from cache or fetch from TitaniumVault
+    async fn get_jwks(&self) -> ApiResult<Jwks> {
+        // Check cache first
+        {
+            let cache = self.jwks_cache.read().await;
+            if let Some((jwks, cached_at)) = cache.as_ref() {
+                if cached_at.elapsed() < self.jwks_ttl {
+                    tracing::debug!("JWKS cache hit");
+                    return Ok(jwks.clone());
+                }
+            }
+        }
+
+        // Cache miss or expired, fetch from TitaniumVault
+        tracing::debug!("JWKS cache miss, fetching from TitaniumVault");
+        let jwks = self.fetch_jwks().await?;
+
+        // Update cache
+        {
+            let mut cache = self.jwks_cache.write().await;
+            *cache = Some((jwks.clone(), Instant::now()));
+        }
+
+        Ok(jwks)
+    }
+
+    /// Fetch JWKS from TitaniumVault
+    async fn fetch_jwks(&self) -> ApiResult<Jwks> {
+        let jwks_url = format!("{}/.well-known/jwks.json", self.base_url.trim_end_matches('/'));
+
+        let client = Client::builder()
+            .timeout(Duration::from_secs(10))
+            .build()
+            .map_err(|e| ApiError::Internal(format!("Failed to create HTTP client: {}", e)))?;
+
+        let jwks: Jwks = client
+            .get(&jwks_url)
+            .send()
+            .await
+            .map_err(|e| ApiError::Authentication(format!("Failed to fetch JWKS: {}", e)))?
+            .json()
+            .await
+            .map_err(|e| ApiError::Authentication(format!("Failed to parse JWKS: {}", e)))?;
+
+        Ok(jwks)
     }
 }
 

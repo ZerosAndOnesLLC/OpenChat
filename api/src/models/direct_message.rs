@@ -150,6 +150,57 @@ impl DirectMessage {
 
         Ok(result)
     }
+
+    /// Get DM metadata with unread counts for a user (for initial WebSocket state)
+    pub async fn get_metadata_for_user(
+        pool: &PgPool,
+        user_id: Uuid,
+    ) -> ApiResult<Vec<crate::websocket::messages::DmMetadata>> {
+        let metadata = sqlx::query_as::<_, crate::websocket::messages::DmMetadata>(
+            r#"
+            SELECT
+                dm.id,
+                other_user.tv_user_id as other_user_id,
+                other_user.display_name as other_user_name,
+                COALESCE(
+                    (
+                        SELECT COUNT(*)::int
+                        FROM messages m
+                        WHERE m.dm_id = dm.id
+                        AND m.created_at > COALESCE(
+                            (SELECT read_at FROM read_status WHERE dm_id = dm.id AND user_id = $1),
+                            '1970-01-01'::timestamp
+                        )
+                    ),
+                    0
+                ) as unread_count,
+                (
+                    SELECT content
+                    FROM messages
+                    WHERE dm_id = dm.id
+                    ORDER BY created_at DESC
+                    LIMIT 1
+                ) as last_message_preview,
+                (
+                    SELECT created_at
+                    FROM messages
+                    WHERE dm_id = dm.id
+                    ORDER BY created_at DESC
+                    LIMIT 1
+                ) as last_message_at
+            FROM direct_messages dm
+            INNER JOIN dm_participants dp1 ON dm.id = dp1.dm_id AND dp1.user_id = $1
+            INNER JOIN dm_participants dp2 ON dm.id = dp2.dm_id AND dp2.user_id != $1
+            INNER JOIN users other_user ON dp2.user_id = other_user.id
+            ORDER BY dm.created_at DESC
+            "#,
+        )
+        .bind(user_id)
+        .fetch_all(pool)
+        .await?;
+
+        Ok(metadata)
+    }
 }
 
 impl DmParticipant {

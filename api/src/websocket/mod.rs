@@ -1,3 +1,4 @@
+pub mod compression;
 pub mod messages;
 pub mod pubsub;
 pub mod server;

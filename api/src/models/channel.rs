@@ -281,4 +281,48 @@ impl ChannelMember {
 
         Ok(result)
     }
+
+    /// Get members with info for channel subscription (includes user names)
+    pub async fn get_members_for_channel(
+        pool: &PgPool,
+        channel_id: Uuid,
+    ) -> ApiResult<Vec<crate::websocket::messages::ChannelMemberInfo>> {
+        #[derive(sqlx::FromRow)]
+        struct MemberRow {
+            id: Uuid,
+            user_id: Uuid,
+            user_name: String,
+            role: String,
+            joined_at: DateTime<Utc>,
+        }
+
+        let rows = sqlx::query_as::<_, MemberRow>(
+            r#"
+            SELECT
+                cm.id,
+                cm.user_id,
+                COALESCE(u.full_name, u.email) as user_name,
+                cm.role,
+                cm.joined_at
+            FROM channel_members cm
+            LEFT JOIN users u ON cm.user_id = u.id
+            WHERE cm.channel_id = $1
+            ORDER BY cm.joined_at
+            "#,
+        )
+        .bind(channel_id)
+        .fetch_all(pool)
+        .await?;
+
+        Ok(rows
+            .into_iter()
+            .map(|row| crate::websocket::messages::ChannelMemberInfo {
+                id: row.id,
+                user_id: row.user_id,
+                user_name: row.user_name,
+                role: row.role,
+                joined_at: row.joined_at,
+            })
+            .collect())
+    }
 }

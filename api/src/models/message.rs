@@ -425,7 +425,7 @@ impl Message {
                 m.channel_id,
                 m.dm_id,
                 m.user_id,
-                COALESCE(u.full_name, u.email) as user_name,
+                COALESCE(u.display_name, u.email) as user_name,
                 m.content,
                 m.parent_message_id,
                 m.created_at,

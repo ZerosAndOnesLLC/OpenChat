@@ -1,6 +1,6 @@
 [package]
 name = "openchat-api"
-version = "0.52.0"
+version = "0.54.0"
 edition = "2024"
 
 [dependencies]
@@ -70,3 +70,6 @@ base64 = "0.22"
 
 # Image Processing
 image = "0.25"
+
+# Compression
+flate2 = "1.0"

@@ -119,11 +119,13 @@ async fn main() -> std::io::Result<()> {
         .expect("Failed to initialize database pool");
     info!("Database connection established");
 
-    // Initialize Redis connection
+    // Initialize Redis client and connection
     info!("Connecting to Redis...");
-    let redis_conn = db::init_redis(&config.redis_url)
+    let redis_client = db::init_redis_client(&config.redis_url)
+        .expect("Failed to initialize Redis client");
+    let redis_conn = redis_client.get_multiplexed_async_connection()
         .await
-        .expect("Failed to initialize Redis connection");
+        .expect("Failed to connect to Redis");
     info!("Redis connection established");
 
     // Warm the cache with frequently accessed data
@@ -136,7 +138,11 @@ async fn main() -> std::io::Result<()> {
     // Start WebSocket server
     info!("Starting WebSocket server...");
     let ws_config = Arc::new(config.websocket.clone());
-    let ws_server = websocket::server::WsServer::new(db_pool.clone(), ws_config.clone()).start();
+    let ws_server = websocket::server::WsServer::new(
+        db_pool.clone(),
+        redis_client.clone(),
+        ws_config.clone()
+    ).start();
     info!(
         "WebSocket server started (max_connections: {}, max_per_user: {})",
         ws_config.max_connections,

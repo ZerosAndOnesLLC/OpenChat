@@ -59,6 +59,8 @@ impl MessageBatch {
 pub struct WsServer {
     /// Database pool for persisting messages
     db_pool: PgPool,
+    /// Redis client for caching
+    redis_client: redis::Client,
     /// WebSocket configuration
     config: Arc<WebSocketConfig>,
     /// Map of session_id -> session address
@@ -76,9 +78,10 @@ pub struct WsServer {
 }
 
 impl WsServer {
-    pub fn new(db_pool: PgPool, config: Arc<WebSocketConfig>) -> Self {
+    pub fn new(db_pool: PgPool, redis_client: redis::Client, config: Arc<WebSocketConfig>) -> Self {
         Self {
             db_pool,
+            redis_client,
             config,
             sessions: HashMap::new(),
             user_sessions: HashMap::new(),
@@ -466,7 +469,7 @@ impl Handler<SubscribeChannel> for WsServer {
     type Result = ();
 
     fn handle(&mut self, msg: SubscribeChannel, ctx: &mut Context<Self>) {
-        println!(
+        tracing::debug!(
             "WebSocket: Session {} subscribed to channel {}",
             msg.session_id, msg.channel_id
         );
@@ -479,21 +482,69 @@ impl Handler<SubscribeChannel> for WsServer {
 
         // Fetch and send channel data
         let pool = self.db_pool.clone();
+        let redis_client = self.redis_client.clone();
         let session = self.sessions.get(&msg.session_id).cloned();
         let channel_id = msg.channel_id;
         let user_id = msg.user_id;
 
         let fut = async move {
-            // Fetch all data in parallel using tokio::join
+            // Get Redis connection
+            let mut redis_conn = match redis_client.get_multiplexed_async_connection().await {
+                Ok(conn) => conn,
+                Err(e) => {
+                    tracing::error!("Failed to get Redis connection: {}", e);
+                    return Some(ServerMessage::Error {
+                        message: "Failed to connect to cache".to_string(),
+                    });
+                }
+            };
+
+            // Try to get pins from cache first
+            let pins = match crate::cache::pins::get_pins_from_cache(&mut redis_conn, channel_id).await {
+                Ok(Some(cached_pins)) => {
+                    tracing::debug!("Cache hit: pins for channel {}", channel_id);
+                    Ok(cached_pins)
+                }
+                Ok(None) => {
+                    tracing::debug!("Cache miss: pins for channel {}, fetching from DB", channel_id);
+                    // Fetch from DB
+                    match crate::models::pin::PinnedMessage::get_pins_for_channel(&pool, channel_id).await {
+                        Ok(db_pins) => {
+                            // Cache for next time
+                            if let Err(e) = crate::cache::pins::set_pins_in_cache(&mut redis_conn, channel_id, &db_pins).await {
+                                tracing::warn!("Failed to cache pins for channel {}: {}", channel_id, e);
+                            }
+                            Ok(db_pins)
+                        }
+                        Err(e) => Err(e)
+                    }
+                }
+                Err(e) => {
+                    tracing::warn!("Failed to read pins from cache: {}, falling back to DB", e);
+                    crate::models::pin::PinnedMessage::get_pins_for_channel(&pool, channel_id).await
+                }
+            };
+
+            // Try to get channel members from cache
+            let members = match crate::cache::channels::get_channel_members_from_cache(&mut redis_conn, channel_id).await {
+                Ok(Some(_cached_members)) => {
+                    tracing::debug!("Cache hit: members for channel {}", channel_id);
+                    // For now, still fetch from DB to get full member info with names
+                    // TODO: Cache full ChannelMemberInfo objects instead
+                    crate::models::channel::ChannelMember::get_members_for_channel(&pool, channel_id).await
+                }
+                Ok(None) | Err(_) => {
+                    tracing::debug!("Cache miss: members for channel {}", channel_id);
+                    crate::models::channel::ChannelMember::get_members_for_channel(&pool, channel_id).await
+                }
+            };
+
+            // Fetch messages and unread info (not cached yet as they change frequently)
             let messages_fut = crate::models::message::Message::get_messages_with_details_for_channel(&pool, channel_id, 50);
-            let pins_fut = crate::models::pin::PinnedMessage::get_pins_for_channel(&pool, channel_id);
-            let members_fut = crate::models::channel::ChannelMember::get_members_for_channel(&pool, channel_id);
             let unread_fut = crate::models::read_status::ChannelReadStatus::get_unread_info(&pool, user_id, channel_id);
 
-            let (messages, pins, members, unread_info) = tokio::join!(
+            let (messages, unread_info) = tokio::join!(
                 messages_fut,
-                pins_fut,
-                members_fut,
                 unread_fut
             );
 

@@ -13,6 +13,10 @@ use crate::{
         user::User,
     },
     services::tv_api::TokenClaims,
+    websocket::{
+        messages::ServerMessage,
+        server::{BroadcastToUser, WsServer},
+    },
 };
 
 #[derive(Debug, Serialize)]
@@ -44,6 +48,7 @@ pub async fn create_bookmark(
     pool: web::Data<PgPool>,
     body: web::Json<CreateBookmarkRequest>,
     req: HttpRequest,
+    ws_server: web::Data<actix::Addr<WsServer>>,
 ) -> ApiResult<HttpResponse> {
     let claims = req
         .extensions()
@@ -86,6 +91,16 @@ pub async fn create_bookmark(
     // Create the bookmark
     let bookmark = Bookmark::create(pool.get_ref(), current_user.id, body.message_id).await?;
 
+    // Send WebSocket notification to the user
+    ws_server.do_send(BroadcastToUser {
+        org_id: current_user.org_id,
+        user_id: current_user.id,
+        message: ServerMessage::BookmarkAdded {
+            message_id: body.message_id,
+            bookmarked_at: bookmark.bookmarked_at.to_rfc3339(),
+        },
+    });
+
     Ok(HttpResponse::Ok().json(BookmarkResponse::from(bookmark)))
 }
 
@@ -94,6 +109,7 @@ pub async fn delete_bookmark(
     pool: web::Data<PgPool>,
     message_id: web::Path<Uuid>,
     req: HttpRequest,
+    ws_server: web::Data<actix::Addr<WsServer>>,
 ) -> ApiResult<HttpResponse> {
     let claims = req
         .extensions()
@@ -108,6 +124,15 @@ pub async fn delete_bookmark(
 
     // Delete the bookmark
     Bookmark::delete(pool.get_ref(), current_user.id, *message_id).await?;
+
+    // Send WebSocket notification to the user
+    ws_server.do_send(BroadcastToUser {
+        org_id: current_user.org_id,
+        user_id: current_user.id,
+        message: ServerMessage::BookmarkRemoved {
+            message_id: *message_id,
+        },
+    });
 
     Ok(HttpResponse::NoContent().finish())
 }

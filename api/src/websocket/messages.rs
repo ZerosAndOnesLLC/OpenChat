@@ -204,4 +204,50 @@ pub enum ServerMessage {
     NotificationCountUpdated {
         unread_count: i32,
     },
+    /// Message was pinned
+    MessagePinned {
+        channel_id: Uuid,
+        message_id: Uuid,
+        pinned_by: Uuid,
+        pinned_by_name: String,
+        pinned_at: String,
+    },
+    /// Message was unpinned
+    MessageUnpinned {
+        channel_id: Uuid,
+        message_id: Uuid,
+        unpinned_by: Uuid,
+        unpinned_by_name: String,
+    },
+    /// Bookmark was added (user-specific)
+    BookmarkAdded {
+        message_id: Uuid,
+        bookmarked_at: String,
+    },
+    /// Bookmark was removed (user-specific)
+    BookmarkRemoved {
+        message_id: Uuid,
+    },
+    /// Channel was updated
+    ChannelUpdated {
+        channel_id: Uuid,
+        name: Option<String>,
+        description: Option<String>,
+        updated_by: Uuid,
+        updated_by_name: String,
+    },
+    /// Member joined channel
+    MemberJoined {
+        channel_id: Uuid,
+        user_id: Uuid,
+        user_name: String,
+        role: String,
+        joined_at: String,
+    },
+    /// Member left channel
+    MemberLeft {
+        channel_id: Uuid,
+        user_id: Uuid,
+        user_name: String,
+    },
 }

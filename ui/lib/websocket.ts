@@ -330,6 +330,132 @@ export const useWebSocketStore = create<WebSocketStore>((set, get) => ({
             break;
           }
 
+          case 'message_pinned': {
+            console.log('Message pinned:', message.message_id, 'in channel:', message.channel_id);
+            // Refresh pins list for this channel
+            set((state) => {
+              const channelData = state.channelData[message.channel_id];
+              if (channelData) {
+                return {
+                  channelData: {
+                    ...state.channelData,
+                    [message.channel_id]: {
+                      ...channelData,
+                      pins: [
+                        ...channelData.pins,
+                        {
+                          id: crypto.randomUUID(),
+                          message_id: message.message_id,
+                          pinned_by: message.pinned_by,
+                          pinned_at: message.pinned_at,
+                        },
+                      ],
+                    },
+                  },
+                };
+              }
+              return state;
+            });
+            break;
+          }
+
+          case 'message_unpinned': {
+            console.log('Message unpinned:', message.message_id, 'in channel:', message.channel_id);
+            // Remove from pins list for this channel
+            set((state) => {
+              const channelData = state.channelData[message.channel_id];
+              if (channelData) {
+                return {
+                  channelData: {
+                    ...state.channelData,
+                    [message.channel_id]: {
+                      ...channelData,
+                      pins: channelData.pins.filter(pin => pin.message_id !== message.message_id),
+                    },
+                  },
+                };
+              }
+              return state;
+            });
+            break;
+          }
+
+          case 'bookmark_added': {
+            console.log('Bookmark added for message:', message.message_id);
+            // Note: Bookmarks are user-specific, handled in components via refetch
+            break;
+          }
+
+          case 'bookmark_removed': {
+            console.log('Bookmark removed for message:', message.message_id);
+            // Note: Bookmarks are user-specific, handled in components via refetch
+            break;
+          }
+
+          case 'channel_updated': {
+            console.log('Channel updated:', message.channel_id, message.name, message.description);
+            // Update channel metadata in channels list
+            set((state) => ({
+              channels: state.channels.map(ch =>
+                ch.id === message.channel_id
+                  ? { ...ch, name: message.name || ch.name, description: message.description ?? ch.description }
+                  : ch
+              ),
+            }));
+            break;
+          }
+
+          case 'member_joined': {
+            console.log('Member joined:', message.user_name, 'in channel:', message.channel_id);
+            // Add to members list for this channel
+            set((state) => {
+              const channelData = state.channelData[message.channel_id];
+              if (channelData) {
+                return {
+                  channelData: {
+                    ...state.channelData,
+                    [message.channel_id]: {
+                      ...channelData,
+                      members: [
+                        ...channelData.members,
+                        {
+                          id: crypto.randomUUID(),
+                          user_id: message.user_id,
+                          user_name: message.user_name,
+                          role: message.role,
+                          joined_at: message.joined_at,
+                        },
+                      ],
+                    },
+                  },
+                };
+              }
+              return state;
+            });
+            break;
+          }
+
+          case 'member_left': {
+            console.log('Member left:', message.user_name, 'from channel:', message.channel_id);
+            // Remove from members list for this channel
+            set((state) => {
+              const channelData = state.channelData[message.channel_id];
+              if (channelData) {
+                return {
+                  channelData: {
+                    ...state.channelData,
+                    [message.channel_id]: {
+                      ...channelData,
+                      members: channelData.members.filter(member => member.user_id !== message.user_id),
+                    },
+                  },
+                };
+              }
+              return state;
+            });
+            break;
+          }
+
           default: {
             console.warn('Received unknown WebSocket message type:', message);
             break;

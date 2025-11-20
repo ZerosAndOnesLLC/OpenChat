@@ -334,6 +334,18 @@ src/
 - Reduces latency for channel switching from 500-1000ms to <100ms
 - Messages include full details (user names, reply counts) without additional queries
 
+**Real-time Updates Enhancement (v0.52.0)**:
+- Push-based updates eliminate the need for HTTP polling
+- All channel events now broadcast via WebSocket in real-time:
+  - Message pin/unpin events (`message_pinned`, `message_unpinned`)
+  - Bookmark add/remove events (`bookmark_added`, `bookmark_removed`) - user-specific
+  - Channel updates (`channel_updated`) - name and description changes
+  - Member join/leave events (`member_joined`, `member_left`)
+- UI automatically updates without page refresh or refetching
+- Reduces server load by eliminating repeated HTTP requests
+- Improves user experience with instant updates across all connected clients
+- Completes Sprint 4 of WebSocket-first architecture (see v2.md)
+
 ## Performance & Caching
 
 OpenChat implements a comprehensive Redis caching strategy and database optimization to ensure high performance and scalability for millions of users. All cache layers automatically handle cache misses by fetching from the database and populating the cache for subsequent requests.

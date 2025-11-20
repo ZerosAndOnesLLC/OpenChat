@@ -211,6 +211,13 @@ export type WSServerMessage =
   | { type: 'unread_count_updated'; channel_id?: string; dm_id?: string; unread_count: number }
   | { type: 'notification_count_updated'; unread_count: number }
   | { type: 'new_notification'; notification_id: string; notification_type: string; message_id?: string; channel_id?: string; dm_id?: string; created_at: string }
+  | { type: 'message_pinned'; channel_id: string; message_id: string; pinned_by: string; pinned_by_name: string; pinned_at: string }
+  | { type: 'message_unpinned'; channel_id: string; message_id: string; unpinned_by: string; unpinned_by_name: string }
+  | { type: 'bookmark_added'; message_id: string; bookmarked_at: string }
+  | { type: 'bookmark_removed'; message_id: string }
+  | { type: 'channel_updated'; channel_id: string; name?: string; description?: string; updated_by: string; updated_by_name: string }
+  | { type: 'member_joined'; channel_id: string; user_id: string; user_name: string; role: string; joined_at: string }
+  | { type: 'member_left'; channel_id: string; user_id: string; user_name: string }
   | { type: 'connected'; user_id: string }
   | { type: 'error'; message: string }
   | { type: 'pong' };

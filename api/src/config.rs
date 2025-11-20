@@ -14,6 +14,25 @@ pub struct Config {
     pub tls_key_path: Option<String>,
     pub enable_rate_limiting: bool,
     pub websocket: WebSocketConfig,
+    pub redis: RedisConfig,
+}
+
+#[derive(Debug, Clone)]
+pub struct RedisConfig {
+    /// Enable Redis Cluster mode
+    pub enable_cluster: bool,
+    /// Redis Cluster nodes (comma-separated URLs)
+    pub cluster_nodes: Vec<String>,
+    /// Enable cache warming on connection
+    pub enable_cache_warming: bool,
+    /// Cache TTL for channel data (seconds)
+    pub channel_cache_ttl: u64,
+    /// Cache TTL for messages (seconds)
+    pub message_cache_ttl: u64,
+    /// Cache TTL for user presence (seconds)
+    pub presence_cache_ttl: u64,
+    /// Enable Redis pub/sub for cross-server events
+    pub enable_pubsub: bool,
 }
 
 #[derive(Debug, Clone)]
@@ -59,6 +78,7 @@ impl Config {
             .unwrap_or(true);
 
         let websocket = WebSocketConfig::from_env();
+        let redis = RedisConfig::from_env();
 
         Ok(Config {
             database_url: env::var("DATABASE_URL")?,
@@ -75,7 +95,53 @@ impl Config {
             tls_key_path,
             enable_rate_limiting,
             websocket,
+            redis,
         })
+    }
+}
+
+impl RedisConfig {
+    pub fn from_env() -> Self {
+        let enable_cluster = env::var("REDIS_ENABLE_CLUSTER")
+            .unwrap_or_else(|_| "false".to_string())
+            .parse()
+            .unwrap_or(false);
+
+        let cluster_nodes = if enable_cluster {
+            env::var("REDIS_CLUSTER_NODES")
+                .unwrap_or_default()
+                .split(',')
+                .map(|s| s.trim().to_string())
+                .filter(|s| !s.is_empty())
+                .collect()
+        } else {
+            vec![]
+        };
+
+        Self {
+            enable_cluster,
+            cluster_nodes,
+            enable_cache_warming: env::var("REDIS_ENABLE_CACHE_WARMING")
+                .unwrap_or_else(|_| "true".to_string())
+                .parse()
+                .unwrap_or(true),
+            channel_cache_ttl: env::var("REDIS_CHANNEL_CACHE_TTL")
+                .unwrap_or_else(|_| "300".to_string())
+                .parse()
+                .unwrap_or(300),
+            message_cache_ttl: env::var("REDIS_MESSAGE_CACHE_TTL")
+                .unwrap_or_else(|_| "120".to_string())
+                .parse()
+                .unwrap_or(120),
+            presence_cache_ttl: env::var("REDIS_PRESENCE_CACHE_TTL")
+                .unwrap_or_else(|_| "300".to_string())
+                .parse()
+                .unwrap_or(300),
+            enable_pubsub: env::var("REDIS_ENABLE_PUBSUB")
+                .unwrap_or_else(|_| "true".to_string())
+                .parse()
+                .unwrap_or(true),
+        }
     }
 }
 

@@ -453,6 +453,7 @@ When rate limit is exceeded, the API returns:
 | `ENABLE_TLS` | Enable TLS (default: false) | No |
 | `TLS_CERT_PATH` | Path to TLS certificate | No |
 | `TLS_KEY_PATH` | Path to TLS private key | No |
+| `ENABLE_RATE_LIMITING` | Enable rate limiting (default: true) | No |
 | `RUST_LOG` | Logging level | No |
 | `LOCAL_STORAGE_PATH` | Local file storage path (default: /var/openchat/uploads) | No |
 | `MAX_FILE_SIZE` | Maximum file upload size in bytes (default: 26214400 / 25MB) | No |

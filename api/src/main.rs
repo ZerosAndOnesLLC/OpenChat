@@ -182,7 +182,7 @@ async fn main() -> std::io::Result<()> {
         let openchat_auth = AuthMiddleware::with_openchat_role(config.tv_api_url.clone());
 
         // Create rate limiting middleware
-        let api_rate_limit = RateLimitMiddleware::api_request();
+        let api_rate_limit = RateLimitMiddleware::api_request(config.enable_rate_limiting);
 
         App::new()
             .wrap(cors)

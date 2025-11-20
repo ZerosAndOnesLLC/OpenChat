@@ -206,7 +206,9 @@ export default function MessageItem({ message, onReply, onOpenThread, onPin, onB
           )}
 
           {/* Attachments */}
-          <AttachmentDisplay messageId={message.id} />
+          {message.attachments && message.attachments.length > 0 && (
+            <AttachmentDisplay attachments={message.attachments} />
+          )}
 
           {/* Link Previews */}
           {!isEditing && extractUrls(message.content).map((url) => (

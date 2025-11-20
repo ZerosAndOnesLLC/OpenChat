@@ -224,6 +224,7 @@ export interface ThreadResponse {
 // Read status types
 export interface UnreadCountResponse {
   unread_count: number;
+  last_read_message_id?: string;
 }
 
 export interface MarkAsReadRequest {

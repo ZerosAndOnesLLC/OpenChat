@@ -216,9 +216,8 @@ class ApiClient {
     });
   }
 
-  async getChannelUnreadCount(channelId: string): Promise<number> {
-    const response = await this.request<UnreadCountResponse>(`/api/channels/${channelId}/unread`);
-    return response.unread_count;
+  async getChannelUnreadCount(channelId: string): Promise<UnreadCountResponse> {
+    return this.request<UnreadCountResponse>(`/api/channels/${channelId}/unread`);
   }
 
   // Direct Message endpoints
@@ -252,9 +251,8 @@ class ApiClient {
     });
   }
 
-  async getDmUnreadCount(dmId: string): Promise<number> {
-    const response = await this.request<UnreadCountResponse>(`/api/dms/${dmId}/unread`);
-    return response.unread_count;
+  async getDmUnreadCount(dmId: string): Promise<UnreadCountResponse> {
+    return this.request<UnreadCountResponse>(`/api/dms/${dmId}/unread`);
   }
 
   // Message endpoints

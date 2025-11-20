@@ -36,6 +36,7 @@ export default function MessageInput({ channelId, dmId, replyTo, onClearReply }:
   const fileInputRef = useRef<HTMLInputElement>(null);
   const currentDraftKey = useRef<string | null>(null);
   const dragCounterRef = useRef(0);
+  const lastSavedDraft = useRef<string>('');
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -263,7 +264,7 @@ export default function MessageInput({ channelId, dmId, replyTo, onClearReply }:
       }, 3000);
     }
 
-    // Auto-save draft every 2 seconds
+    // Auto-save draft after 5 seconds of inactivity (reduced frequency for better scaling)
     if (draftTimeoutRef.current) {
       clearTimeout(draftTimeoutRef.current);
     }
@@ -271,17 +272,49 @@ export default function MessageInput({ channelId, dmId, replyTo, onClearReply }:
     const draftKey = channelId || dmId;
     if (draftKey) {
       draftTimeoutRef.current = setTimeout(async () => {
-        try {
-          if (newValue.trim()) {
-            await draftsManager.saveDraft(draftKey, newValue);
-          } else {
-            // Clear draft if message is empty
-            await draftsManager.deleteDraft(draftKey);
+        // Only save if content has changed since last save
+        if (newValue !== lastSavedDraft.current) {
+          try {
+            if (newValue.trim()) {
+              await draftsManager.saveDraft(draftKey, newValue);
+              lastSavedDraft.current = newValue;
+            } else {
+              // Clear draft if message is empty
+              await draftsManager.deleteDraft(draftKey);
+              lastSavedDraft.current = '';
+            }
+          } catch (error) {
+            console.error('Failed to save draft:', error);
           }
-        } catch (error) {
-          console.error('Failed to save draft:', error);
         }
-      }, 2000);
+      }, 5000);
+    }
+  };
+
+  // Save draft when input loses focus (better for scaling)
+  const handleBlur = async () => {
+    const draftKey = channelId || dmId;
+    if (!draftKey) return;
+
+    // Cancel pending auto-save
+    if (draftTimeoutRef.current) {
+      clearTimeout(draftTimeoutRef.current);
+      draftTimeoutRef.current = null;
+    }
+
+    // Only save if content has changed since last save
+    if (message !== lastSavedDraft.current) {
+      try {
+        if (message.trim()) {
+          await draftsManager.saveDraft(draftKey, message);
+          lastSavedDraft.current = message;
+        } else {
+          await draftsManager.deleteDraft(draftKey);
+          lastSavedDraft.current = '';
+        }
+      } catch (error) {
+        console.error('Failed to save draft on blur:', error);
+      }
     }
   };
 
@@ -321,16 +354,18 @@ export default function MessageInput({ channelId, dmId, replyTo, onClearReply }:
       const draftKey = channelId || dmId;
       if (!draftKey) return;
 
-      // Save current draft before switching
+      // Save current draft before switching (only if content changed)
       if (currentDraftKey.current && currentDraftKey.current !== draftKey) {
-        try {
-          if (message.trim()) {
-            await draftsManager.saveDraft(currentDraftKey.current, message);
-          } else {
-            await draftsManager.deleteDraft(currentDraftKey.current);
+        if (message !== lastSavedDraft.current) {
+          try {
+            if (message.trim()) {
+              await draftsManager.saveDraft(currentDraftKey.current, message);
+            } else {
+              await draftsManager.deleteDraft(currentDraftKey.current);
+            }
+          } catch (error) {
+            console.error('Failed to save previous draft:', error);
           }
-        } catch (error) {
-          console.error('Failed to save previous draft:', error);
         }
       }
 
@@ -338,10 +373,12 @@ export default function MessageInput({ channelId, dmId, replyTo, onClearReply }:
       try {
         const draft = await draftsManager.getDraft(draftKey);
         setMessage(draft || '');
+        lastSavedDraft.current = draft || '';
         currentDraftKey.current = draftKey;
       } catch (error) {
         console.error('Failed to load draft:', error);
         setMessage('');
+        lastSavedDraft.current = '';
       }
     };
 
@@ -533,6 +570,7 @@ export default function MessageInput({ channelId, dmId, replyTo, onClearReply }:
                 ref={textareaRef}
                 value={message}
                 onChange={handleChange}
+                onBlur={handleBlur}
                 onKeyDown={handleKeyDown}
                 placeholder={replyTo ? "Type your reply..." : "Type a message..."}
                 className="flex-1 min-h-[48px] max-h-[200px] rounded-md border border-gray-600 bg-gray-900 px-3 py-2 text-sm text-white placeholder-gray-500 focus:border-blue-500 focus:outline-none resize-none overflow-y-auto leading-relaxed"

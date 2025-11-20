@@ -7,6 +7,7 @@ pub mod organizations;
 pub mod rate_limit;
 pub mod read_status;
 pub mod search;
+pub mod tokens;
 pub mod user_status;
 pub mod users;
 pub mod warming;

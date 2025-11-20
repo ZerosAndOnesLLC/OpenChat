@@ -1,4 +1,5 @@
 use actix_web::{web, HttpMessage, HttpRequest, HttpResponse};
+use base64::{Engine as _, engine::general_purpose};
 use serde_json::json;
 use sqlx::PgPool;
 use uuid::Uuid;
@@ -14,16 +15,7 @@ use crate::services::{audit_logger::AuditLogger, tv_api::TokenClaims};
 fn encrypt_credential(credential: &str) -> String {
     // For now, we'll use base64 encoding as a placeholder
     // In production, use proper encryption like AES-256-GCM with AWS KMS or similar
-    base64::encode(credential)
-}
-
-fn decrypt_credential(encrypted: &str) -> Result<String, ApiError> {
-    base64::decode(encrypted)
-        .map_err(|e| ApiError::Internal(format!("Failed to decrypt credential: {}", e)))
-        .and_then(|bytes| {
-            String::from_utf8(bytes)
-                .map_err(|e| ApiError::Internal(format!("Invalid credential format: {}", e)))
-        })
+    general_purpose::STANDARD.encode(credential)
 }
 
 pub async fn get_storage_settings(

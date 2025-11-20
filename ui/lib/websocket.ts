@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { Message, WSClientMessage, WSServerMessage, ChannelMetadata, DmMetadata } from './types';
+import type { Message, WSClientMessage, WSServerMessage, ChannelMetadata, DmMetadata, PinnedMessageInfo, ChannelMemberInfo, MessageWithDetails } from './types';
 
 const WS_URL = process.env.NEXT_PUBLIC_WS_URL || 'ws://localhost:8080/api/ws';
 
@@ -11,6 +11,13 @@ interface TypingIndicator {
   timestamp: number;
 }
 
+interface ChannelDataState {
+  messages: Message[];
+  pins: PinnedMessageInfo[];
+  members: ChannelMemberInfo[];
+  loaded: boolean;
+}
+
 interface WebSocketStore {
   ws: WebSocket | null;
   connected: boolean;
@@ -18,6 +25,7 @@ interface WebSocketStore {
   channels: ChannelMetadata[]; // Channels with metadata from initial state
   dms: DmMetadata[]; // DMs with metadata from initial state
   messages: Record<string, Message[]>; // channelId/dmId -> messages
+  channelData: Record<string, ChannelDataState>; // channelId -> channel data (messages, pins, members)
   typing: TypingIndicator[];
   userStatuses: Record<string, 'online' | 'offline' | 'away'>;
   unreadCounts: Record<string, number>; // channelId/dmId -> unread count
@@ -48,6 +56,7 @@ export const useWebSocketStore = create<WebSocketStore>((set, get) => ({
   channels: [],
   dms: [],
   messages: {},
+  channelData: {},
   typing: [],
   userStatuses: {},
   unreadCounts: {},
@@ -102,6 +111,59 @@ export const useWebSocketStore = create<WebSocketStore>((set, get) => ({
               unreadCounts: newUnreadCounts,
               initialStateLoaded: true,
             });
+            break;
+          }
+
+          case 'channel_data': {
+            console.log('Received channel data for channel', message.channel_id, 'with', message.messages.length, 'messages,', message.pins.length, 'pins,', message.members.length, 'members');
+
+            // Convert MessageWithDetails to Message format
+            const messages: Message[] = message.messages.map((msg: MessageWithDetails) => ({
+              id: msg.id,
+              channel_id: msg.channel_id,
+              dm_id: msg.dm_id,
+              user_id: msg.user_id,
+              content: msg.content,
+              parent_message_id: msg.parent_message_id,
+              created_at: msg.created_at,
+              edited_at: msg.edited_at,
+              reply_count: msg.reply_count,
+              user: {
+                id: msg.user_id,
+                display_name: msg.user_name,
+                email: '',
+                org_id: '',
+                tv_user_id: '',
+                status: 'online',
+                created_at: '',
+                updated_at: '',
+              },
+            }));
+
+            // Update channel data and unread counts
+            set((state) => ({
+              channelData: {
+                ...state.channelData,
+                [message.channel_id]: {
+                  messages,
+                  pins: message.pins,
+                  members: message.members,
+                  loaded: true,
+                },
+              },
+              messages: {
+                ...state.messages,
+                [message.channel_id]: messages,
+              },
+              unreadCounts: {
+                ...state.unreadCounts,
+                [message.channel_id]: message.unread_info.count,
+              },
+              lastReadMessageIds: {
+                ...state.lastReadMessageIds,
+                [message.channel_id]: message.unread_info.last_read_message_id,
+              },
+            }));
             break;
           }
 

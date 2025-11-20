@@ -28,6 +28,8 @@ pub struct CacheMetrics {
     pub notifications_misses: i64,
     pub organizations_hits: i64,
     pub organizations_misses: i64,
+    pub tokens_hits: i64,
+    pub tokens_misses: i64,
 }
 
 impl CacheMetrics {
@@ -42,6 +44,7 @@ impl CacheMetrics {
             + self.read_status_hits
             + self.notifications_hits
             + self.organizations_hits
+            + self.tokens_hits
     }
 
     /// Calculate total misses across all cache types
@@ -55,6 +58,7 @@ impl CacheMetrics {
             + self.messages_misses
             + self.read_status_misses
             + self.notifications_misses
+            + self.tokens_misses
     }
 
     /// Calculate total operations (hits + misses)
@@ -85,6 +89,7 @@ pub enum CacheType {
     ReadStatus,
     Notifications,
     Organizations,
+    Tokens,
 }
 
 /// Record a cache hit
@@ -102,6 +107,7 @@ pub async fn record_hit(
         CacheType::ReadStatus => "read_status_hits",
         CacheType::Notifications => "notifications_hits",
         CacheType::Organizations => "organizations_hits",
+        CacheType::Tokens => "tokens_hits",
     };
 
     if let Err(e) = increment_metric(redis, field).await {
@@ -124,6 +130,7 @@ pub async fn record_miss(
         CacheType::ReadStatus => "read_status_misses",
         CacheType::Notifications => "notifications_misses",
         CacheType::Organizations => "organizations_misses",
+        CacheType::Tokens => "tokens_misses",
     };
 
     if let Err(e) = increment_metric(redis, field).await {
@@ -171,6 +178,10 @@ pub async fn get_metrics(
             "read_status_misses" => metrics.read_status_misses = value,
             "notifications_hits" => metrics.notifications_hits = value,
             "notifications_misses" => metrics.notifications_misses = value,
+            "organizations_hits" => metrics.organizations_hits = value,
+            "organizations_misses" => metrics.organizations_misses = value,
+            "tokens_hits" => metrics.tokens_hits = value,
+            "tokens_misses" => metrics.tokens_misses = value,
             _ => {}
         }
     }

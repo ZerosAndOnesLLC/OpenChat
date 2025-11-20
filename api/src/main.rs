@@ -135,8 +135,13 @@ async fn main() -> std::io::Result<()> {
 
     // Start WebSocket server
     info!("Starting WebSocket server...");
-    let ws_server = websocket::server::WsServer::new(db_pool.clone()).start();
-    info!("WebSocket server started");
+    let ws_config = Arc::new(config.websocket.clone());
+    let ws_server = websocket::server::WsServer::new(db_pool.clone(), ws_config.clone()).start();
+    info!(
+        "WebSocket server started (max_connections: {}, max_per_user: {})",
+        ws_config.max_connections,
+        ws_config.max_connections_per_user
+    );
 
     // Start Redis Pub/Sub for WebSocket scaling
     info!("Starting Redis Pub/Sub for WebSocket scaling...");
@@ -397,6 +402,7 @@ async fn main() -> std::io::Result<()> {
                     .wrap(openchat_auth.clone())
                     .route("/cache", web::get().to(metrics_handlers::get_cache_metrics))
                     .route("/cache/reset", web::post().to(metrics_handlers::reset_cache_metrics))
+                    .route("/websocket", web::get().to(metrics_handlers::get_websocket_metrics))
             )
             // SSO routes - no auth required (they handle authentication themselves)
             .configure(routes::sso::configure)

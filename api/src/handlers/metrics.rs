@@ -1,9 +1,11 @@
+use actix::Addr;
 use actix_web::{web, HttpResponse};
 use redis::aio::MultiplexedConnection;
 use serde_json::json;
 
 use crate::cache::metrics;
 use crate::errors::ApiResult;
+use crate::websocket::server::{GetConnectionStats, WsServer};
 
 /// GET /api/metrics/cache - Get cache hit/miss metrics
 pub async fn get_cache_metrics(
@@ -134,4 +136,14 @@ pub async fn reset_cache_metrics(
     Ok(HttpResponse::Ok().json(json!({
         "message": "Cache metrics reset successfully"
     })))
+}
+
+/// GET /api/metrics/websocket - Get WebSocket connection metrics
+pub async fn get_websocket_metrics(
+    ws_server: web::Data<Addr<WsServer>>,
+) -> ApiResult<HttpResponse> {
+    let stats = ws_server.send(GetConnectionStats).await
+        .map_err(|e| crate::errors::ApiError::Internal(format!("Failed to get connection stats: {}", e)))?;
+
+    Ok(HttpResponse::Ok().json(stats))
 }

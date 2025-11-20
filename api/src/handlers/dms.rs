@@ -8,6 +8,7 @@ use crate::{
     cache::dms as dm_cache,
     cache::messages as message_cache,
     errors::{ApiError, ApiResult},
+    models::attachment::Attachment,
     models::direct_message::{DirectMessage, DmParticipant},
     models::message::{Message, PaginatedMessages},
     models::reaction::Reaction,
@@ -90,6 +91,29 @@ impl From<Reaction> for ReactionResponse {
     }
 }
 
+#[derive(Debug, Serialize, Clone)]
+pub struct AttachmentResponse {
+    pub id: Uuid,
+    pub file_name: String,
+    pub file_url: String,
+    pub file_type: Option<String>,
+    pub file_size: Option<i64>,
+    pub created_at: String,
+}
+
+impl From<Attachment> for AttachmentResponse {
+    fn from(attachment: Attachment) -> Self {
+        Self {
+            id: attachment.id,
+            file_name: attachment.file_name,
+            file_url: attachment.file_url,
+            file_type: attachment.file_type,
+            file_size: attachment.file_size,
+            created_at: attachment.created_at.to_rfc3339(),
+        }
+    }
+}
+
 #[derive(Debug, Serialize)]
 pub struct MessageResponse {
     pub id: Uuid,
@@ -102,6 +126,7 @@ pub struct MessageResponse {
     pub edited_at: Option<String>,
     pub user: Option<UserResponse>,
     pub reactions: Vec<ReactionResponse>,
+    pub attachments: Vec<AttachmentResponse>,
 }
 
 impl From<crate::models::message::Message> for MessageResponse {
@@ -117,6 +142,7 @@ impl From<crate::models::message::Message> for MessageResponse {
             edited_at: message.edited_at.map(|dt| dt.to_rfc3339()),
             user: None,
             reactions: vec![],
+            attachments: vec![],
         }
     }
 }
@@ -129,6 +155,11 @@ impl MessageResponse {
 
     pub fn with_reactions(mut self, reactions: Vec<Reaction>) -> Self {
         self.reactions = reactions.into_iter().map(ReactionResponse::from).collect();
+        self
+    }
+
+    pub fn with_attachments(mut self, attachments: Vec<Attachment>) -> Self {
+        self.attachments = attachments.into_iter().map(AttachmentResponse::from).collect();
         self
     }
 }
@@ -433,7 +464,28 @@ pub async fn list_dm_messages(
             .push(reaction);
     }
 
-    // Enrich messages with user data and reactions
+    // Fetch attachments for all messages
+    let attachments = if !message_ids.is_empty() {
+        sqlx::query_as::<_, Attachment>(
+            "SELECT * FROM attachments WHERE message_id = ANY($1) ORDER BY created_at"
+        )
+        .bind(&message_ids)
+        .fetch_all(pool.get_ref())
+        .await?
+    } else {
+        vec![]
+    };
+
+    // Create a map of message_id -> Vec<Attachment> for quick lookup
+    let mut attachment_map: std::collections::HashMap<Uuid, Vec<Attachment>> = std::collections::HashMap::new();
+    for attachment in attachments {
+        attachment_map
+            .entry(attachment.message_id)
+            .or_insert_with(Vec::new)
+            .push(attachment);
+    }
+
+    // Enrich messages with user data, reactions, and attachments
     let messages_with_users: Vec<MessageResponse> = paginated.messages
         .into_iter()
         .map(|msg| {
@@ -443,6 +495,9 @@ pub async fn list_dm_messages(
             }
             if let Some(reactions) = reaction_map.get(&msg.id) {
                 response = response.with_reactions(reactions.clone());
+            }
+            if let Some(attachments) = attachment_map.get(&msg.id) {
+                response = response.with_attachments(attachments.clone());
             }
             response
         })

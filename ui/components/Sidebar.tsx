@@ -4,12 +4,13 @@ import { useQuery } from '@tanstack/react-query';
 import { apiClient } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import type { Channel, DirectMessage } from '@/lib/types';
+import { useWebSocketStore } from '@/lib/websocket';
 import ChannelList from './ChannelList';
 import DirectMessageList from './DirectMessageList';
 import BookmarksList from './BookmarksList';
 import UserProfile from './UserProfile';
 import BrowseChannelsModal from './BrowseChannelsModal';
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 
 interface SidebarProps {
   activeChannel: Channel | null;
@@ -30,19 +31,62 @@ export default function Sidebar({
   const [newChannelName, setNewChannelName] = useState('');
   const [newChannelType, setNewChannelType] = useState<'public' | 'private'>('public');
 
-  const { data: channels, refetch: refetchChannels } = useQuery({
+  const wsChannels = useWebSocketStore((state) => state.channels);
+  const wsDms = useWebSocketStore((state) => state.dms);
+  const initialStateLoaded = useWebSocketStore((state) => state.initialStateLoaded);
+
+  // Fallback to HTTP if WebSocket initial state hasn't loaded yet
+  const { data: httpChannels, refetch: refetchChannels } = useQuery({
     queryKey: ['channels'],
     queryFn: () => apiClient.listChannels(),
+    enabled: !initialStateLoaded,
   });
 
-  const { data: dms } = useQuery({
+  const { data: httpDms } = useQuery({
     queryKey: ['dms'],
     queryFn: () => apiClient.listDms(),
+    enabled: !initialStateLoaded,
   });
 
-  // Safely handle undefined data from queries
-  const channelsList = Array.isArray(channels) ? channels : [];
-  const dmsList = Array.isArray(dms) ? dms : [];
+  // Convert WebSocket metadata to Channel objects
+  const channelsList = useMemo(() => {
+    if (initialStateLoaded && wsChannels.length > 0) {
+      return wsChannels.map(ch => ({
+        id: ch.id,
+        name: ch.name,
+        description: ch.description,
+        channel_type: ch.channel_type,
+        org_id: '',
+        created_by: '',
+        created_at: '',
+        updated_at: '',
+      } as Channel));
+    }
+    return Array.isArray(httpChannels) ? httpChannels : [];
+  }, [initialStateLoaded, wsChannels, httpChannels]);
+
+  // Convert WebSocket DM metadata to DirectMessage objects
+  const dmsList = useMemo(() => {
+    if (initialStateLoaded && wsDms.length > 0) {
+      return wsDms.map(dm => ({
+        id: dm.id,
+        org_id: '',
+        created_by: '',
+        created_at: '',
+        participants: [{
+          id: dm.other_user_id,
+          display_name: dm.other_user_name,
+          email: '',
+          org_id: '',
+          tv_user_id: '',
+          status: 'online',
+          created_at: '',
+          updated_at: '',
+        }],
+      } as DirectMessage));
+    }
+    return Array.isArray(httpDms) ? httpDms : [];
+  }, [initialStateLoaded, wsDms, httpDms]);
 
   const handleCreateChannel = async (e: React.FormEvent) => {
     e.preventDefault();

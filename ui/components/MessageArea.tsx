@@ -18,7 +18,7 @@ interface MessageAreaProps {
 }
 
 export default function MessageArea({ channel, dm }: MessageAreaProps) {
-  const { messages, setMessages, subscribeChannel, unsubscribeChannel, typing, setLastReadMessageId, lastReadMessageIds } =
+  const { messages, channelData, setMessages, subscribeChannel, unsubscribeChannel, typing, setLastReadMessageId, lastReadMessageIds, unreadCounts } =
     useWebSocketStore();
   const prevChannelRef = useRef<string | null>(null);
   const [replyTo, setReplyTo] = useState<Message | undefined>(undefined);
@@ -28,7 +28,10 @@ export default function MessageArea({ channel, dm }: MessageAreaProps) {
 
   const currentKey = channel?.id || dm?.id || '';
 
-  // Fetch unread count and last read message ID before loading messages
+  // For channels, use WebSocket data; for DMs, fallback to HTTP (until DM WebSocket is implemented)
+  const useWebSocketData = !!channel;
+
+  // Fetch unread count and last read message ID (only for DMs or as fallback)
   const { data: unreadData } = useQuery({
     queryKey: ['unread-count', currentKey],
     queryFn: async () => {
@@ -39,19 +42,22 @@ export default function MessageArea({ channel, dm }: MessageAreaProps) {
       }
       return { unread_count: 0, last_read_message_id: undefined } as const;
     },
-    enabled: !!currentKey,
+    enabled: !!currentKey && !useWebSocketData, // Only fetch for DMs
   });
 
-  const unreadCount = unreadData?.unread_count ?? 0;
+  // Get unread count from WebSocket store for channels, or from query for DMs
+  const unreadCount = useWebSocketData
+    ? (unreadCounts[currentKey] ?? 0)
+    : (unreadData?.unread_count ?? 0);
 
-  // Store last read message ID when it's fetched
+  // Store last read message ID when it's fetched (DMs only)
   useEffect(() => {
-    if (currentKey && unreadData?.last_read_message_id !== undefined) {
+    if (currentKey && !useWebSocketData && unreadData?.last_read_message_id !== undefined) {
       setLastReadMessageId(currentKey, unreadData.last_read_message_id);
     }
-  }, [currentKey, unreadData, setLastReadMessageId]);
+  }, [currentKey, unreadData, setLastReadMessageId, useWebSocketData]);
 
-  // Fetch messages when channel/dm changes
+  // Fetch messages when channel/dm changes (only for DMs now)
   const { data: fetchedMessages, isError, error, isLoading } = useQuery({
     queryKey: ['messages', currentKey],
     queryFn: async () => {
@@ -67,7 +73,7 @@ export default function MessageArea({ channel, dm }: MessageAreaProps) {
       }
       return [];
     },
-    enabled: !!currentKey,
+    enabled: !!currentKey && !useWebSocketData, // Only fetch for DMs
   });
 
   // Log errors
@@ -165,12 +171,16 @@ export default function MessageArea({ channel, dm }: MessageAreaProps) {
     setOpenThread(null);
   };
 
-  // Fetch pinned messages for current channel
-  const { data: pinnedMessages = [] } = useQuery({
+  // Get pinned messages from WebSocket data for channels, or fetch via HTTP for DMs
+  const pinnedMessagesFromWs = channel && channelData[channel.id]?.pins ? channelData[channel.id].pins : [];
+
+  const { data: pinnedMessagesFromHttp = [] } = useQuery({
     queryKey: ['pinned-messages', channel?.id],
     queryFn: () => channel ? apiClient.getChannelPins(channel.id) : Promise.resolve([]),
-    enabled: !!channel,
+    enabled: !!channel && !useWebSocketData, // Only fetch if not using WebSocket data
   });
+
+  const pinnedMessages = useWebSocketData ? pinnedMessagesFromWs : pinnedMessagesFromHttp;
 
   // Fetch user bookmarks
   const { data: bookmarks = [] } = useQuery({

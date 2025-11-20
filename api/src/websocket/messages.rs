@@ -65,6 +65,40 @@ pub struct UnreadInfo {
     pub mentions: i32,
 }
 
+/// Message with additional details for channel subscription
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct MessageWithDetails {
+    pub id: Uuid,
+    pub channel_id: Option<Uuid>,
+    pub dm_id: Option<Uuid>,
+    pub user_id: Uuid,
+    pub user_name: String,
+    pub content: String,
+    pub parent_message_id: Option<Uuid>,
+    pub created_at: DateTime<Utc>,
+    pub edited_at: Option<DateTime<Utc>>,
+    pub reply_count: i64,
+}
+
+/// Pinned message information for channel subscription
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PinnedMessageInfo {
+    pub id: Uuid,
+    pub message_id: Uuid,
+    pub pinned_by: Uuid,
+    pub pinned_at: DateTime<Utc>,
+}
+
+/// Channel member information for channel subscription
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ChannelMemberInfo {
+    pub id: Uuid,
+    pub user_id: Uuid,
+    pub user_name: String,
+    pub role: String,
+    pub joined_at: DateTime<Utc>,
+}
+
 /// Messages sent from server to client
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
@@ -74,6 +108,14 @@ pub enum ServerMessage {
         user_id: Uuid,
         channels: Vec<ChannelMetadata>,
         dms: Vec<DmMetadata>,
+    },
+    /// Complete channel data sent when subscribing to a channel
+    ChannelData {
+        channel_id: Uuid,
+        messages: Vec<MessageWithDetails>,
+        pins: Vec<PinnedMessageInfo>,
+        members: Vec<ChannelMemberInfo>,
+        unread_info: UnreadInfo,
     },
     /// New message received
     NewMessage {

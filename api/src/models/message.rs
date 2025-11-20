@@ -396,4 +396,71 @@ impl Message {
             .filter_map(|msg| msg.parent_message_id.map(|pid| (pid, msg)))
             .collect())
     }
+
+    /// Get messages with details for channel subscription (includes user names and reply counts)
+    /// Returns messages in descending order (newest first) with a limit
+    pub async fn get_messages_with_details_for_channel(
+        pool: &PgPool,
+        channel_id: Uuid,
+        limit: i64,
+    ) -> ApiResult<Vec<crate::websocket::messages::MessageWithDetails>> {
+        #[derive(sqlx::FromRow)]
+        struct MessageRow {
+            id: Uuid,
+            channel_id: Option<Uuid>,
+            dm_id: Option<Uuid>,
+            user_id: Uuid,
+            user_name: String,
+            content: String,
+            parent_message_id: Option<Uuid>,
+            created_at: DateTime<Utc>,
+            edited_at: Option<DateTime<Utc>>,
+            reply_count: i64,
+        }
+
+        let rows = sqlx::query_as::<_, MessageRow>(
+            r#"
+            SELECT
+                m.id,
+                m.channel_id,
+                m.dm_id,
+                m.user_id,
+                COALESCE(u.full_name, u.email) as user_name,
+                m.content,
+                m.parent_message_id,
+                m.created_at,
+                m.edited_at,
+                COALESCE(
+                    (SELECT COUNT(*)::bigint FROM messages replies
+                     WHERE replies.parent_message_id = m.id AND replies.deleted_at IS NULL),
+                    0
+                ) as reply_count
+            FROM messages m
+            LEFT JOIN users u ON m.user_id = u.id
+            WHERE m.channel_id = $1 AND m.deleted_at IS NULL
+            ORDER BY m.created_at DESC
+            LIMIT $2
+            "#,
+        )
+        .bind(channel_id)
+        .bind(limit)
+        .fetch_all(pool)
+        .await?;
+
+        Ok(rows
+            .into_iter()
+            .map(|row| crate::websocket::messages::MessageWithDetails {
+                id: row.id,
+                channel_id: row.channel_id,
+                dm_id: row.dm_id,
+                user_id: row.user_id,
+                user_name: row.user_name,
+                content: row.content,
+                parent_message_id: row.parent_message_id,
+                created_at: row.created_at,
+                edited_at: row.edited_at,
+                reply_count: row.reply_count,
+            })
+            .collect())
+    }
 }

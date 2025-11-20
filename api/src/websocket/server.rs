@@ -293,22 +293,81 @@ impl Handler<TypingIndicator> for WsServer {
 #[rtype(result = "()")]
 pub struct SubscribeChannel {
     pub session_id: Uuid,
+    pub user_id: Uuid,
     pub channel_id: Uuid,
 }
 
 impl Handler<SubscribeChannel> for WsServer {
     type Result = ();
 
-    fn handle(&mut self, msg: SubscribeChannel, _: &mut Context<Self>) {
+    fn handle(&mut self, msg: SubscribeChannel, ctx: &mut Context<Self>) {
         println!(
             "WebSocket: Session {} subscribed to channel {}",
             msg.session_id, msg.channel_id
         );
 
+        // Register subscription
         self.channel_subscriptions
             .entry(msg.channel_id)
             .or_insert_with(HashSet::new)
             .insert(msg.session_id);
+
+        // Fetch and send channel data
+        let pool = self.db_pool.clone();
+        let session = self.sessions.get(&msg.session_id).cloned();
+        let channel_id = msg.channel_id;
+        let user_id = msg.user_id;
+
+        let fut = async move {
+            // Fetch all data in parallel using tokio::join
+            let messages_fut = crate::models::message::Message::get_messages_with_details_for_channel(&pool, channel_id, 50);
+            let pins_fut = crate::models::pin::PinnedMessage::get_pins_for_channel(&pool, channel_id);
+            let members_fut = crate::models::channel::ChannelMember::get_members_for_channel(&pool, channel_id);
+            let unread_fut = crate::models::read_status::ChannelReadStatus::get_unread_info(&pool, user_id, channel_id);
+
+            let (messages, pins, members, unread_info) = tokio::join!(
+                messages_fut,
+                pins_fut,
+                members_fut,
+                unread_fut
+            );
+
+            match (messages, pins, members, unread_info) {
+                (Ok(messages), Ok(pins), Ok(members), Ok(unread_info)) => {
+                    tracing::debug!(
+                        "Loaded channel data for channel {}: {} messages, {} pins, {} members",
+                        channel_id,
+                        messages.len(),
+                        pins.len(),
+                        members.len()
+                    );
+
+                    Some(ServerMessage::ChannelData {
+                        channel_id,
+                        messages,
+                        pins,
+                        members,
+                        unread_info,
+                    })
+                }
+                (Err(e), _, _, _) | (_, Err(e), _, _) | (_, _, Err(e), _) | (_, _, _, Err(e)) => {
+                    tracing::error!("Failed to load channel data for channel {}: {}", channel_id, e);
+                    Some(ServerMessage::Error {
+                        message: format!("Failed to load channel data: {}", e),
+                    })
+                }
+            }
+        }
+        .into_actor(self)
+        .map(move |result, _actor, _ctx| {
+            if let Some(message) = result {
+                if let Some(session) = session {
+                    session.do_send(WsSessionMessage(message));
+                }
+            }
+        });
+
+        ctx.spawn(fut);
     }
 }
 

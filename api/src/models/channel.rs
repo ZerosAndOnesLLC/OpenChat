@@ -182,7 +182,7 @@ impl Channel {
                         FROM messages m
                         WHERE m.channel_id = c.id
                         AND m.created_at > COALESCE(
-                            (SELECT read_at FROM read_status WHERE channel_id = c.id AND user_id = $2),
+                            (SELECT last_read_at FROM channel_read_status WHERE channel_id = c.id AND user_id = $2),
                             '1970-01-01'::timestamp
                         )
                     ),

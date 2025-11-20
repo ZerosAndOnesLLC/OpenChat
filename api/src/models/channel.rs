@@ -162,6 +162,59 @@ impl Channel {
 
         Ok(())
     }
+
+    /// Get channel metadata with unread counts for a user (for initial WebSocket state)
+    pub async fn get_metadata_for_user(
+        pool: &PgPool,
+        org_id: Uuid,
+        user_id: Uuid,
+    ) -> ApiResult<Vec<crate::websocket::messages::ChannelMetadata>> {
+        let metadata = sqlx::query_as::<_, crate::websocket::messages::ChannelMetadata>(
+            r#"
+            SELECT
+                c.id,
+                c.name,
+                c.description,
+                c.channel_type,
+                COALESCE(
+                    (
+                        SELECT COUNT(*)::int
+                        FROM messages m
+                        WHERE m.channel_id = c.id
+                        AND m.created_at > COALESCE(
+                            (SELECT read_at FROM read_status WHERE channel_id = c.id AND user_id = $2),
+                            '1970-01-01'::timestamp
+                        )
+                    ),
+                    0
+                ) as unread_count,
+                (
+                    SELECT content
+                    FROM messages
+                    WHERE channel_id = c.id
+                    ORDER BY created_at DESC
+                    LIMIT 1
+                ) as last_message_preview,
+                (
+                    SELECT created_at
+                    FROM messages
+                    WHERE channel_id = c.id
+                    ORDER BY created_at DESC
+                    LIMIT 1
+                ) as last_message_at
+            FROM channels c
+            INNER JOIN channel_members cm ON c.id = cm.channel_id
+            WHERE c.org_id = $1 AND cm.user_id = $2
+            ORDER BY c.created_at DESC
+            "#,
+        )
+        .bind(org_id)
+        .bind(user_id)
+        .fetch_all(pool)
+        .await?;
+
+        Ok(metadata)
+    }
 }
 
 impl ChannelMember {

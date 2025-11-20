@@ -1,3 +1,4 @@
+use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
@@ -33,10 +34,47 @@ pub enum ClientMessage {
     Ping,
 }
 
+/// Channel metadata for initial state
+#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
+pub struct ChannelMetadata {
+    pub id: Uuid,
+    pub name: String,
+    pub description: Option<String>,
+    pub channel_type: String,
+    pub unread_count: i32,
+    pub last_message_preview: Option<String>,
+    pub last_message_at: Option<DateTime<Utc>>,
+}
+
+/// Direct message metadata for initial state
+#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
+pub struct DmMetadata {
+    pub id: Uuid,
+    pub other_user_id: Uuid,
+    pub other_user_name: String,
+    pub unread_count: i32,
+    pub last_message_preview: Option<String>,
+    pub last_message_at: Option<DateTime<Utc>>,
+}
+
+/// Unread information for a channel or DM
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct UnreadInfo {
+    pub count: i32,
+    pub last_read_message_id: Option<Uuid>,
+    pub mentions: i32,
+}
+
 /// Messages sent from server to client
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum ServerMessage {
+    /// Initial state sent after connection
+    InitialState {
+        user_id: Uuid,
+        channels: Vec<ChannelMetadata>,
+        dms: Vec<DmMetadata>,
+    },
     /// New message received
     NewMessage {
         id: Uuid,

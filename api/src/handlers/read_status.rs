@@ -6,7 +6,6 @@ use uuid::Uuid;
 
 use crate::{
     cache::read_status::{
-        get_channel_unread_from_cache, get_dm_unread_from_cache,
         invalidate_channel_unread_cache, invalidate_dm_unread_cache,
         set_channel_unread_in_cache, set_dm_unread_in_cache,
     },
@@ -28,6 +27,7 @@ pub struct MarkAsReadRequest {
 #[derive(Debug, Serialize)]
 pub struct UnreadCountResponse {
     pub unread_count: i32,
+    pub last_read_message_id: Option<Uuid>,
 }
 
 /// POST /api/channels/{id}/read - Mark a channel as read
@@ -111,20 +111,17 @@ pub async fn get_channel_unread_count(
 
     let mut redis_conn = redis.get_ref().clone();
 
-    // Try to get from cache first
-    if let Some(cached_count) = get_channel_unread_from_cache(&mut redis_conn, user.id, *channel_id).await? {
-        return Ok(HttpResponse::Ok().json(UnreadCountResponse {
-            unread_count: cached_count,
-        }));
-    }
-
-    // Get from database
+    // Get from database (we need both unread count and last_read_message_id)
     let unread_count = ChannelReadStatus::get_unread_count(pool.get_ref(), user.id, *channel_id).await?;
+    let last_read_message_id = ChannelReadStatus::get_last_read_message_id(pool.get_ref(), user.id, *channel_id).await?;
 
-    // Store in cache
+    // Store unread count in cache
     set_channel_unread_in_cache(&mut redis_conn, user.id, *channel_id, unread_count).await?;
 
-    Ok(HttpResponse::Ok().json(UnreadCountResponse { unread_count }))
+    Ok(HttpResponse::Ok().json(UnreadCountResponse {
+        unread_count,
+        last_read_message_id,
+    }))
 }
 
 /// POST /api/dms/{id}/read - Mark a DM as read
@@ -207,18 +204,15 @@ pub async fn get_dm_unread_count(
 
     let mut redis_conn = redis.get_ref().clone();
 
-    // Try to get from cache first
-    if let Some(cached_count) = get_dm_unread_from_cache(&mut redis_conn, user.id, *dm_id).await? {
-        return Ok(HttpResponse::Ok().json(UnreadCountResponse {
-            unread_count: cached_count,
-        }));
-    }
-
-    // Get from database
+    // Get from database (we need both unread count and last_read_message_id)
     let unread_count = DmReadStatus::get_unread_count(pool.get_ref(), user.id, *dm_id).await?;
+    let last_read_message_id = DmReadStatus::get_last_read_message_id(pool.get_ref(), user.id, *dm_id).await?;
 
-    // Store in cache
+    // Store unread count in cache
     set_dm_unread_in_cache(&mut redis_conn, user.id, *dm_id, unread_count).await?;
 
-    Ok(HttpResponse::Ok().json(UnreadCountResponse { unread_count }))
+    Ok(HttpResponse::Ok().json(UnreadCountResponse {
+        unread_count,
+        last_read_message_id,
+    }))
 }

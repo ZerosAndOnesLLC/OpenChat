@@ -29,11 +29,11 @@ function ChannelItem({
   // Load initial unread count
   useEffect(() => {
     if (!initiallyLoaded) {
-      apiClient.getChannelUnreadCount(channel.id).then((count) => {
+      apiClient.getChannelUnreadCount(channel.id).then((data) => {
         useWebSocketStore.setState((state) => ({
           unreadCounts: {
             ...state.unreadCounts,
-            [channel.id]: count,
+            [channel.id]: data.unread_count,
           },
         }));
         setInitiallyLoaded(true);

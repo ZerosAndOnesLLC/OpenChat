@@ -766,6 +766,23 @@ Infrastructure is managed via Terraform in `~/dev/terraform/prod/us-east-1/openc
 
 ## Version History
 
+### v0.50.0 (WebSocket Initial State - Sprint 2)
+- Added InitialState WebSocket message type that sends channels and DMs on connection
+- Implemented ChannelMetadata and DmMetadata structs with unread counts and last message previews
+- Added Channel::get_metadata_for_user() method to fetch all user channels with metadata in single query
+- Added DirectMessage::get_metadata_for_user() method to fetch all user DMs with metadata in single query
+- WebSocket connections now automatically send initial state after handshake
+- load_initial_state() function fetches channels and DMs in parallel using tokio::try_join!
+- Optimized SQL queries to include unread counts, last message preview, and last message timestamp
+- Token cache metrics tracking: Added tokens_hits and tokens_misses to CacheMetrics
+- Updated AuthMiddleware to record cache hit/miss metrics for token validation
+- Extended metrics API endpoint to include token cache statistics
+- Created load_test_token_cache.sh script for validating token cache performance
+- Added LOAD_TESTING.md documentation with testing instructions and best practices
+- Removed unused storage imports (FileStorage, StorageType, UploadedFile, LocalStorage, S3Storage)
+- Version bumped to 0.50.0
+- Preparation for Sprint 2: UI changes to consume WebSocket initial state instead of HTTP calls
+
 ### v0.49.0 (Performance Optimization - Token Caching)
 - Added SHA256-based token caching in Redis with 5-minute TTL
 - Implemented JWKS (JSON Web Key Set) caching with 1-hour TTL

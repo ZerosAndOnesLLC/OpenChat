@@ -97,6 +97,26 @@ pub async fn get_cache_metrics(
                 } else {
                     "0.00%".to_string()
                 }
+            },
+            "organizations": {
+                "hits": metrics.organizations_hits,
+                "misses": metrics.organizations_misses,
+                "total": metrics.organizations_hits + metrics.organizations_misses,
+                "hit_rate": if metrics.organizations_hits + metrics.organizations_misses > 0 {
+                    format!("{:.2}%", (metrics.organizations_hits as f64 / (metrics.organizations_hits + metrics.organizations_misses) as f64) * 100.0)
+                } else {
+                    "0.00%".to_string()
+                }
+            },
+            "tokens": {
+                "hits": metrics.tokens_hits,
+                "misses": metrics.tokens_misses,
+                "total": metrics.tokens_hits + metrics.tokens_misses,
+                "hit_rate": if metrics.tokens_hits + metrics.tokens_misses > 0 {
+                    format!("{:.2}%", (metrics.tokens_hits as f64 / (metrics.tokens_hits + metrics.tokens_misses) as f64) * 100.0)
+                } else {
+                    "0.00%".to_string()
+                }
             }
         }
     });

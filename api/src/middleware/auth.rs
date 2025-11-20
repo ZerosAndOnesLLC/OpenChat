@@ -12,7 +12,8 @@ use std::{
 use tracing::{debug, error};
 
 use crate::{
-    cache, db,
+    cache::{self, metrics::{CacheType, record_hit, record_miss}},
+    db,
     errors::ApiError,
     models::{organization::Organization, user::User},
     services::tv_api::TvApiClient,
@@ -105,10 +106,13 @@ where
             {
                 Some(claims) => {
                     debug!("Token cache hit");
+                    record_hit(&mut redis, CacheType::Tokens).await;
                     claims
                 }
                 None => {
                     debug!("Token cache miss, verifying with TitaniumVault");
+                    record_miss(&mut redis, CacheType::Tokens).await;
+
                     // Verify token with TV-API
                     let claims = tv_api_client
                         .verify_token(&token)

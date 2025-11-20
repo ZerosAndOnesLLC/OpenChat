@@ -18,6 +18,7 @@ interface WebSocketStore {
   typing: TypingIndicator[];
   userStatuses: Record<string, 'online' | 'offline' | 'away'>;
   unreadCounts: Record<string, number>; // channelId/dmId -> unread count
+  lastReadMessageIds: Record<string, string | undefined>; // channelId/dmId -> last read message ID
   notificationCount: number;
 
   connect: (token: string) => void;
@@ -34,6 +35,7 @@ interface WebSocketStore {
   removeReaction: (messageId: string, userId: string, emoji: string) => void;
   setMessages: (key: string, messages: Message[]) => void;
   clearMessages: (key: string) => void;
+  setLastReadMessageId: (key: string, messageId: string | undefined) => void;
 }
 
 export const useWebSocketStore = create<WebSocketStore>((set, get) => ({
@@ -43,6 +45,7 @@ export const useWebSocketStore = create<WebSocketStore>((set, get) => ({
   typing: [],
   userStatuses: {},
   unreadCounts: {},
+  lastReadMessageIds: {},
   notificationCount: 0,
 
   connect: (token: string) => {
@@ -419,5 +422,14 @@ export const useWebSocketStore = create<WebSocketStore>((set, get) => ({
       delete newMessages[key];
       return { messages: newMessages };
     });
+  },
+
+  setLastReadMessageId: (key, messageId) => {
+    set((state) => ({
+      lastReadMessageIds: {
+        ...state.lastReadMessageIds,
+        [key]: messageId,
+      },
+    }));
   },
 }));

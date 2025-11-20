@@ -7,6 +7,7 @@ import MessageItem from './MessageItem';
 interface MessageListProps {
   messages: Message[];
   unreadCount?: number;
+  lastReadMessageId?: string;
   onReply?: (message: Message) => void;
   onOpenThread?: (message: Message) => void;
   onPin?: (message: Message) => void;
@@ -15,19 +16,30 @@ interface MessageListProps {
   bookmarkedMessageIds?: Set<string>;
 }
 
-export default function MessageList({ messages, unreadCount = 0, onReply, onOpenThread, onPin, onBookmark, pinnedMessageIds = new Set(), bookmarkedMessageIds = new Set() }: MessageListProps) {
+export default function MessageList({ messages, unreadCount = 0, lastReadMessageId, onReply, onOpenThread, onPin, onBookmark, pinnedMessageIds = new Set(), bookmarkedMessageIds = new Set() }: MessageListProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const unreadMarkerRef = useRef<HTMLDivElement>(null);
+  const lastReadMessageRef = useRef<HTMLDivElement>(null);
 
-  // Calculate the index of the first unread message
-  const firstUnreadIndex = unreadCount > 0 && unreadCount < messages.length
-    ? messages.length - unreadCount
-    : -1;
+  // Calculate the index of the first unread message based on last read message ID
+  let firstUnreadIndex = -1;
+  if (lastReadMessageId) {
+    const lastReadIndex = messages.findIndex((msg) => msg.id === lastReadMessageId);
+    if (lastReadIndex >= 0 && lastReadIndex < messages.length - 1) {
+      firstUnreadIndex = lastReadIndex + 1;
+    }
+  } else if (unreadCount > 0 && unreadCount < messages.length) {
+    // Fallback to unread count if no last read message ID
+    firstUnreadIndex = messages.length - unreadCount;
+  }
 
   useEffect(() => {
     if (scrollRef.current) {
-      // If there's an unread marker, scroll to it on mount
-      if (unreadMarkerRef.current && firstUnreadIndex >= 0) {
+      // If there's a last read message, scroll to the message after it
+      if (lastReadMessageRef.current && firstUnreadIndex >= 0) {
+        lastReadMessageRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      } else if (unreadMarkerRef.current && firstUnreadIndex >= 0) {
+        // Fallback to unread marker if available
         unreadMarkerRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
       } else {
         // Otherwise scroll to bottom
@@ -62,7 +74,10 @@ export default function MessageList({ messages, unreadCount = 0, onReply, onOpen
     <div ref={scrollRef} className="flex-1 overflow-y-auto px-6 py-4">
       <div className="space-y-4">
         {messages.map((message, index) => (
-          <div key={message.id}>
+          <div
+            key={message.id}
+            ref={index === firstUnreadIndex ? lastReadMessageRef : undefined}
+          >
             {/* Show unread marker before the first unread message */}
             {index === firstUnreadIndex && (
               <div

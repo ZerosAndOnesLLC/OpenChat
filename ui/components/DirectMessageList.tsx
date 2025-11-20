@@ -29,11 +29,11 @@ function DirectMessageItem({
   // Load initial unread count
   useEffect(() => {
     if (!initiallyLoaded) {
-      apiClient.getDmUnreadCount(dm.id).then((count) => {
+      apiClient.getDmUnreadCount(dm.id).then((data) => {
         useWebSocketStore.setState((state) => ({
           unreadCounts: {
             ...state.unreadCounts,
-            [dm.id]: count,
+            [dm.id]: data.unread_count,
           },
         }));
         setInitiallyLoaded(true);

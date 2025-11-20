@@ -90,6 +90,27 @@ impl ChannelReadStatus {
 
         Ok(result)
     }
+
+    /// Get last read message ID for a channel
+    pub async fn get_last_read_message_id(
+        pool: &PgPool,
+        user_id: Uuid,
+        channel_id: Uuid,
+    ) -> ApiResult<Option<Uuid>> {
+        let result = sqlx::query_scalar::<_, Option<Uuid>>(
+            r#"
+            SELECT last_read_message_id
+            FROM channel_read_status
+            WHERE user_id = $1 AND channel_id = $2
+            "#,
+        )
+        .bind(user_id)
+        .bind(channel_id)
+        .fetch_optional(pool)
+        .await?;
+
+        Ok(result.flatten())
+    }
 }
 
 impl DmReadStatus {
@@ -152,5 +173,26 @@ impl DmReadStatus {
         .await?;
 
         Ok(result)
+    }
+
+    /// Get last read message ID for a DM
+    pub async fn get_last_read_message_id(
+        pool: &PgPool,
+        user_id: Uuid,
+        dm_id: Uuid,
+    ) -> ApiResult<Option<Uuid>> {
+        let result = sqlx::query_scalar::<_, Option<Uuid>>(
+            r#"
+            SELECT last_read_message_id
+            FROM dm_read_status
+            WHERE user_id = $1 AND dm_id = $2
+            "#,
+        )
+        .bind(user_id)
+        .bind(dm_id)
+        .fetch_optional(pool)
+        .await?;
+
+        Ok(result.flatten())
     }
 }

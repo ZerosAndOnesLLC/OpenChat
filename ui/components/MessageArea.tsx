@@ -18,7 +18,7 @@ interface MessageAreaProps {
 }
 
 export default function MessageArea({ channel, dm }: MessageAreaProps) {
-  const { messages, setMessages, subscribeChannel, unsubscribeChannel, typing } =
+  const { messages, setMessages, subscribeChannel, unsubscribeChannel, typing, setLastReadMessageId, lastReadMessageIds } =
     useWebSocketStore();
   const prevChannelRef = useRef<string | null>(null);
   const [replyTo, setReplyTo] = useState<Message | undefined>(undefined);
@@ -28,8 +28,8 @@ export default function MessageArea({ channel, dm }: MessageAreaProps) {
 
   const currentKey = channel?.id || dm?.id || '';
 
-  // Fetch unread count before loading messages
-  const { data: unreadCount = 0 } = useQuery({
+  // Fetch unread count and last read message ID before loading messages
+  const { data: unreadData } = useQuery({
     queryKey: ['unread-count', currentKey],
     queryFn: async () => {
       if (channel) {
@@ -37,10 +37,19 @@ export default function MessageArea({ channel, dm }: MessageAreaProps) {
       } else if (dm) {
         return await apiClient.getDmUnreadCount(dm.id);
       }
-      return 0;
+      return { unread_count: 0, last_read_message_id: undefined } as const;
     },
     enabled: !!currentKey,
   });
+
+  const unreadCount = unreadData?.unread_count ?? 0;
+
+  // Store last read message ID when it's fetched
+  useEffect(() => {
+    if (currentKey && unreadData?.last_read_message_id !== undefined) {
+      setLastReadMessageId(currentKey, unreadData.last_read_message_id);
+    }
+  }, [currentKey, unreadData, setLastReadMessageId]);
 
   // Fetch messages when channel/dm changes
   const { data: fetchedMessages, isError, error, isLoading } = useQuery({
@@ -273,6 +282,7 @@ export default function MessageArea({ channel, dm }: MessageAreaProps) {
             <MessageList
               messages={localMessages}
               unreadCount={unreadCount}
+              lastReadMessageId={lastReadMessageIds[currentKey]}
               onReply={handleReply}
               onOpenThread={handleOpenThread}
               onPin={handlePin}

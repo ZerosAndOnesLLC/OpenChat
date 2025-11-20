@@ -168,7 +168,7 @@ impl DirectMessage {
                         FROM messages m
                         WHERE m.dm_id = dm.id
                         AND m.created_at > COALESCE(
-                            (SELECT read_at FROM read_status WHERE dm_id = dm.id AND user_id = $1),
+                            (SELECT last_read_at FROM dm_read_status WHERE dm_id = dm.id AND user_id = $1),
                             '1970-01-01'::timestamp
                         )
                     ),

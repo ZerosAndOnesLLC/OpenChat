@@ -28,6 +28,7 @@ use handlers::{
     audit_logs as audit_log_handlers,
     bookmarks as bookmark_handlers,
     channels as channel_handlers,
+    device_auth as device_auth_handlers,
     dms as dm_handlers,
     drafts as draft_handlers,
     emoji as emoji_handlers,
@@ -409,6 +410,18 @@ async fn main() -> std::io::Result<()> {
                     .route("/cache", web::get().to(metrics_handlers::get_cache_metrics))
                     .route("/cache/reset", web::post().to(metrics_handlers::reset_cache_metrics))
                     .route("/websocket", web::get().to(metrics_handlers::get_websocket_metrics))
+            )
+            // Device authentication routes
+            .service(
+                web::scope("/api/auth/device")
+                    .wrap(api_rate_limit.clone())
+                    // Generate code requires authentication
+                    .route("/generate-code", web::post().to(device_auth_handlers::generate_code).wrap(openchat_auth.clone()))
+                    // Get and delete sessions require authentication
+                    .route("/sessions", web::get().to(device_auth_handlers::get_sessions).wrap(openchat_auth.clone()))
+                    .route("/sessions/{id}", web::delete().to(device_auth_handlers::revoke_session).wrap(openchat_auth.clone()))
+                    // Verify code is public (no auth required)
+                    .route("/verify-code", web::post().to(device_auth_handlers::verify_code))
             )
             // SSO routes - no auth required (they handle authentication themselves)
             .configure(routes::sso::configure)

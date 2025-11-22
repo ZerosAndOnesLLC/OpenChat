@@ -24,6 +24,7 @@ Open-source team chat application backend - similar to Slack/Mattermost.
 - Custom emojis per organization
 - User presence and typing indicators
 - Horizontally scalable WebSocket support
+- Desktop app quick login with pairing codes
 
 ## Getting Started
 
@@ -103,6 +104,21 @@ src/
 - `POST /api/sso/userinfo` - Get user info from TitaniumVault (proxy endpoint)
 
 **Note**: All API endpoints except SSO routes require authentication with the "openchat" role.
+
+### Device Authentication (Desktop Quick Login)
+- `POST /api/auth/device/generate-code` - Generate a 6-character pairing code (requires auth)
+- `POST /api/auth/device/verify-code` - Verify pairing code and create device session (public)
+- `GET /api/auth/device/sessions` - List active device sessions (requires auth)
+- `DELETE /api/auth/device/sessions/:id` - Revoke a device session (requires auth)
+
+**Purpose**: Enables seamless desktop app login without re-entering credentials. Users generate a code in the web app and enter it in the desktop app.
+
+**Features**:
+- 6-character alphanumeric codes (excludes ambiguous characters)
+- 5-minute expiration for security
+- One-time use codes
+- Device session tracking
+- Secure device management
 
 ### Channels (Phase 5+)
 - `GET /api/channels` - List channels where user is a member

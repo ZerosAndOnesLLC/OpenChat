@@ -4,6 +4,8 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth';
 import { apiClient } from '@/lib/api';
+import DesktopLogin from '@/components/desktop-login';
+import DeviceManagement from '@/components/settings/devices';
 
 export default function SettingsPage() {
   const router = useRouter();
@@ -140,6 +142,17 @@ export default function SettingsPage() {
                 <span className="font-medium">{user.email}</span>
               </div>
             </div>
+          </div>
+
+          {/* Desktop App Section */}
+          <div className="rounded-lg border border-gray-800 bg-gray-900 p-6">
+            <h2 className="mb-6 text-lg font-semibold text-white">Desktop App</h2>
+            <DesktopLogin />
+          </div>
+
+          {/* Device Management Section */}
+          <div className="rounded-lg border border-gray-800 bg-gray-900 p-6">
+            <DeviceManagement />
           </div>
         </div>
       </div>

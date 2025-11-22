@@ -357,3 +357,31 @@ export interface MessageEditWithUser {
   edited_at: string;
   editor_name: string;
 }
+
+// Device Session types
+export interface DeviceSession {
+  id: string;
+  user_id: string;
+  org_id: string;
+  device_type: 'desktop' | 'mobile' | 'web';
+  device_name?: string;
+  device_fingerprint?: string;
+  last_active_at: string;
+  created_at: string;
+}
+
+export interface PairingCodeResponse {
+  code: string;
+  expires_in: number;
+}
+
+export interface VerifyPairingCodeRequest {
+  code: string;
+  device_name?: string;
+}
+
+export interface VerifyPairingCodeResponse {
+  access_token: string;
+  user: User;
+  device_id: string;
+}

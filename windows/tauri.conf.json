@@ -23,7 +23,8 @@
       }
     ],
     "security": {
-      "csp": null
+      "csp": null,
+      "capabilities": ["deep-link"]
     }
   },
   "bundle": {
@@ -35,6 +36,10 @@
       "icons/128x128@2x.png",
       "icons/icon.icns",
       "icons/icon.ico"
-    ]
+    ],
+    "deeplink": {
+      "protocol": "openchat",
+      "schemes": ["openchat"]
+    }
   }
 }

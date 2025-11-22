@@ -44,13 +44,13 @@ Implement a seamless desktop authentication flow that allows users to log into t
 
 ---
 
-## Phase 1: Backend Infrastructure
+## Phase 1: Backend Infrastructure ✅ COMPLETE
 
 ### 1.1 Database Schema
 
-**File:** `api/migrations/XXX_add_device_pairing.sql`
+**File:** `api/migrations/20251122185935_add_device_pairing.sql`
 
-- [ ] Create `device_pairing_codes` table
+- [x] Create `device_pairing_codes` table
   ```sql
   CREATE TABLE device_pairing_codes (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -65,7 +65,7 @@ Implement a seamless desktop authentication flow that allows users to log into t
   CREATE INDEX idx_device_pairing_codes_expires ON device_pairing_codes(expires_at);
   ```
 
-- [ ] Create `device_sessions` table for tracking desktop devices
+- [x] Create `device_sessions` table for tracking desktop devices
   ```sql
   CREATE TABLE device_sessions (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -84,7 +84,7 @@ Implement a seamless desktop authentication flow that allows users to log into t
 
 **File:** `api/src/models/device.rs` (new file)
 
-- [ ] Create `DevicePairingCode` model
+- [x] Create `DevicePairingCode` model
   ```rust
   pub struct DevicePairingCode {
       pub id: Uuid,
@@ -97,7 +97,7 @@ Implement a seamless desktop authentication flow that allows users to log into t
   }
   ```
 
-- [ ] Create `DeviceSession` model
+- [x] Create `DeviceSession` model
   ```rust
   pub struct DeviceSession {
       pub id: Uuid,
@@ -111,19 +111,19 @@ Implement a seamless desktop authentication flow that allows users to log into t
   }
   ```
 
-- [ ] Add module declaration in `api/src/models/mod.rs`
+- [x] Add module declaration in `api/src/models/mod.rs`
 
 ### 1.3 Backend Services
 
 **File:** `api/src/services/device_pairing.rs` (new file)
 
-- [ ] Implement `generate_pairing_code()` function
+- [x] Implement `generate_pairing_code()` function
   - Generate random 6-character alphanumeric code
   - Check uniqueness in database
   - Set expiration (5 minutes)
   - Return code to web app
 
-- [ ] Implement `verify_pairing_code()` function
+- [x] Implement `verify_pairing_code()` function
   - Validate code exists and not expired
   - Check not already used
   - Mark as used
@@ -131,39 +131,39 @@ Implement a seamless desktop authentication flow that allows users to log into t
   - Create device session record
   - Return token + user info
 
-- [ ] Implement `cleanup_expired_codes()` background job
+- [x] Implement `cleanup_expired_codes()` background job
   - Delete codes older than 10 minutes
   - Run every 5 minutes via cron or tokio task
 
 ### 1.4 API Routes
 
-**File:** `api/src/routes/device_auth.rs` (new file)
+**File:** `api/src/handlers/device_auth.rs` (new file)
 
-- [ ] `POST /api/auth/device/generate-code`
+- [x] `POST /api/auth/device/generate-code`
   - **Auth:** Requires valid JWT (from web user)
   - **Request:** `{}`
   - **Response:** `{ code: "ABC123", expires_in: 300 }`
 
-- [ ] `POST /api/auth/device/verify-code`
+- [x] `POST /api/auth/device/verify-code`
   - **Auth:** None (public endpoint)
   - **Request:** `{ code: "ABC123", device_name: "My Windows PC" }`
   - **Response:** `{ access_token: "jwt...", user: {...}, device_id: "uuid" }`
 
-- [ ] `GET /api/auth/device/sessions`
+- [x] `GET /api/auth/device/sessions`
   - **Auth:** Requires valid JWT
   - **Response:** List of active device sessions for user
 
-- [ ] `DELETE /api/auth/device/sessions/:id`
+- [x] `DELETE /api/auth/device/sessions/:id`
   - **Auth:** Requires valid JWT
   - **Purpose:** Revoke device session / logout from device
 
-- [ ] Register routes in `api/src/main.rs`
+- [x] Register routes in `api/src/main.rs`
 
 ### 1.5 Redis Caching (Optional Performance)
 
 **File:** `api/src/services/device_pairing.rs`
 
-- [ ] Cache pairing codes in Redis instead of DB
+- [ ] Cache pairing codes in Redis instead of DB (deferred - using PostgreSQL for Phase 1)
   - Key: `pairing_code:{CODE}`
   - Value: `{ user_id, org_id, expires_at }`
   - TTL: 5 minutes (automatic expiration)

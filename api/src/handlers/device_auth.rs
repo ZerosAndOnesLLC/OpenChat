@@ -1,16 +1,42 @@
 use actix_web::{web, HttpMessage, HttpRequest, HttpResponse};
+use redis::aio::MultiplexedConnection;
 use serde::{Deserialize, Serialize};
 use sqlx::PgPool;
 use uuid::Uuid;
 
 use crate::{
+    cache::rate_limit::{check_rate_limit, check_rate_limit_by_ip, RateLimitType},
+    config::Config,
     errors::{ApiError, ApiResult},
     models::{
         device::{DeviceSession},
         user::User,
     },
-    services::{device_pairing, tv_api::{TokenClaims, TvApiClient}},
+    services::{
+        device_pairing,
+        device_token::generate_device_token,
+        tv_api::{TokenClaims, TvApiClient}
+    },
+    utils::crypto::{derive_key_from_secret, encrypt},
 };
+
+/// Extract IP address from request, checking X-Forwarded-For header first (for ALB)
+fn get_client_ip(req: &HttpRequest) -> String {
+    // Check X-Forwarded-For header first (for ALB)
+    if let Some(forwarded_for) = req.headers().get("x-forwarded-for") {
+        if let Ok(forwarded_str) = forwarded_for.to_str() {
+            // Take the first IP in the chain
+            if let Some(first_ip) = forwarded_str.split(',').next() {
+                return first_ip.trim().to_string();
+            }
+        }
+    }
+
+    // Fallback to peer address
+    req.peer_addr()
+        .map(|addr| addr.ip().to_string())
+        .unwrap_or_else(|| "unknown".to_string())
+}
 
 #[derive(Debug, Serialize)]
 pub struct GenerateCodeResponse {
@@ -50,6 +76,26 @@ pub struct DeviceSessionResponse {
     pub created_at: String,
 }
 
+#[derive(Debug, Serialize, Deserialize)]
+struct DeepLinkPayload {
+    /// JWT token for authentication
+    token: String,
+    /// User ID
+    user_id: Uuid,
+    /// Organization ID
+    org_id: Uuid,
+    /// Timestamp when payload was created
+    created_at: i64,
+}
+
+#[derive(Debug, Serialize)]
+pub struct GenerateDeepLinkResponse {
+    /// Encrypted payload (base64-encoded)
+    pub payload: String,
+    /// Full deep link URL
+    pub deep_link: String,
+}
+
 impl From<DeviceSession> for DeviceSessionResponse {
     fn from(session: DeviceSession) -> Self {
         Self {
@@ -67,6 +113,7 @@ impl From<DeviceSession> for DeviceSessionResponse {
 /// Requires: Valid JWT from web user
 pub async fn generate_code(
     pool: web::Data<PgPool>,
+    redis: web::Data<MultiplexedConnection>,
     req: HttpRequest,
 ) -> ApiResult<HttpResponse> {
     // Get claims from request extensions (set by auth middleware)
@@ -75,6 +122,22 @@ pub async fn generate_code(
         .get::<TokenClaims>()
         .cloned()
         .ok_or_else(|| ApiError::Authentication("Missing authentication".to_string()))?;
+
+    // Check rate limit (3 requests per minute per user)
+    let mut redis_conn = redis.as_ref().clone();
+    let (allowed, remaining, reset_time) = check_rate_limit(
+        &mut redis_conn,
+        claims.user_id,
+        RateLimitType::DevicePairingGenerate,
+    )
+    .await?;
+
+    if !allowed {
+        return Err(ApiError::TooManyRequests(format!(
+            "Rate limit exceeded. Please try again in {} seconds.",
+            reset_time
+        )));
+    }
 
     // Get the user
     let user = User::get_by_tv_user_id(pool.get_ref(), claims.user_id)
@@ -88,7 +151,12 @@ pub async fn generate_code(
     // Calculate seconds until expiration
     let expires_in = (pairing_code.expires_at - chrono::Utc::now()).num_seconds();
 
-    Ok(HttpResponse::Ok().json(GenerateCodeResponse {
+    let mut response = HttpResponse::Ok();
+    response.insert_header(("X-RateLimit-Limit", "3"));
+    response.insert_header(("X-RateLimit-Remaining", remaining.to_string()));
+    response.insert_header(("X-RateLimit-Reset", reset_time.to_string()));
+
+    Ok(response.json(GenerateCodeResponse {
         code: pairing_code.code,
         expires_in,
     }))
@@ -99,9 +167,29 @@ pub async fn generate_code(
 /// Public endpoint (no authentication required)
 pub async fn verify_code(
     pool: web::Data<PgPool>,
+    redis: web::Data<MultiplexedConnection>,
     tv_api_client: web::Data<TvApiClient>,
+    config: web::Data<Config>,
     body: web::Json<VerifyCodeRequest>,
+    req: HttpRequest,
 ) -> ApiResult<HttpResponse> {
+    // Check rate limit by IP address (5 requests per minute per IP)
+    let client_ip = get_client_ip(&req);
+    let mut redis_conn = redis.as_ref().clone();
+    let (allowed, remaining, reset_time) = check_rate_limit_by_ip(
+        &mut redis_conn,
+        &client_ip,
+        RateLimitType::DevicePairingVerify,
+    )
+    .await?;
+
+    if !allowed {
+        return Err(ApiError::TooManyRequests(format!(
+            "Too many verification attempts. Please try again in {} seconds.",
+            reset_time
+        )));
+    }
+
     // Verify the pairing code and create device session
     let (user, device_session) = device_pairing::verify_pairing_code(
         pool.get_ref(),
@@ -112,20 +200,19 @@ pub async fn verify_code(
     )
     .await?;
 
-    // Generate a JWT token for the desktop app
-    // For now, we'll use a simple approach: we need to get the original token
-    // In a production system, you'd want to generate a new token specifically for the device
-    // TODO: Implement proper token generation for device sessions
-    // For now, we'll return a placeholder that the client needs to handle
-
-    // Note: The desktop app will need to implement its own token management
-    // This is a simplified version - in production, you'd want to:
-    // 1. Generate a new JWT token with device-specific claims
-    // 2. Set appropriate expiration (e.g., longer for desktop devices)
-    // 3. Include device_id in the token claims
+    // Generate a JWT token for the device session
+    // This token includes device-specific claims and has a 30-day expiration
+    let access_token = generate_device_token(
+        user.tv_user_id,
+        user.id,
+        user.org_id,
+        device_session.id,
+        device_session.device_type.clone(),
+        &config.jwt_secret,
+    )?;
 
     let response = VerifyCodeResponse {
-        access_token: format!("device_session_{}", device_session.id),
+        access_token,
         user: UserInfo {
             id: user.id,
             org_id: user.org_id,
@@ -136,7 +223,12 @@ pub async fn verify_code(
         device_id: device_session.id,
     };
 
-    Ok(HttpResponse::Ok().json(response))
+    let mut response_builder = HttpResponse::Ok();
+    response_builder.insert_header(("X-RateLimit-Limit", "5"));
+    response_builder.insert_header(("X-RateLimit-Remaining", remaining.to_string()));
+    response_builder.insert_header(("X-RateLimit-Reset", reset_time.to_string()));
+
+    Ok(response_builder.json(response))
 }
 
 /// GET /api/auth/device/sessions
@@ -167,6 +259,60 @@ pub async fn get_sessions(
         .collect();
 
     Ok(HttpResponse::Ok().json(response))
+}
+
+/// POST /api/auth/device/generate-deep-link
+/// Generate an encrypted deep link for desktop app login
+/// Requires: Valid JWT from web user
+pub async fn generate_deep_link(
+    config: web::Data<Config>,
+    req: HttpRequest,
+) -> ApiResult<HttpResponse> {
+    // Get token from Authorization header
+    let auth_header = req
+        .headers()
+        .get("Authorization")
+        .and_then(|h| h.to_str().ok())
+        .ok_or_else(|| ApiError::Authentication("Missing authorization header".to_string()))?;
+
+    let token = auth_header
+        .strip_prefix("Bearer ")
+        .ok_or_else(|| ApiError::Authentication("Invalid authorization format".to_string()))?
+        .to_string();
+
+    // Get claims from request extensions
+    let claims = req
+        .extensions()
+        .get::<TokenClaims>()
+        .cloned()
+        .ok_or_else(|| ApiError::Authentication("Missing authentication".to_string()))?;
+
+    // Create payload
+    let payload = DeepLinkPayload {
+        token,
+        user_id: claims.user_id,
+        org_id: claims.org_id,
+        created_at: chrono::Utc::now().timestamp(),
+    };
+
+    // Serialize payload
+    let payload_json = serde_json::to_string(&payload)
+        .map_err(|e| ApiError::Internal(format!("Failed to serialize payload: {}", e)))?;
+
+    // Encrypt payload
+    let encryption_key = derive_key_from_secret(&config.encryption_secret);
+    let encrypted = encrypt(payload_json.as_bytes(), &encryption_key)?;
+
+    // Encode as base64 URL-safe string
+    let encoded_payload = encrypted.encode()?;
+
+    // Generate deep link URL
+    let deep_link = format!("openchat://login?payload={}", encoded_payload);
+
+    Ok(HttpResponse::Ok().json(GenerateDeepLinkResponse {
+        payload: encoded_payload,
+        deep_link,
+    }))
 }
 
 /// DELETE /api/auth/device/sessions/:id

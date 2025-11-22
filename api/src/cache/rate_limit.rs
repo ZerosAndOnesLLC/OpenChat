@@ -35,6 +35,10 @@ pub enum RateLimitType {
     Message,
     /// WebSocket messages (100/minute)
     WebSocket,
+    /// Device pairing code generation (3/minute)
+    DevicePairingGenerate,
+    /// Device pairing code verification (5/minute per IP)
+    DevicePairingVerify,
 }
 
 impl RateLimitType {
@@ -43,6 +47,8 @@ impl RateLimitType {
             RateLimitType::ApiRequest => RateLimitConfig::new(20, 1),
             RateLimitType::Message => RateLimitConfig::new(5, 1),
             RateLimitType::WebSocket => RateLimitConfig::new(100, 60),
+            RateLimitType::DevicePairingGenerate => RateLimitConfig::new(3, 60),
+            RateLimitType::DevicePairingVerify => RateLimitConfig::new(5, 60),
         }
     }
 
@@ -51,6 +57,8 @@ impl RateLimitType {
             RateLimitType::ApiRequest => "api",
             RateLimitType::Message => "message",
             RateLimitType::WebSocket => "ws",
+            RateLimitType::DevicePairingGenerate => "device_pair_gen",
+            RateLimitType::DevicePairingVerify => "device_pair_verify",
         }
     }
 }
@@ -65,6 +73,16 @@ fn rate_limit_cache_key(user_id: Uuid, limit_type: &RateLimitType) -> String {
     )
 }
 
+/// Build cache key for IP-based rate limit
+fn rate_limit_cache_key_by_ip(ip_addr: &str, limit_type: &RateLimitType) -> String {
+    format!(
+        "{}:{}:ip:{}",
+        RATE_LIMIT_PREFIX,
+        limit_type.key_suffix(),
+        ip_addr
+    )
+}
+
 /// Check if request should be rate limited
 /// Returns (allowed, remaining, reset_time_seconds)
 pub async fn check_rate_limit(
@@ -74,6 +92,45 @@ pub async fn check_rate_limit(
 ) -> ApiResult<(bool, u32, u64)> {
     let config = limit_type.config();
     let key = rate_limit_cache_key(user_id, &limit_type);
+
+    // Get current count
+    let current: Option<u32> = redis.get(&key).await?;
+
+    let (count, ttl) = match current {
+        Some(count) if count >= config.max_requests => {
+            // Rate limit exceeded
+            let ttl: i64 = redis.ttl(&key).await?;
+            return Ok((false, 0, ttl.max(0) as u64));
+        }
+        Some(_count) => {
+            // Increment count
+            let new_count: u32 = redis.incr(&key, 1).await?;
+            let ttl: i64 = redis.ttl(&key).await?;
+            (new_count, ttl.max(0) as u64)
+        }
+        None => {
+            // First request in window, set with expiry
+            let _: () = redis
+                .set_ex(&key, 1u32, config.window_seconds)
+                .await?;
+            (1, config.window_seconds)
+        }
+    };
+
+    let remaining = config.max_requests.saturating_sub(count);
+    Ok((true, remaining, ttl))
+}
+
+/// Check if request should be rate limited by IP address
+/// Returns (allowed, remaining, reset_time_seconds)
+/// Used for public endpoints like device pairing verification
+pub async fn check_rate_limit_by_ip(
+    redis: &mut redis::aio::MultiplexedConnection,
+    ip_addr: &str,
+    limit_type: RateLimitType,
+) -> ApiResult<(bool, u32, u64)> {
+    let config = limit_type.config();
+    let key = rate_limit_cache_key_by_ip(ip_addr, &limit_type);
 
     // Get current count
     let current: Option<u32> = redis.get(&key).await?;

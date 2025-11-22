@@ -20,6 +20,7 @@ mod routes;
 mod services;
 mod storage;
 mod tasks;
+mod utils;
 mod websocket;
 
 use config::Config;
@@ -417,6 +418,8 @@ async fn main() -> std::io::Result<()> {
                     .wrap(api_rate_limit.clone())
                     // Generate code requires authentication
                     .route("/generate-code", web::post().to(device_auth_handlers::generate_code).wrap(openchat_auth.clone()))
+                    // Generate deep link requires authentication
+                    .route("/generate-deep-link", web::post().to(device_auth_handlers::generate_deep_link).wrap(openchat_auth.clone()))
                     // Get and delete sessions require authentication
                     .route("/sessions", web::get().to(device_auth_handlers::get_sessions).wrap(openchat_auth.clone()))
                     .route("/sessions/{id}", web::delete().to(device_auth_handlers::revoke_session).wrap(openchat_auth.clone()))

@@ -13,6 +13,7 @@ pub struct Config {
     pub tls_cert_path: Option<String>,
     pub tls_key_path: Option<String>,
     pub enable_rate_limiting: bool,
+    pub encryption_secret: String,
     pub websocket: WebSocketConfig,
     pub redis: RedisConfig,
 }
@@ -94,6 +95,8 @@ impl Config {
             tls_cert_path,
             tls_key_path,
             enable_rate_limiting,
+            encryption_secret: env::var("ENCRYPTION_SECRET")
+                .unwrap_or_else(|_| env::var("JWT_SECRET").unwrap_or_else(|_| "default-fallback-secret".to_string())),
             websocket,
             redis,
         })

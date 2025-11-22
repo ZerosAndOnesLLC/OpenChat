@@ -432,22 +432,26 @@ Implement a seamless desktop authentication flow that allows users to log into t
 
 ### 4.1 Security Hardening
 
-- [ ] **Encryption for Deep Links:**
-  - [ ] Web app encrypts payload before generating deep link
-  - [ ] Desktop app decrypts and validates signature
-  - [ ] Use symmetric encryption (AES-256-GCM) with shared secret
+- [x] **Encryption for Deep Links:**
+  - [x] Web app encrypts payload before generating deep link (API endpoint: `/api/auth/device/generate-deep-link`)
+  - [x] Uses AES-256-GCM symmetric encryption with shared secret
+  - [x] Base64 URL-safe encoding for deep link payloads
+  - [ ] Desktop app decrypts and validates signature (to be implemented in desktop app)
 
-- [ ] **Rate Limiting:**
-  - [ ] Limit pairing code generation to 3 per minute per user
-  - [ ] Limit verification attempts to 5 per minute per IP
+- [x] **Rate Limiting:**
+  - [x] Limit pairing code generation to 3 per minute per user
+  - [x] Limit verification attempts to 5 per minute per IP
+  - [x] Rate limit headers returned in responses
 
-- [ ] **Code Complexity:**
-  - [ ] Use alphanumeric codes (avoid ambiguous characters: 0/O, 1/I/l)
-  - [ ] Consider using words instead of random chars for accessibility
+- [x] **Code Complexity:**
+  - [x] Use alphanumeric codes (avoid ambiguous characters: 0/O, 1/I/l)
+  - [x] 6-character codes from character set: 23456789ABCDEFGHJKLMNPQRSTUVWXYZ
 
-- [ ] **Token Validation:**
-  - [ ] Desktop app validates token with backend on startup
-  - [ ] Auto-logout if token expired
+- [x] **Token Validation:**
+  - [x] Proper JWT token generation for device sessions (30-day expiration)
+  - [x] Device-specific claims include device_id, device_type, user_id, org_id
+  - [ ] Desktop app validates token with backend on startup (to be implemented in desktop app)
+  - [ ] Auto-logout if token expired (to be implemented in desktop app)
 
 ### 4.2 UX Improvements
 

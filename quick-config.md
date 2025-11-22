@@ -170,13 +170,13 @@ Implement a seamless desktop authentication flow that allows users to log into t
 
 ---
 
-## Phase 2: Web UI Implementation
+## Phase 2: Web UI Implementation ✅ COMPLETE
 
 ### 2.1 API Client Updates
 
 **File:** `ui/lib/api.ts`
 
-- [ ] Add `generatePairingCode()` method
+- [x] Add `generatePairingCode()` method
   ```typescript
   async generatePairingCode(): Promise<{
     code: string;
@@ -184,12 +184,12 @@ Implement a seamless desktop authentication flow that allows users to log into t
   }>
   ```
 
-- [ ] Add `getDeviceSessions()` method
+- [x] Add `getDeviceSessions()` method
   ```typescript
   async getDeviceSessions(): Promise<DeviceSession[]>
   ```
 
-- [ ] Add `revokeDeviceSession()` method
+- [x] Add `revokeDeviceSession()` method
   ```typescript
   async revokeDeviceSession(deviceId: string): Promise<void>
   ```
@@ -198,7 +198,7 @@ Implement a seamless desktop authentication flow that allows users to log into t
 
 **File:** `ui/lib/types.ts`
 
-- [ ] Add `DeviceSession` interface
+- [x] Add `DeviceSession` interface
   ```typescript
   export interface DeviceSession {
     id: string;
@@ -213,54 +213,54 @@ Implement a seamless desktop authentication flow that allows users to log into t
 
 **File:** `ui/components/desktop-login.tsx` (new file)
 
-- [ ] Create component with two tabs: "Deep Link" and "Pairing Code"
+- [x] Create component with two tabs: "Deep Link" and "Pairing Code"
 
-- [ ] **Deep Link Tab:**
-  - [ ] "Open Desktop App" button
-  - [ ] Generates encrypted payload with current token
-  - [ ] Opens `openchat://login?payload=<encrypted>`
-  - [ ] Shows instructions if app not installed
+- [x] **Deep Link Tab:**
+  - [x] "Open Desktop App" button
+  - [x] Generates encrypted payload with current token
+  - [x] Opens `openchat://login?payload=<encrypted>`
+  - [x] Shows instructions if app not installed
 
-- [ ] **Pairing Code Tab:**
-  - [ ] "Generate Code" button
-  - [ ] Displays 6-character code in large font
-  - [ ] Shows countdown timer (5:00 → 0:00)
-  - [ ] QR code display using `qrcode.react`
-  - [ ] Copy to clipboard button
-  - [ ] Auto-refresh on expiration
+- [x] **Pairing Code Tab:**
+  - [x] "Generate Code" button
+  - [x] Displays 6-character code in large font
+  - [x] Shows countdown timer (5:00 → 0:00)
+  - [x] QR code display using `qrcode.react`
+  - [x] Copy to clipboard button
+  - [x] Auto-refresh on expiration
 
-- [ ] Add loading states and error handling
+- [x] Add loading states and error handling
 
 ### 2.4 Device Management UI
 
 **File:** `ui/components/settings/devices.tsx` (new file)
 
-- [ ] Display list of active device sessions
-- [ ] Show device type icon (desktop/mobile/web)
-- [ ] Show last active timestamp
-- [ ] "Revoke Access" button for each device
-- [ ] Confirmation dialog before revocation
+- [x] Display list of active device sessions
+- [x] Show device type icon (desktop/mobile/web)
+- [x] Show last active timestamp
+- [x] "Revoke Access" button for each device
+- [x] Confirmation dialog before revocation
 
 ### 2.5 Integration Points
 
-**File:** `ui/app/settings/page.tsx` or similar
+**File:** `ui/app/settings/page.tsx`
 
-- [ ] Add "Desktop App" section to settings
-- [ ] Embed `<DesktopLogin />` component
-- [ ] Add "Manage Devices" link to device management page
+- [x] Add "Desktop App" section to settings
+- [x] Embed `<DesktopLogin />` component
+- [x] Integrate device management UI
 
-**File:** `ui/app/page.tsx`
+**File:** `ui/components/UserProfile.tsx`
 
-- [ ] Show prominent "Login Desktop App" button if user is authenticated on web
+- [x] Add "Desktop App" menu item in user profile dropdown for easy access
 
 ### 2.6 Dependencies
 
 **File:** `ui/package.json`
 
-- [ ] Add `qrcode.react` for QR code generation
+- [x] Add `qrcode.react` for QR code generation
+- [x] Add `date-fns` for date formatting
   ```bash
-  npm install qrcode.react
-  npm install --save-dev @types/qrcode.react
+  npm install qrcode.react date-fns
   ```
 
 ---
@@ -577,4 +577,4 @@ Implement a seamless desktop authentication flow that allows users to log into t
 
 **Last Updated:** 2025-11-22
 **Author:** Claude Code
-**Status:** Planning Phase
+**Status:** Phase 1 & 2 Complete - Ready for Phase 3 (Desktop App)

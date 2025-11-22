@@ -1,6 +1,6 @@
 mod auth;
 
-use tauri::Manager;
+use tauri::{Emitter, Listener};
 use url::Url;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -31,17 +31,18 @@ pub fn run() {
 
       // Register deep link handler
       let handle = app.handle().clone();
-      tauri_plugin_deep_link::register("openchat", move |request| {
+      app.listen("deep-link://request", move |event| {
+        let payload_str = event.payload().to_string();
         let handle = handle.clone();
         tauri::async_runtime::spawn(async move {
-          if let Ok(url) = Url::parse(&request) {
+          if let Ok(url) = Url::parse(&payload_str) {
             // URL format: openchat://login?payload=... or openchat://pair?code=...
             let host = url.host_str().unwrap_or("");
             match host {
               "login" => {
                 // Handle openchat://login?payload=...
-                if let Some(payload) = url.query_pairs().find(|(key, _)| key == "payload") {
-                  let _ = handle.emit("deep-link-login", payload.1.to_string());
+                if let Some(payload_param) = url.query_pairs().find(|(key, _)| key == "payload") {
+                  let _ = handle.emit("deep-link-login", payload_param.1.to_string());
                 }
               }
               "pair" => {
@@ -54,8 +55,7 @@ pub fn run() {
             }
           }
         });
-      })
-      .map_err(|e| format!("Failed to register deep link handler: {}", e))?;
+      });
 
       Ok(())
     })

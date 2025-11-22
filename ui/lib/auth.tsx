@@ -117,13 +117,13 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
             }
 
             // No valid token found, user needs to show login screen
-            // This will be handled by the desktop app's routing
+            // Don't redirect to OAuth - the desktop login screen will be shown
             console.log('No valid desktop token found, showing login screen');
-            set({ isLoading: false });
+            set({ isLoading: false, isAuthenticated: false });
             return;
           } catch (error) {
             console.error('Desktop auth error:', error);
-            set({ isLoading: false });
+            set({ isLoading: false, isAuthenticated: false });
             return;
           }
         }

@@ -28,6 +28,9 @@ import type {
   LinkPreview,
   ReadReceiptWithUser,
   MessageEditWithUser,
+  DeviceSession,
+  PairingCodeResponse,
+  VerifyPairingCodeRequest,
 } from './types';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080';
@@ -607,6 +610,24 @@ class ApiClient {
   // Message Edit History endpoints
   async getMessageHistory(messageId: string): Promise<MessageEditWithUser[]> {
     return this.request<MessageEditWithUser[]>(`/api/messages/${messageId}/history`);
+  }
+
+  // Device Pairing endpoints
+  async generatePairingCode(): Promise<PairingCodeResponse> {
+    return this.request<PairingCodeResponse>('/api/auth/device/generate-code', {
+      method: 'POST',
+      body: JSON.stringify({}),
+    });
+  }
+
+  async getDeviceSessions(): Promise<DeviceSession[]> {
+    return this.request<DeviceSession[]>('/api/auth/device/sessions');
+  }
+
+  async revokeDeviceSession(deviceId: string): Promise<void> {
+    return this.request<void>(`/api/auth/device/sessions/${deviceId}`, {
+      method: 'DELETE',
+    });
   }
 }
 

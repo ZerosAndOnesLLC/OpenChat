@@ -224,7 +224,8 @@ src/
 - Calculates unread count by comparing last read timestamp with message timestamps
 - Redis caching for unread counts (60-second TTL)
 - Cache invalidation on mark-as-read operations
-- WebSocket support for unread count updates
+- WebSocket support for unread count updates with last_read_message_id synchronization (v0.57.0)
+- Multi-client synchronization ensures unread banner position updates across all connected clients
 
 ### Message Search
 - `GET /api/search/messages?q={query}&scope={channel|dm|all}&channel_id={id}` - Full-text search messages
@@ -870,6 +871,16 @@ Infrastructure is managed via Terraform in `~/dev/terraform/prod/us-east-1/openc
 ```
 
 ## Version History
+
+### v0.57.0 (Unread Banner Synchronization - Multi-Client Fix)
+- Enhanced unread_count_updated WebSocket message to include last_read_message_id field
+- Updated WebSocket handlers to broadcast last_read_message_id when marking messages as read
+- Fixed unread banner position not updating across multiple connected clients
+- Modified mark_channel_as_read and mark_dm_as_read handlers to fetch and broadcast last_read_message_id
+- Updated new message handlers to include last_read_message_id in unread count broadcasts
+- Frontend WebSocket store now properly updates lastReadMessageIds state on unread_count_updated events
+- Ensures unread banner moves to latest read position in real-time across all user devices
+- Cache invalidation properly triggers WebSocket updates for synchronized UI state
 
 ### v0.50.0 (WebSocket Initial State - Sprint 2)
 - Added InitialState WebSocket message type that sends channels and DMs on connection

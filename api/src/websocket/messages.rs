@@ -184,6 +184,7 @@ pub enum ServerMessage {
         channel_id: Option<Uuid>,
         dm_id: Option<Uuid>,
         unread_count: i32,
+        last_read_message_id: Option<Uuid>,
     },
     /// Read receipt recorded for a message
     ReadReceipt {

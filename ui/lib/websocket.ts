@@ -311,6 +311,10 @@ export const useWebSocketStore = create<WebSocketStore>((set, get) => ({
                 ...state.unreadCounts,
                 [key]: message.unread_count,
               },
+              lastReadMessageIds: {
+                ...state.lastReadMessageIds,
+                [key]: message.last_read_message_id,
+              },
             }));
             break;
           }

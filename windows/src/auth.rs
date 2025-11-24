@@ -153,7 +153,7 @@ pub async fn validate_token(token: String) -> Result<bool, String> {
     let client = reqwest::Client::new();
 
     let response = client
-        .get(&format!("{}/api/auth/me", API_BASE_URL))
+        .post(&format!("{}/api/sso/userinfo", API_BASE_URL))
         .header("Authorization", format!("Bearer {}", token))
         .send()
         .await
@@ -195,16 +195,32 @@ pub async fn process_deep_link_payload(
     // Fetch user info
     let client = reqwest::Client::new();
     let response = client
-        .get(&format!("{}/api/auth/me", API_BASE_URL))
+        .post(&format!("{}/api/sso/userinfo", API_BASE_URL))
         .header("Authorization", format!("Bearer {}", payload.token))
         .send()
         .await
         .map_err(|e| format!("Failed to fetch user info: {}", e))?;
 
-    let user: User = response
+    let user_json: serde_json::Value = response
         .json()
         .await
         .map_err(|e| format!("Failed to parse user info: {}", e))?;
+
+    // Extract user info from the response
+    let user = User {
+        id: user_json.get("sub")
+            .and_then(|v| v.as_str())
+            .ok_or("Missing 'sub' in userinfo")?.to_string(),
+        email: user_json.get("email")
+            .and_then(|v| v.as_str())
+            .ok_or("Missing 'email' in userinfo")?.to_string(),
+        name: user_json.get("name")
+            .and_then(|v| v.as_str())
+            .map(|s| s.to_string()),
+        org_id: user_json.get("org_id")
+            .and_then(|v| v.as_str())
+            .ok_or("Missing 'org_id' in userinfo")?.to_string(),
+    };
 
     Ok(AuthResponse {
         access_token: payload.token,

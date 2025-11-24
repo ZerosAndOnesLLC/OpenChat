@@ -450,8 +450,9 @@ pub async fn send_message(
                 continue;
             }
 
-            // Get unread count for this user
+            // Get unread count and last read message ID for this user
             if let Ok(unread_count) = ChannelReadStatus::get_unread_count(pool.get_ref(), member.user_id, channel_id).await {
+                let last_read_message_id = ChannelReadStatus::get_last_read_message_id(pool.get_ref(), member.user_id, channel_id).await.unwrap_or(None);
                 ws_server.do_send(BroadcastToUser {
                     org_id: current_user.org_id,
                     user_id: member.user_id,
@@ -459,6 +460,7 @@ pub async fn send_message(
                         channel_id: Some(channel_id),
                         dm_id: None,
                         unread_count,
+                        last_read_message_id,
                     },
                 });
             }
@@ -475,8 +477,9 @@ pub async fn send_message(
                     continue;
                 }
 
-                // Get unread count for this participant
+                // Get unread count and last read message ID for this participant
                 if let Ok(unread_count) = DmReadStatus::get_unread_count(pool.get_ref(), participant.user_id, dm_id).await {
+                    let last_read_message_id = DmReadStatus::get_last_read_message_id(pool.get_ref(), participant.user_id, dm_id).await.unwrap_or(None);
                     ws_server.do_send(BroadcastToUser {
                         org_id: current_user.org_id,
                         user_id: participant.user_id,
@@ -484,6 +487,7 @@ pub async fn send_message(
                             channel_id: None,
                             dm_id: Some(dm_id),
                             unread_count,
+                            last_read_message_id,
                         },
                     });
                 }

@@ -208,7 +208,7 @@ export type WSServerMessage =
   | { type: 'user_status'; user_id: string; status: 'online' | 'offline' | 'away' }
   | { type: 'reaction_added'; message_id: string; user_id: string; emoji: string }
   | { type: 'reaction_removed'; message_id: string; user_id: string; emoji: string }
-  | { type: 'unread_count_updated'; channel_id?: string; dm_id?: string; unread_count: number }
+  | { type: 'unread_count_updated'; channel_id?: string; dm_id?: string; unread_count: number; last_read_message_id?: string }
   | { type: 'notification_count_updated'; unread_count: number }
   | { type: 'new_notification'; notification_id: string; notification_type: string; message_id?: string; channel_id?: string; dm_id?: string; created_at: string }
   | { type: 'message_pinned'; channel_id: string; message_id: string; pinned_by: string; pinned_by_name: string; pinned_at: string }

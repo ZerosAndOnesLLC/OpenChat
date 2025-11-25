@@ -98,31 +98,15 @@ export default function MessageArea({ channel, dm }: MessageAreaProps) {
     };
   }, [channel, subscribeChannel, unsubscribeChannel]);
 
-  // Set fetched messages to store when they arrive and mark as read
+  // Set fetched messages to store when they arrive
   useEffect(() => {
     console.log('Setting messages to store:', { currentKey, fetchedMessages, isArray: Array.isArray(fetchedMessages) });
     if (currentKey && Array.isArray(fetchedMessages)) {
       // Replace store messages with fetched messages (clears any old WebSocket-only messages)
       setMessages(currentKey, fetchedMessages);
       console.log('Messages set to store for key:', currentKey, 'count:', fetchedMessages.length);
-
-      // Mark as read after a short delay (to give user time to see unread indicator)
-      const timer = setTimeout(async () => {
-        try {
-          const lastMessage = fetchedMessages[fetchedMessages.length - 1];
-          if (channel && lastMessage) {
-            await apiClient.markChannelAsRead(channel.id, lastMessage.id);
-          } else if (dm && lastMessage) {
-            await apiClient.markDmAsRead(dm.id, lastMessage.id);
-          }
-        } catch (error) {
-          console.error('Failed to mark as read:', error);
-        }
-      }, 2000); // Wait 2 seconds before marking as read
-
-      return () => clearTimeout(timer);
     }
-  }, [currentKey, fetchedMessages, setMessages, channel, dm]);
+  }, [currentKey, fetchedMessages, setMessages]);
 
   // Get messages from store (includes both fetched and new WebSocket messages)
   const localMessages = useMemo(() => {
@@ -146,6 +130,27 @@ export default function MessageArea({ channel, dm }: MessageAreaProps) {
     console.log('Computed localMessages count:', sorted.length);
     return sorted;
   }, [currentKey, messages]);
+
+  // Auto-mark messages as read when viewing the channel
+  useEffect(() => {
+    if (!currentKey || localMessages.length === 0) return;
+
+    // Mark as read after a short delay when messages change
+    const timer = setTimeout(async () => {
+      try {
+        const lastMessage = localMessages[localMessages.length - 1];
+        if (channel && lastMessage) {
+          await apiClient.markChannelAsRead(channel.id, lastMessage.id);
+        } else if (dm && lastMessage) {
+          await apiClient.markDmAsRead(dm.id, lastMessage.id);
+        }
+      } catch (error) {
+        console.error('Failed to mark as read:', error);
+      }
+    }, 1000); // Wait 1 second before marking as read
+
+    return () => clearTimeout(timer);
+  }, [currentKey, localMessages, channel, dm]);
 
   // Get typing indicators for current channel/dm
   const currentTyping = typing.filter(

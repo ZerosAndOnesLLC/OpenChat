@@ -217,7 +217,7 @@ pub async fn handle_ws_session(
 
         // Check heartbeat timeout
         if Instant::now().duration_since(last_heartbeat) > Duration::from_secs(60) {
-            println!("WebSocket heartbeat timeout, disconnecting session {}", session_id);
+            println!("WebSocket heartbeat timeout, disconnecting session");
             break;
         }
     }

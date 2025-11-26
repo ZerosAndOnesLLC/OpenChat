@@ -1,0 +1,65 @@
+name: Question
+description: Ask a question about OpenChat
+title: "[Question]: "
+labels: ["question"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Have a question about OpenChat? We're here to help!
+
+        Before asking, please check:
+        - [README.md](https://github.com/ZerosAndOnesLLC/OpenChat/blob/main/README.md)
+        - [CONTRIBUTING.md](https://github.com/ZerosAndOnesLLC/OpenChat/blob/main/CONTRIBUTING.md)
+        - [Existing issues and discussions](https://github.com/ZerosAndOnesLLC/OpenChat/issues)
+
+  - type: textarea
+    id: question
+    attributes:
+      label: Your Question
+      description: What would you like to know?
+      placeholder: Ask your question here...
+    validations:
+      required: true
+
+  - type: dropdown
+    id: category
+    attributes:
+      label: Category
+      description: What category does your question fall under?
+      options:
+        - Installation / Setup
+        - Configuration
+        - Usage / How-to
+        - Self-hosting / Deployment
+        - Development / Contributing
+        - Integration / API
+        - Other
+    validations:
+      required: true
+
+  - type: textarea
+    id: context
+    attributes:
+      label: Context
+      description: Provide any relevant context that might help us answer your question.
+      placeholder: "I'm trying to..."
+    validations:
+      required: false
+
+  - type: textarea
+    id: tried
+    attributes:
+      label: What I've Tried
+      description: What have you already tried or researched?
+      placeholder: "I've tried..."
+    validations:
+      required: false
+
+  - type: checkboxes
+    id: checklist
+    attributes:
+      label: Checklist
+      options:
+        - label: I have searched existing issues and documentation for an answer
+          required: true

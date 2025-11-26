@@ -163,8 +163,11 @@ async fn main() -> std::io::Result<()> {
         }
     }
 
-    // Create TV API client
-    let tv_api_client = Arc::new(TvApiClient::new(config.tv_api_url.clone()));
+    // Create TV API client (wrap in web::Data for actix sharing)
+    let tv_api_client = web::Data::new(TvApiClient::new(config.tv_api_url.clone()));
+
+    // Wrap config in web::Data for sharing
+    let config_data = web::Data::new(config.clone());
 
     // Create storage factory
     let local_storage_path = std::env::var("LOCAL_STORAGE_PATH")
@@ -202,7 +205,8 @@ async fn main() -> std::io::Result<()> {
             .app_data(web::Data::new(db_pool.clone()))
             .app_data(web::Data::new(redis_conn.clone()))
             .app_data(web::Data::new(ws_server.clone()))
-            .app_data(web::Data::new(tv_api_client.clone()))
+            .app_data(tv_api_client.clone())
+            .app_data(config_data.clone())
             .app_data(web::Data::new(storage_factory.clone()))
             .route("/health", web::get().to(health_check))
             .route("/api/ws", web::get().to(websocket::ws_route))

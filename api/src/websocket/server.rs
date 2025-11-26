@@ -600,8 +600,7 @@ impl Handler<UnsubscribeChannel> for WsServer {
 
     fn handle(&mut self, msg: UnsubscribeChannel, _: &mut Context<Self>) {
         println!(
-            "WebSocket: Session {} unsubscribed from channel {}",
-            msg.session_id, msg.channel_id
+            "WebSocket: A session unsubscribed from a channel"
         );
 
         if let Some(subscribers) = self.channel_subscriptions.get_mut(&msg.channel_id) {

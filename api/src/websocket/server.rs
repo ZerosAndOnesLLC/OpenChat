@@ -1,16 +1,68 @@
 use actix::{Actor, ActorFutureExt, Addr, AsyncContext, Context, Handler, Message as ActixMessage, WrapFuture};
 use sqlx::PgPool;
-use std::collections::{HashMap, HashSet};
+use std::collections::{HashMap, HashSet, VecDeque};
+use std::sync::Arc;
+use std::time::{Duration, Instant};
 use uuid::Uuid;
 
 use super::messages::ServerMessage;
 use super::session::{WsSessionHandle, WsSessionMessage};
+use crate::config::WebSocketConfig;
 use crate::models::message::Message as DbMessage;
+
+/// Connection statistics
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct ConnectionStats {
+    pub total_connections: usize,
+    pub total_sessions: usize,
+    pub unique_users: usize,
+    pub unique_orgs: usize,
+    pub channel_subscriptions: usize,
+}
+
+/// Message batch for efficient delivery
+#[derive(Clone)]
+struct MessageBatch {
+    messages: VecDeque<ServerMessage>,
+    created_at: Instant,
+}
+
+impl MessageBatch {
+    fn new() -> Self {
+        Self {
+            messages: VecDeque::new(),
+            created_at: Instant::now(),
+        }
+    }
+
+    fn add(&mut self, message: ServerMessage) {
+        self.messages.push_back(message);
+    }
+
+    fn should_flush(&self, config: &WebSocketConfig) -> bool {
+        self.messages.len() >= config.batch_size
+            || self.created_at.elapsed() > Duration::from_millis(config.batch_timeout_ms)
+    }
+
+    fn is_empty(&self) -> bool {
+        self.messages.is_empty()
+    }
+
+    fn flush(&mut self) -> Vec<ServerMessage> {
+        let messages: Vec<_> = self.messages.drain(..).collect();
+        self.created_at = Instant::now();
+        messages
+    }
+}
 
 /// WebSocket server that manages all connections
 pub struct WsServer {
     /// Database pool for persisting messages
     db_pool: PgPool,
+    /// Redis client for caching
+    redis_client: redis::Client,
+    /// WebSocket configuration
+    config: Arc<WebSocketConfig>,
     /// Map of session_id -> session address
     sessions: HashMap<Uuid, Addr<WsSessionHandle>>,
     /// Map of user_id -> set of session_ids (for multi-device support)
@@ -19,54 +71,118 @@ pub struct WsServer {
     org_sessions: HashMap<Uuid, HashSet<Uuid>>,
     /// Map of channel_id -> set of session_ids (subscriptions)
     channel_subscriptions: HashMap<Uuid, HashSet<Uuid>>,
+    /// Message batches per session (for batching optimization)
+    message_batches: HashMap<Uuid, MessageBatch>,
+    /// Total connection count
+    total_connections: usize,
 }
 
 impl WsServer {
-    pub fn new(db_pool: PgPool) -> Self {
+    pub fn new(db_pool: PgPool, redis_client: redis::Client, config: Arc<WebSocketConfig>) -> Self {
         Self {
             db_pool,
+            redis_client,
+            config,
             sessions: HashMap::new(),
             user_sessions: HashMap::new(),
             org_sessions: HashMap::new(),
             channel_subscriptions: HashMap::new(),
+            message_batches: HashMap::new(),
+            total_connections: 0,
         }
     }
 
-    /// Send message to a specific session
-    fn send_message(&self, session_id: &Uuid, message: ServerMessage) {
-        if let Some(addr) = self.sessions.get(session_id) {
-            addr.do_send(WsSessionMessage(message));
+    /// Get current connection statistics
+    pub fn connection_stats(&self) -> ConnectionStats {
+        ConnectionStats {
+            total_connections: self.total_connections,
+            total_sessions: self.sessions.len(),
+            unique_users: self.user_sessions.len(),
+            unique_orgs: self.org_sessions.len(),
+            channel_subscriptions: self.channel_subscriptions.len(),
+        }
+    }
+
+    /// Send message to a specific session (with batching support)
+    fn send_message(&mut self, session_id: &Uuid, message: ServerMessage) {
+        if self.config.enable_batching {
+            // Add to batch
+            let batch = self.message_batches
+                .entry(*session_id)
+                .or_insert_with(MessageBatch::new);
+
+            batch.add(message);
+
+            // Check if we should flush
+            if batch.should_flush(&self.config) {
+                self.flush_batch(session_id);
+            }
+        } else {
+            // Send immediately
+            if let Some(addr) = self.sessions.get(session_id) {
+                addr.do_send(WsSessionMessage(message));
+            }
+        }
+    }
+
+    /// Flush a message batch to a session
+    fn flush_batch(&mut self, session_id: &Uuid) {
+        if let Some(batch) = self.message_batches.get_mut(session_id) {
+            if !batch.is_empty() {
+                let messages = batch.flush();
+                if let Some(addr) = self.sessions.get(session_id) {
+                    // Send all messages in batch
+                    for message in messages {
+                        addr.do_send(WsSessionMessage(message));
+                    }
+                }
+            }
+        }
+    }
+
+    /// Flush all pending batches (called periodically)
+    fn flush_all_batches(&mut self) {
+        let session_ids: Vec<Uuid> = self.message_batches.keys().copied().collect();
+        for session_id in session_ids {
+            if let Some(batch) = self.message_batches.get(&session_id) {
+                if batch.should_flush(&self.config) {
+                    self.flush_batch(&session_id);
+                }
+            }
         }
     }
 
     /// Send message to all users in an organization (except excluded sessions)
-    fn send_to_org(&self, org_id: &Uuid, message: ServerMessage, exclude: Option<Uuid>) {
+    fn send_to_org(&mut self, org_id: &Uuid, message: ServerMessage, exclude: Option<Uuid>) {
         if let Some(session_ids) = self.org_sessions.get(org_id) {
+            let session_ids: Vec<Uuid> = session_ids.iter().copied().collect();
             for session_id in session_ids {
                 if let Some(exclude_id) = exclude {
-                    if session_id == &exclude_id {
+                    if session_id == exclude_id {
                         continue;
                     }
                 }
-                self.send_message(session_id, message.clone());
+                self.send_message(&session_id, message.clone());
             }
         }
     }
 
     /// Send message to all subscribers of a channel
-    fn send_to_channel(&self, channel_id: &Uuid, message: ServerMessage) {
+    fn send_to_channel(&mut self, channel_id: &Uuid, message: ServerMessage) {
         if let Some(session_ids) = self.channel_subscriptions.get(channel_id) {
+            let session_ids: Vec<Uuid> = session_ids.iter().copied().collect();
             for session_id in session_ids {
-                self.send_message(session_id, message.clone());
+                self.send_message(&session_id, message.clone());
             }
         }
     }
 
     /// Send message to all sessions of a specific user
-    fn send_to_user(&self, user_id: &Uuid, message: ServerMessage) {
+    fn send_to_user(&mut self, user_id: &Uuid, message: ServerMessage) {
         if let Some(session_ids) = self.user_sessions.get(user_id) {
+            let session_ids: Vec<Uuid> = session_ids.iter().copied().collect();
             for session_id in session_ids {
-                self.send_message(session_id, message.clone());
+                self.send_message(&session_id, message.clone());
             }
         }
     }
@@ -90,13 +206,52 @@ impl Handler<Connect> for WsServer {
     type Result = ();
 
     fn handle(&mut self, msg: Connect, _: &mut Context<Self>) {
-        println!(
-            "WebSocket: User {} connected (session: {})",
-            msg.user_id, msg.session_id
+        // Check global connection limit
+        if self.total_connections >= self.config.max_connections {
+            tracing::warn!(
+                "WebSocket: Connection limit reached ({}/{}), rejecting user {}",
+                self.total_connections,
+                self.config.max_connections,
+                msg.user_id
+            );
+            // Send error and don't connect
+            msg.addr.do_send(WsSessionMessage(ServerMessage::Error {
+                message: "Server connection limit reached. Please try again later.".to_string(),
+            }));
+            return;
+        }
+
+        // Check per-user connection limit
+        if let Some(user_sessions) = self.user_sessions.get(&msg.user_id) {
+            if user_sessions.len() >= self.config.max_connections_per_user {
+                tracing::warn!(
+                    "WebSocket: User {} has reached max connections per user ({}/{})",
+                    msg.user_id,
+                    user_sessions.len(),
+                    self.config.max_connections_per_user
+                );
+                // Optionally disconnect oldest session or reject new connection
+                // For now, we'll reject the new connection
+                msg.addr.do_send(WsSessionMessage(ServerMessage::Error {
+                    message: format!(
+                        "Maximum connections per user reached ({}). Please disconnect another device.",
+                        self.config.max_connections_per_user
+                    ),
+                }));
+                return;
+            }
+        }
+
+        tracing::info!(
+            "WebSocket: User {} connected (session: {}), total connections: {}",
+            msg.user_id,
+            msg.session_id,
+            self.total_connections + 1
         );
 
         // Store session
         self.sessions.insert(msg.session_id, msg.addr);
+        self.total_connections += 1;
 
         // Add to user sessions
         self.user_sessions
@@ -132,13 +287,22 @@ impl Handler<Disconnect> for WsServer {
     type Result = ();
 
     fn handle(&mut self, msg: Disconnect, _: &mut Context<Self>) {
-        println!(
-            "WebSocket: User {} disconnected (session: {})",
-            msg.user_id, msg.session_id
+        tracing::info!(
+            "WebSocket: User {} disconnected (session: {}), total connections: {}",
+            msg.user_id,
+            msg.session_id,
+            self.total_connections.saturating_sub(1)
         );
+
+        // Flush any pending messages for this session before disconnecting
+        self.flush_batch(&msg.session_id);
 
         // Remove session
         self.sessions.remove(&msg.session_id);
+        self.total_connections = self.total_connections.saturating_sub(1);
+
+        // Remove message batch for this session
+        self.message_batches.remove(&msg.session_id);
 
         // Remove from user sessions
         if let Some(sessions) = self.user_sessions.get_mut(&msg.user_id) {
@@ -274,11 +438,15 @@ impl Handler<TypingIndicator> for WsServer {
 
         if let Some(channel_id) = msg.channel_id {
             // Send to channel subscribers (except sender)
+            // Collect session IDs first to avoid borrow checker issues
             if let Some(session_ids) = self.channel_subscriptions.get(&channel_id) {
+                let session_ids: Vec<Uuid> = session_ids.iter()
+                    .filter(|&id| id != &msg.exclude_session)
+                    .copied()
+                    .collect();
+
                 for session_id in session_ids {
-                    if session_id != &msg.exclude_session {
-                        self.send_message(session_id, typing_msg.clone());
-                    }
+                    self.send_message(&session_id, typing_msg.clone());
                 }
             }
         } else {
@@ -293,22 +461,129 @@ impl Handler<TypingIndicator> for WsServer {
 #[rtype(result = "()")]
 pub struct SubscribeChannel {
     pub session_id: Uuid,
+    pub user_id: Uuid,
     pub channel_id: Uuid,
 }
 
 impl Handler<SubscribeChannel> for WsServer {
     type Result = ();
 
-    fn handle(&mut self, msg: SubscribeChannel, _: &mut Context<Self>) {
-        println!(
+    fn handle(&mut self, msg: SubscribeChannel, ctx: &mut Context<Self>) {
+        tracing::debug!(
             "WebSocket: Session {} subscribed to channel {}",
             msg.session_id, msg.channel_id
         );
 
+        // Register subscription
         self.channel_subscriptions
             .entry(msg.channel_id)
             .or_insert_with(HashSet::new)
             .insert(msg.session_id);
+
+        // Fetch and send channel data
+        let pool = self.db_pool.clone();
+        let redis_client = self.redis_client.clone();
+        let session = self.sessions.get(&msg.session_id).cloned();
+        let channel_id = msg.channel_id;
+        let user_id = msg.user_id;
+
+        let fut = async move {
+            // Get Redis connection
+            let mut redis_conn = match redis_client.get_multiplexed_async_connection().await {
+                Ok(conn) => conn,
+                Err(e) => {
+                    tracing::error!("Failed to get Redis connection: {}", e);
+                    return Some(ServerMessage::Error {
+                        message: "Failed to connect to cache".to_string(),
+                    });
+                }
+            };
+
+            // Try to get pins from cache first
+            let pins = match crate::cache::pins::get_pins_from_cache(&mut redis_conn, channel_id).await {
+                Ok(Some(cached_pins)) => {
+                    tracing::debug!("Cache hit: pins for channel {}", channel_id);
+                    Ok(cached_pins)
+                }
+                Ok(None) => {
+                    tracing::debug!("Cache miss: pins for channel {}, fetching from DB", channel_id);
+                    // Fetch from DB
+                    match crate::models::pin::PinnedMessage::get_pins_for_channel(&pool, channel_id).await {
+                        Ok(db_pins) => {
+                            // Cache for next time
+                            if let Err(e) = crate::cache::pins::set_pins_in_cache(&mut redis_conn, channel_id, &db_pins).await {
+                                tracing::warn!("Failed to cache pins for channel {}: {}", channel_id, e);
+                            }
+                            Ok(db_pins)
+                        }
+                        Err(e) => Err(e)
+                    }
+                }
+                Err(e) => {
+                    tracing::warn!("Failed to read pins from cache: {}, falling back to DB", e);
+                    crate::models::pin::PinnedMessage::get_pins_for_channel(&pool, channel_id).await
+                }
+            };
+
+            // Try to get channel members from cache
+            let members = match crate::cache::channels::get_channel_members_from_cache(&mut redis_conn, channel_id).await {
+                Ok(Some(_cached_members)) => {
+                    tracing::debug!("Cache hit: members for channel {}", channel_id);
+                    // For now, still fetch from DB to get full member info with names
+                    // TODO: Cache full ChannelMemberInfo objects instead
+                    crate::models::channel::ChannelMember::get_members_for_channel(&pool, channel_id).await
+                }
+                Ok(None) | Err(_) => {
+                    tracing::debug!("Cache miss: members for channel {}", channel_id);
+                    crate::models::channel::ChannelMember::get_members_for_channel(&pool, channel_id).await
+                }
+            };
+
+            // Fetch messages and unread info (not cached yet as they change frequently)
+            let messages_fut = crate::models::message::Message::get_messages_with_details_for_channel(&pool, channel_id, 50);
+            let unread_fut = crate::models::read_status::ChannelReadStatus::get_unread_info(&pool, user_id, channel_id);
+
+            let (messages, unread_info) = tokio::join!(
+                messages_fut,
+                unread_fut
+            );
+
+            match (messages, pins, members, unread_info) {
+                (Ok(messages), Ok(pins), Ok(members), Ok(unread_info)) => {
+                    tracing::debug!(
+                        "Loaded channel data for channel {}: {} messages, {} pins, {} members",
+                        channel_id,
+                        messages.len(),
+                        pins.len(),
+                        members.len()
+                    );
+
+                    Some(ServerMessage::ChannelData {
+                        channel_id,
+                        messages,
+                        pins,
+                        members,
+                        unread_info,
+                    })
+                }
+                (Err(e), _, _, _) | (_, Err(e), _, _) | (_, _, Err(e), _) | (_, _, _, Err(e)) => {
+                    tracing::error!("Failed to load channel data for channel {}: {}", channel_id, e);
+                    Some(ServerMessage::Error {
+                        message: format!("Failed to load channel data: {}", e),
+                    })
+                }
+            }
+        }
+        .into_actor(self)
+        .map(move |result, _actor, _ctx| {
+            if let Some(message) = result {
+                if let Some(session) = session {
+                    session.do_send(WsSessionMessage(message));
+                }
+            }
+        });
+
+        ctx.spawn(fut);
     }
 }
 
@@ -432,5 +707,31 @@ impl Handler<BroadcastToUser> for WsServer {
 
     fn handle(&mut self, msg: BroadcastToUser, _: &mut Context<Self>) {
         self.send_to_user(&msg.user_id, msg.message);
+    }
+}
+
+/// Message: Get connection statistics
+#[derive(ActixMessage)]
+#[rtype(result = "ConnectionStats")]
+pub struct GetConnectionStats;
+
+impl Handler<GetConnectionStats> for WsServer {
+    type Result = actix::prelude::MessageResult<GetConnectionStats>;
+
+    fn handle(&mut self, _msg: GetConnectionStats, _: &mut Context<Self>) -> Self::Result {
+        actix::prelude::MessageResult(self.connection_stats())
+    }
+}
+
+/// Message: Flush all pending message batches
+#[derive(ActixMessage)]
+#[rtype(result = "()")]
+pub struct FlushBatches;
+
+impl Handler<FlushBatches> for WsServer {
+    type Result = ();
+
+    fn handle(&mut self, _msg: FlushBatches, _: &mut Context<Self>) {
+        self.flush_all_batches();
     }
 }

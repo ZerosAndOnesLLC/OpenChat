@@ -42,6 +42,7 @@ impl From<PinnedMessage> for PinResponse {
 /// POST /api/messages/{id}/pin - Pin a message
 pub async fn pin_message(
     pool: web::Data<PgPool>,
+    redis: web::Data<redis::Client>,
     message_id: web::Path<Uuid>,
     req: HttpRequest,
     ws_server: web::Data<actix::Addr<WsServer>>,
@@ -82,6 +83,12 @@ pub async fn pin_message(
     // Pin the message
     let pin = PinnedMessage::pin(pool.get_ref(), channel_id, *message_id, current_user.id).await?;
 
+    // Invalidate pins cache
+    let mut redis_conn = redis.get_multiplexed_async_connection().await?;
+    if let Err(e) = crate::cache::pins::invalidate_pins_cache(&mut redis_conn, channel_id).await {
+        tracing::warn!("Failed to invalidate pins cache for channel {}: {}", channel_id, e);
+    }
+
     // Get the channel for org_id
     let channel = Channel::get_by_id(pool.get_ref(), channel_id)
         .await?
@@ -91,10 +98,12 @@ pub async fn pin_message(
     ws_server.do_send(BroadcastMessage {
         org_id: channel.org_id,
         channel_id: Some(channel_id),
-        message: ServerMessage::MessageEdited {
+        message: ServerMessage::MessagePinned {
+            channel_id,
             message_id: *message_id,
-            content: format!("Message pinned by {}", current_user.display_name),
-            edited_at: chrono::Utc::now().to_rfc3339(),
+            pinned_by: current_user.id,
+            pinned_by_name: current_user.display_name.clone(),
+            pinned_at: pin.pinned_at.to_rfc3339(),
         },
     });
 
@@ -104,6 +113,7 @@ pub async fn pin_message(
 /// DELETE /api/messages/{id}/pin - Unpin a message
 pub async fn unpin_message(
     pool: web::Data<PgPool>,
+    redis: web::Data<redis::Client>,
     message_id: web::Path<Uuid>,
     req: HttpRequest,
     ws_server: web::Data<actix::Addr<WsServer>>,
@@ -144,6 +154,12 @@ pub async fn unpin_message(
     // Unpin the message
     PinnedMessage::unpin(pool.get_ref(), channel_id, *message_id).await?;
 
+    // Invalidate pins cache
+    let mut redis_conn = redis.get_multiplexed_async_connection().await?;
+    if let Err(e) = crate::cache::pins::invalidate_pins_cache(&mut redis_conn, channel_id).await {
+        tracing::warn!("Failed to invalidate pins cache for channel {}: {}", channel_id, e);
+    }
+
     // Get the channel for org_id
     let channel = Channel::get_by_id(pool.get_ref(), channel_id)
         .await?
@@ -153,10 +169,11 @@ pub async fn unpin_message(
     ws_server.do_send(BroadcastMessage {
         org_id: channel.org_id,
         channel_id: Some(channel_id),
-        message: ServerMessage::MessageEdited {
+        message: ServerMessage::MessageUnpinned {
+            channel_id,
             message_id: *message_id,
-            content: format!("Message unpinned by {}", current_user.display_name),
-            edited_at: chrono::Utc::now().to_rfc3339(),
+            unpinned_by: current_user.id,
+            unpinned_by_name: current_user.display_name.clone(),
         },
     });
 

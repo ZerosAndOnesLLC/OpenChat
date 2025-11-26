@@ -2,6 +2,7 @@ pub mod attachment;
 pub mod audit_log;
 pub mod bookmark;
 pub mod channel;
+pub mod device;
 pub mod direct_message;
 pub mod emoji;
 pub mod mention;

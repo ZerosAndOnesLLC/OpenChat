@@ -66,8 +66,9 @@ pub async fn mark_channel_as_read(
     let mut redis_conn = redis.get_ref().clone();
     invalidate_channel_unread_cache(&mut redis_conn, user.id, *channel_id).await?;
 
-    // Get the new unread count and broadcast via WebSocket
+    // Get the new unread count and last read message ID, then broadcast via WebSocket
     let unread_count = ChannelReadStatus::get_unread_count(pool.get_ref(), user.id, *channel_id).await?;
+    let last_read_message_id = ChannelReadStatus::get_last_read_message_id(pool.get_ref(), user.id, *channel_id).await?;
     ws_server.do_send(crate::websocket::server::BroadcastToUser {
         org_id: user.org_id,
         user_id: user.id,
@@ -75,6 +76,7 @@ pub async fn mark_channel_as_read(
             channel_id: Some(*channel_id),
             dm_id: None,
             unread_count,
+            last_read_message_id,
         },
     });
 
@@ -159,8 +161,9 @@ pub async fn mark_dm_as_read(
     let mut redis_conn = redis.get_ref().clone();
     invalidate_dm_unread_cache(&mut redis_conn, user.id, *dm_id).await?;
 
-    // Get the new unread count and broadcast via WebSocket
+    // Get the new unread count and last read message ID, then broadcast via WebSocket
     let unread_count = DmReadStatus::get_unread_count(pool.get_ref(), user.id, *dm_id).await?;
+    let last_read_message_id = DmReadStatus::get_last_read_message_id(pool.get_ref(), user.id, *dm_id).await?;
     ws_server.do_send(crate::websocket::server::BroadcastToUser {
         org_id: user.org_id,
         user_id: user.id,
@@ -168,6 +171,7 @@ pub async fn mark_dm_as_read(
             channel_id: None,
             dm_id: Some(*dm_id),
             unread_count,
+            last_read_message_id,
         },
     });
 

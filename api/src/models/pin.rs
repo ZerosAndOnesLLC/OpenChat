@@ -105,4 +105,31 @@ impl PinnedMessage {
 
         Ok(pin)
     }
+
+    /// Get pins with info for channel subscription
+    pub async fn get_pins_for_channel(
+        pool: &PgPool,
+        channel_id: Uuid,
+    ) -> ApiResult<Vec<crate::websocket::messages::PinnedMessageInfo>> {
+        let pins = sqlx::query_as::<_, PinnedMessage>(
+            r#"
+            SELECT * FROM pinned_messages
+            WHERE channel_id = $1
+            ORDER BY pinned_at DESC
+            "#,
+        )
+        .bind(channel_id)
+        .fetch_all(pool)
+        .await?;
+
+        Ok(pins
+            .into_iter()
+            .map(|pin| crate::websocket::messages::PinnedMessageInfo {
+                id: pin.id,
+                message_id: pin.message_id,
+                pinned_by: pin.pinned_by,
+                pinned_at: pin.pinned_at,
+            })
+            .collect())
+    }
 }

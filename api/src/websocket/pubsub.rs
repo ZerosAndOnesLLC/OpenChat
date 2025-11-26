@@ -71,6 +71,7 @@ pub enum PubSubEvent {
         dm_id: Option<Uuid>,
         org_id: Uuid,
         unread_count: i32,
+        last_read_message_id: Option<Uuid>,
     },
     /// New notification created
     NewNotification {
@@ -281,6 +282,7 @@ impl RedisPubSub {
                 dm_id,
                 org_id,
                 unread_count,
+                last_read_message_id,
             } => {
                 ws_server.do_send(super::server::BroadcastMessage {
                     org_id,
@@ -289,6 +291,7 @@ impl RedisPubSub {
                         channel_id,
                         dm_id,
                         unread_count,
+                        last_read_message_id,
                     },
                 });
             }

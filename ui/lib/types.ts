@@ -135,6 +135,61 @@ export interface DmParticipant {
   joined_at: string;
 }
 
+// WebSocket Initial State types
+export interface ChannelMetadata {
+  id: string;
+  name: string;
+  description?: string;
+  channel_type: 'public' | 'private';
+  unread_count: number;
+  last_message_preview?: string;
+  last_message_at?: string;
+}
+
+export interface DmMetadata {
+  id: string;
+  other_user_id: string;
+  other_user_name: string;
+  unread_count: number;
+  last_message_preview?: string;
+  last_message_at?: string;
+}
+
+// Channel data types for WebSocket subscription
+export interface MessageWithDetails {
+  id: string;
+  channel_id?: string;
+  dm_id?: string;
+  user_id: string;
+  user_name: string;
+  content: string;
+  parent_message_id?: string;
+  created_at: string;
+  edited_at?: string;
+  reply_count: number;
+}
+
+export interface PinnedMessageInfo {
+  id: string;
+  message_id: string;
+  pinned_by: string;
+  pinned_at: string;
+}
+
+export interface ChannelMemberInfo {
+  id: string;
+  user_id: string;
+  user_name: string;
+  role: string;
+  joined_at: string;
+}
+
+export interface UnreadInfo {
+  count: number;
+  last_read_message_id?: string;
+  mentions: number;
+}
+
 // WebSocket message types
 export type WSClientMessage =
   | { type: 'send_message'; channel_id?: string; dm_id?: string; content: string; parent_message_id?: string }
@@ -144,6 +199,8 @@ export type WSClientMessage =
   | { type: 'update_status'; status: 'online' | 'offline' | 'away' };
 
 export type WSServerMessage =
+  | { type: 'initial_state'; user_id: string; channels: ChannelMetadata[]; dms: DmMetadata[] }
+  | { type: 'channel_data'; channel_id: string; messages: MessageWithDetails[]; pins: PinnedMessageInfo[]; members: ChannelMemberInfo[]; unread_info: UnreadInfo }
   | { type: 'new_message'; id: string; channel_id?: string; dm_id?: string; user_id: string; user_name: string; content: string; parent_message_id?: string; created_at: string }
   | { type: 'message_edited'; message_id: string; content: string; edited_at: string }
   | { type: 'message_deleted'; message_id: string }
@@ -151,9 +208,16 @@ export type WSServerMessage =
   | { type: 'user_status'; user_id: string; status: 'online' | 'offline' | 'away' }
   | { type: 'reaction_added'; message_id: string; user_id: string; emoji: string }
   | { type: 'reaction_removed'; message_id: string; user_id: string; emoji: string }
-  | { type: 'unread_count_updated'; channel_id?: string; dm_id?: string; unread_count: number }
+  | { type: 'unread_count_updated'; channel_id?: string; dm_id?: string; unread_count: number; last_read_message_id?: string }
   | { type: 'notification_count_updated'; unread_count: number }
   | { type: 'new_notification'; notification_id: string; notification_type: string; message_id?: string; channel_id?: string; dm_id?: string; created_at: string }
+  | { type: 'message_pinned'; channel_id: string; message_id: string; pinned_by: string; pinned_by_name: string; pinned_at: string }
+  | { type: 'message_unpinned'; channel_id: string; message_id: string; unpinned_by: string; unpinned_by_name: string }
+  | { type: 'bookmark_added'; message_id: string; bookmarked_at: string }
+  | { type: 'bookmark_removed'; message_id: string }
+  | { type: 'channel_updated'; channel_id: string; name?: string; description?: string; updated_by: string; updated_by_name: string }
+  | { type: 'member_joined'; channel_id: string; user_id: string; user_name: string; role: string; joined_at: string }
+  | { type: 'member_left'; channel_id: string; user_id: string; user_name: string }
   | { type: 'connected'; user_id: string }
   | { type: 'error'; message: string }
   | { type: 'pong' };
@@ -292,4 +356,32 @@ export interface MessageEditWithUser {
   edited_by: string;
   edited_at: string;
   editor_name: string;
+}
+
+// Device Session types
+export interface DeviceSession {
+  id: string;
+  user_id: string;
+  org_id: string;
+  device_type: 'desktop' | 'mobile' | 'web';
+  device_name?: string;
+  device_fingerprint?: string;
+  last_active_at: string;
+  created_at: string;
+}
+
+export interface PairingCodeResponse {
+  code: string;
+  expires_in: number;
+}
+
+export interface VerifyPairingCodeRequest {
+  code: string;
+  device_name?: string;
+}
+
+export interface VerifyPairingCodeResponse {
+  access_token: string;
+  user: User;
+  device_id: string;
 }

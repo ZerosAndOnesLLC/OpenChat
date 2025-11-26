@@ -42,13 +42,23 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
     wsStore.connect(token);
   },
 
-  logout: () => {
+  logout: async () => {
     apiClient.clearToken();
     const wsStore = useWebSocketStore.getState();
     wsStore.disconnect();
     set({ token: null, user: null, isAuthenticated: false, isLoading: false });
 
-    // Redirect to home (which will trigger SSO flow)
+    // If in Tauri desktop app, clear keychain token
+    if (typeof window !== 'undefined' && (window as any).__TAURI__) {
+      try {
+        const { invoke } = await import('@tauri-apps/api/core');
+        await invoke('clear_token');
+      } catch (error) {
+        console.error('Failed to clear desktop token:', error);
+      }
+    }
+
+    // Redirect to home (which will trigger SSO flow or desktop login)
     if (typeof window !== 'undefined') {
       window.location.href = '/';
     }
@@ -65,7 +75,60 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
           return;
         }
 
-        // Check for existing token in localStorage
+        // Check if running in Tauri desktop app
+        if ((window as any).__TAURI__) {
+          console.log('Detected Tauri environment, using desktop auth flow');
+          try {
+            const { invoke } = await import('@tauri-apps/api/core');
+
+            // Try to get stored token from OS keychain
+            const storedToken = await invoke<string | null>('get_stored_token');
+
+            if (storedToken) {
+              // Verify token is still valid
+              const isValid = await invoke<boolean>('validate_token', { token: storedToken });
+
+              if (isValid) {
+                // Get user info with the stored token
+                apiClient.setToken(storedToken);
+                const userInfo = await apiClient.getUserInfo(storedToken);
+
+                if (userInfo && userInfo.sub) {
+                  const user: User = {
+                    id: userInfo.sub,
+                    org_id: userInfo.org_id || '',
+                    tv_user_id: userInfo.sub,
+                    email: userInfo.email || 'user@openchat.local',
+                    display_name: userInfo.name || userInfo.email?.split('@')[0] || 'User',
+                    status: 'online',
+                    created_at: new Date().toISOString(),
+                    updated_at: new Date().toISOString(),
+                    roles: userInfo.roles || [],
+                  };
+
+                  console.log('Desktop token validated, setting auth state');
+                  get().setAuth(storedToken, user);
+                  return;
+                }
+              } else {
+                // Token invalid, clear it
+                await invoke('clear_token');
+              }
+            }
+
+            // No valid token found, user needs to show login screen
+            // Don't redirect to OAuth - the desktop login screen will be shown
+            console.log('No valid desktop token found, showing login screen');
+            set({ isLoading: false, isAuthenticated: false });
+            return;
+          } catch (error) {
+            console.error('Desktop auth error:', error);
+            set({ isLoading: false, isAuthenticated: false });
+            return;
+          }
+        }
+
+        // Web flow: Check for existing token in localStorage
         const existingToken = apiClient.getToken();
         if (existingToken) {
           try {

@@ -1,4 +1,5 @@
 pub mod status;
+pub mod websocket;
 
 use sqlx::PgPool;
 
@@ -9,4 +10,7 @@ pub fn start_background_tasks(pool: PgPool, ws_server: actix::Addr<crate::websoc
 
     // Start clear expired statuses task
     tokio::spawn(status::run_clear_expired_statuses_task(pool));
+
+    // Start WebSocket batch flushing task
+    tokio::spawn(websocket::run_batch_flushing_task(ws_server.clone()));
 }

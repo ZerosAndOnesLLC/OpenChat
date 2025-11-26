@@ -10,6 +10,10 @@ use crate::{
     models::channel::{Channel, ChannelMember},
     models::user::User,
     services::{audit_logger::AuditLogger, tv_api::TokenClaims},
+    websocket::{
+        messages::ServerMessage,
+        server::{BroadcastMessage, WsServer},
+    },
 };
 
 #[derive(Debug, Deserialize)]
@@ -175,6 +179,7 @@ pub async fn update_channel(
     channel_id: web::Path<Uuid>,
     body: web::Json<UpdateChannelRequest>,
     req: HttpRequest,
+    ws_server: web::Data<actix::Addr<WsServer>>,
 ) -> ApiResult<HttpResponse> {
     let claims = req
         .extensions()
@@ -212,6 +217,19 @@ pub async fn update_channel(
     if let Err(e) = channel_cache::invalidate_channel_cache(&mut redis_conn, *channel_id).await {
         tracing::warn!("Failed to invalidate channel cache: {}", e);
     }
+
+    // Broadcast channel update via WebSocket
+    ws_server.do_send(BroadcastMessage {
+        org_id: channel.org_id,
+        channel_id: Some(*channel_id),
+        message: ServerMessage::ChannelUpdated {
+            channel_id: *channel_id,
+            name: body.name.clone(),
+            description: body.description.clone(),
+            updated_by: current_user.id,
+            updated_by_name: current_user.display_name.clone(),
+        },
+    });
 
     Ok(HttpResponse::Ok().json(ChannelResponse::from(updated_channel)))
 }
@@ -319,6 +337,7 @@ pub async fn add_member(
     channel_id: web::Path<Uuid>,
     body: web::Json<AddMemberRequest>,
     req: HttpRequest,
+    ws_server: web::Data<actix::Addr<WsServer>>,
 ) -> ApiResult<HttpResponse> {
     let claims = req
         .extensions()
@@ -344,7 +363,7 @@ pub async fn add_member(
     }
 
     // Verify user to add exists
-    User::get_by_id(pool.get_ref(), body.user_id)
+    let user_to_add = User::get_by_id(pool.get_ref(), body.user_id)
         .await?
         .ok_or_else(|| ApiError::NotFound("User to add not found".to_string()))?;
 
@@ -370,6 +389,19 @@ pub async fn add_member(
         tracing::warn!("Failed to invalidate channel members cache: {}", e);
     }
 
+    // Broadcast member joined event via WebSocket
+    ws_server.do_send(BroadcastMessage {
+        org_id: channel.org_id,
+        channel_id: Some(*channel_id),
+        message: ServerMessage::MemberJoined {
+            channel_id: *channel_id,
+            user_id: user_to_add.id,
+            user_name: user_to_add.display_name.clone(),
+            role: role.to_string(),
+            joined_at: member.joined_at.to_rfc3339(),
+        },
+    });
+
     Ok(HttpResponse::Created().json(member))
 }
 
@@ -379,6 +411,7 @@ pub async fn remove_member(
     redis: web::Data<MultiplexedConnection>,
     path: web::Path<(Uuid, Uuid)>,
     req: HttpRequest,
+    ws_server: web::Data<actix::Addr<WsServer>>,
 ) -> ApiResult<HttpResponse> {
     let (channel_id, user_id) = path.into_inner();
 
@@ -405,6 +438,11 @@ pub async fn remove_member(
         ));
     }
 
+    // Get user being removed for name
+    let user_to_remove = User::get_by_id(pool.get_ref(), user_id)
+        .await?
+        .ok_or_else(|| ApiError::NotFound("User to remove not found".to_string()))?;
+
     ChannelMember::remove(pool.get_ref(), channel_id, user_id).await?;
 
     // Log member removal in audit log
@@ -425,6 +463,17 @@ pub async fn remove_member(
     if let Err(e) = channel_cache::invalidate_channel_members_cache(&mut redis_conn, channel_id).await {
         tracing::warn!("Failed to invalidate channel members cache: {}", e);
     }
+
+    // Broadcast member left event via WebSocket
+    ws_server.do_send(BroadcastMessage {
+        org_id: channel.org_id,
+        channel_id: Some(channel_id),
+        message: ServerMessage::MemberLeft {
+            channel_id,
+            user_id,
+            user_name: user_to_remove.display_name.clone(),
+        },
+    });
 
     Ok(HttpResponse::NoContent().finish())
 }
@@ -458,6 +507,7 @@ pub async fn join_channel(
     redis: web::Data<MultiplexedConnection>,
     channel_id: web::Path<Uuid>,
     req: HttpRequest,
+    ws_server: web::Data<actix::Addr<WsServer>>,
 ) -> ApiResult<HttpResponse> {
     let claims = req
         .extensions()
@@ -518,6 +568,19 @@ pub async fn join_channel(
     if let Err(e) = channel_cache::invalidate_channel_members_cache(&mut redis_conn, *channel_id).await {
         tracing::warn!("Failed to invalidate channel members cache: {}", e);
     }
+
+    // Broadcast member joined event via WebSocket
+    ws_server.do_send(BroadcastMessage {
+        org_id: channel.org_id,
+        channel_id: Some(*channel_id),
+        message: ServerMessage::MemberJoined {
+            channel_id: *channel_id,
+            user_id: current_user.id,
+            user_name: current_user.display_name.clone(),
+            role: "member".to_string(),
+            joined_at: member.joined_at.to_rfc3339(),
+        },
+    });
 
     Ok(HttpResponse::Created().json(member))
 }

@@ -385,3 +385,36 @@ export interface VerifyPairingCodeResponse {
   user: User;
   device_id: string;
 }
+
+// Incoming Webhook types
+export interface IncomingWebhook {
+  id: string;
+  org_id: string;
+  channel_id: string;
+  display_name: string;
+  description?: string;
+  icon_url?: string;
+  username?: string;
+  enabled: boolean;
+  created_by: string;
+  created_at: string;
+  updated_at: string;
+  url?: string;
+}
+
+export interface CreateWebhookRequest {
+  channel_id: string;
+  display_name: string;
+  description?: string;
+  icon_url?: string;
+  username?: string;
+}
+
+export interface UpdateWebhookRequest {
+  channel_id?: string;
+  display_name?: string;
+  description?: string;
+  icon_url?: string;
+  username?: string;
+  enabled?: boolean;
+}

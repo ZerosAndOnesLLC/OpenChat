@@ -21,3 +21,4 @@ pub mod search;
 pub mod storage_settings;
 pub mod user_status;
 pub mod users;
+pub mod webhooks;

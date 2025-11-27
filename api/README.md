@@ -125,6 +125,7 @@ src/
 - `GET /api/channels/public` - List all public channels (for browsing/discovery)
 - `POST /api/channels` - Create channel
 - `POST /api/channels/:id/join` - Join a public channel
+- `POST /api/channels/:id/leave` - Leave a channel (except creators)
 - `GET /api/channels/:id` - Get channel details
 - `PUT /api/channels/:id` - Update channel
 - `DELETE /api/channels/:id` - Delete channel
@@ -307,6 +308,32 @@ src/
 
 ### Message Editing History
 - `GET /api/messages/:id/history` - Get edit history for a message
+
+### Incoming Webhooks
+- `GET /api/webhooks/incoming` - List all incoming webhooks for the organization
+- `POST /api/webhooks/incoming` - Create a new incoming webhook
+- `GET /api/webhooks/incoming/:id` - Get webhook details
+- `PUT /api/webhooks/incoming/:id` - Update webhook settings
+- `DELETE /api/webhooks/incoming/:id` - Delete a webhook
+- `POST /api/webhooks/incoming/:id/regenerate` - Regenerate webhook token
+- `POST /api/hooks/:token` - Receive message from external service (public endpoint)
+
+**Features**:
+- Mattermost/Slack-compatible incoming webhooks
+- External services can post messages to channels via HTTP POST
+- Per-webhook display name and optional username/icon override
+- Enable/disable toggle for each webhook
+- Token regeneration for security
+- Requires `org.manage_integrations` permission to manage webhooks
+
+**Payload Format**:
+```json
+{
+  "text": "Message content here",
+  "username": "Optional override name",
+  "icon_url": "Optional avatar URL"
+}
+```
 
 **Features**:
 - Tracks complete edit history for all messages
@@ -871,6 +898,17 @@ Infrastructure is managed via Terraform in `~/dev/terraform/prod/us-east-1/openc
 ```
 
 ## Version History
+
+### v0.58.0 (Incoming Webhooks, Leave Channel, 365-Day Sessions)
+- Added incoming webhooks for external service integration (Mattermost/Slack compatible)
+- Webhook management endpoints: create, list, update, delete, regenerate token
+- Public webhook receiver endpoint at POST /api/hooks/:token
+- Added leave channel endpoint: POST /api/channels/:id/leave
+- Increased device token expiry from 30 days to 365 days for persistent sessions
+- WebSocket NewMessage now includes user_avatar and is_webhook fields
+- Database migration for incoming_webhooks table with indexes
+- Webhook messages broadcast via WebSocket with is_webhook flag
+- Requires org.manage_integrations permission for webhook management
 
 ### v0.57.0 (Unread Banner Synchronization - Multi-Client Fix)
 - Enhanced unread_count_updated WebSocket message to include last_read_message_id field

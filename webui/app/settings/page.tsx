@@ -6,6 +6,7 @@ import { useAuth } from '@/lib/auth';
 import { apiClient } from '@/lib/api';
 import DesktopLogin from '@/components/desktop-login';
 import DeviceManagement from '@/components/settings/devices';
+import WebhookManagement from '@/components/settings/webhooks';
 
 export default function SettingsPage() {
   const router = useRouter();
@@ -153,6 +154,11 @@ export default function SettingsPage() {
           {/* Device Management Section */}
           <div className="rounded-lg border border-gray-800 bg-gray-900 p-6">
             <DeviceManagement />
+          </div>
+
+          {/* Webhooks Section */}
+          <div className="rounded-lg border border-gray-800 bg-gray-900 p-6">
+            <WebhookManagement />
           </div>
         </div>
       </div>

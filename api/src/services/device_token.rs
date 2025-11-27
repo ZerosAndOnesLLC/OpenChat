@@ -36,7 +36,7 @@ impl DeviceTokenClaims {
         device_type: String,
     ) -> Self {
         let now = Utc::now();
-        let exp = now + Duration::days(30); // 30 days expiration for device sessions
+        let exp = now + Duration::days(365); // 365 days expiration for device sessions (like Slack/Mattermost)
 
         Self {
             sub: tv_user_id,
@@ -154,9 +154,9 @@ mod tests {
             "desktop".to_string(),
         );
 
-        // Expiration should be 30 days from now
+        // Expiration should be 365 days from now
         let now = Utc::now().timestamp();
-        let expected_exp = now + (30 * 24 * 60 * 60); // 30 days in seconds
+        let expected_exp = now + (365 * 24 * 60 * 60); // 365 days in seconds
 
         // Allow 5 second tolerance for test execution time
         assert!((claims.exp - expected_exp).abs() <= 5);

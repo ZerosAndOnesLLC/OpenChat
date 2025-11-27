@@ -48,6 +48,7 @@ use handlers::{
     storage_settings as storage_settings_handlers,
     user_status as user_status_handlers,
     users as user_handlers,
+    webhooks as webhook_handlers,
 };
 use middleware::auth::AuthMiddleware;
 use middleware::permissions::PermissionMiddleware;
@@ -243,6 +244,7 @@ async fn main() -> std::io::Result<()> {
                     .route("/{id}", web::put().to(channel_handlers::update_channel))
                     .route("/{id}", web::delete().to(channel_handlers::delete_channel))
                     .route("/{id}/join", web::post().to(channel_handlers::join_channel))
+                    .route("/{id}/leave", web::post().to(channel_handlers::leave_channel))
                     .route("/{id}/members", web::get().to(channel_handlers::list_members))
                     .route("/{id}/members", web::post().to(channel_handlers::add_member))
                     .route("/{id}/members/{user_id}", web::delete().to(channel_handlers::remove_member))
@@ -433,6 +435,25 @@ async fn main() -> std::io::Result<()> {
                     .route("/sessions/{id}", web::delete().to(device_auth_handlers::revoke_session).wrap(openchat_auth.clone()))
                     // Verify code is public (no auth required)
                     .route("/verify-code", web::post().to(device_auth_handlers::verify_code))
+            )
+            // Incoming webhooks management - require "openchat" role and "org.manage_integrations" permission
+            .service(
+                web::scope("/api/webhooks/incoming")
+                    .wrap(api_rate_limit.clone())
+                    .wrap(PermissionMiddleware::require("org.manage_integrations"))
+                    .wrap(openchat_auth.clone())
+                    .route("", web::get().to(webhook_handlers::list_webhooks))
+                    .route("", web::post().to(webhook_handlers::create_webhook))
+                    .route("/{id}", web::get().to(webhook_handlers::get_webhook))
+                    .route("/{id}", web::put().to(webhook_handlers::update_webhook))
+                    .route("/{id}", web::delete().to(webhook_handlers::delete_webhook))
+                    .route("/{id}/regenerate", web::post().to(webhook_handlers::regenerate_token))
+            )
+            // Public webhook receiver endpoint - no auth (uses token in URL)
+            .service(
+                web::scope("/api/hooks")
+                    .wrap(api_rate_limit.clone())
+                    .route("/{token}", web::post().to(webhook_handlers::receive_webhook))
             )
             // SSO routes - no auth required (they handle authentication themselves)
             .configure(routes::sso::configure)

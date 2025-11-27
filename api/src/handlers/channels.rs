@@ -584,3 +584,85 @@ pub async fn join_channel(
 
     Ok(HttpResponse::Created().json(member))
 }
+
+/// POST /api/channels/:id/leave - Leave a channel
+pub async fn leave_channel(
+    pool: web::Data<PgPool>,
+    redis: web::Data<MultiplexedConnection>,
+    channel_id: web::Path<Uuid>,
+    req: HttpRequest,
+    ws_server: web::Data<actix::Addr<WsServer>>,
+) -> ApiResult<HttpResponse> {
+    let claims = req
+        .extensions()
+        .get::<TokenClaims>()
+        .cloned()
+        .ok_or_else(|| ApiError::Authentication("Missing authentication".to_string()))?;
+
+    // Get current user
+    let current_user = User::get_by_tv_user_id(pool.get_ref(), claims.user_id)
+        .await?
+        .ok_or_else(|| ApiError::NotFound("Current user not found".to_string()))?;
+
+    // Get channel
+    let channel = Channel::get_by_id(pool.get_ref(), *channel_id)
+        .await?
+        .ok_or_else(|| ApiError::NotFound("Channel not found".to_string()))?;
+
+    // Verify channel is in the same org
+    if channel.org_id != claims.org_id {
+        return Err(ApiError::Authorization(
+            "Channel does not belong to your organization".to_string(),
+        ));
+    }
+
+    // Check if user is a member
+    let is_member = ChannelMember::is_member(pool.get_ref(), *channel_id, current_user.id).await?;
+    if !is_member {
+        return Err(ApiError::BadRequest(
+            "You are not a member of this channel".to_string(),
+        ));
+    }
+
+    // Cannot leave if you're the channel creator (owner)
+    if channel.created_by == current_user.id {
+        return Err(ApiError::BadRequest(
+            "Channel creators cannot leave their own channel. Transfer ownership or delete the channel instead.".to_string(),
+        ));
+    }
+
+    // Remove user from channel
+    ChannelMember::remove(pool.get_ref(), *channel_id, current_user.id).await?;
+
+    // Log channel leave in audit log
+    if let Err(e) = AuditLogger::log_channel_member_removed(
+        pool.get_ref(),
+        current_user.id,
+        *channel_id,
+        current_user.id,
+        Some(&req),
+    )
+    .await
+    {
+        tracing::warn!("Failed to create audit log for channel leave: {}", e);
+    }
+
+    // Invalidate members cache after leaving
+    let mut redis_conn = redis.as_ref().clone();
+    if let Err(e) = channel_cache::invalidate_channel_members_cache(&mut redis_conn, *channel_id).await {
+        tracing::warn!("Failed to invalidate channel members cache: {}", e);
+    }
+
+    // Broadcast member left event via WebSocket
+    ws_server.do_send(BroadcastMessage {
+        org_id: channel.org_id,
+        channel_id: Some(*channel_id),
+        message: ServerMessage::MemberLeft {
+            channel_id: *channel_id,
+            user_id: current_user.id,
+            user_name: current_user.display_name.clone(),
+        },
+    });
+
+    Ok(HttpResponse::NoContent().finish())
+}

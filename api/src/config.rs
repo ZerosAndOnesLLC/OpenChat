@@ -16,6 +16,8 @@ pub struct Config {
     pub encryption_secret: String,
     pub websocket: WebSocketConfig,
     pub redis: RedisConfig,
+    /// Base URL for the API (used for generating webhook URLs)
+    pub api_base_url: String,
 }
 
 #[derive(Debug, Clone)]
@@ -81,15 +83,21 @@ impl Config {
         let websocket = WebSocketConfig::from_env();
         let redis = RedisConfig::from_env();
 
+        let port: u16 = env::var("PORT")
+            .unwrap_or_else(|_| "8080".to_string())
+            .parse()
+            .expect("PORT must be a valid number");
+
+        // Default API base URL based on host/port, can be overridden for production
+        let api_base_url = env::var("API_BASE_URL")
+            .unwrap_or_else(|_| format!("http://localhost:{}", port));
+
         Ok(Config {
             database_url: env::var("DATABASE_URL")?,
             redis_url: env::var("REDIS_URL")?,
             tv_api_url: env::var("TV_API_URL")?,
             jwt_secret: env::var("JWT_SECRET")?,
-            port: env::var("PORT")
-                .unwrap_or_else(|_| "8080".to_string())
-                .parse()
-                .expect("PORT must be a valid number"),
+            port,
             host: env::var("HOST").unwrap_or_else(|_| "0.0.0.0".to_string()),
             enable_tls,
             tls_cert_path,
@@ -99,6 +107,7 @@ impl Config {
                 .unwrap_or_else(|_| env::var("JWT_SECRET").unwrap_or_else(|_| "default-fallback-secret".to_string())),
             websocket,
             redis,
+            api_base_url,
         })
     }
 }

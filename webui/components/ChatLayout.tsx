@@ -28,6 +28,10 @@ export default function ChatLayout() {
     setShowQuickSwitcher(false);
   };
 
+  const handleLeaveChannel = () => {
+    setActiveChannel(null);
+  };
+
   // Register global keyboard shortcuts
   useEffect(() => {
     // Cmd/Ctrl+K: Quick switcher
@@ -98,6 +102,7 @@ export default function ChatLayout() {
       <MessageArea
         channel={activeChannel}
         dm={activeDm}
+        onLeaveChannel={handleLeaveChannel}
       />
 
       {/* Modals */}

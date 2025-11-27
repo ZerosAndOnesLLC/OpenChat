@@ -187,9 +187,11 @@ impl RedisPubSub {
                         dm_id,
                         user_id,
                         user_name,
+                        user_avatar: None,
                         content,
                         parent_message_id,
                         created_at,
+                        is_webhook: None,
                     },
                 });
             }

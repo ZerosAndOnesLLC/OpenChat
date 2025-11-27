@@ -104,7 +104,8 @@ OpenChat/
 ├── Services/            # Business logic and API communication
 │   ├── ApiClient.cs     # REST API client
 │   ├── WebSocketClient.cs  # WebSocket client for real-time updates
-│   └── EmojiCache.cs    # Local emoji caching service
+│   ├── EmojiCache.cs    # Local emoji caching service
+│   └── CredentialManager.cs  # Secure credential storage using DPAPI
 ├── Theme.cs             # Dark theme color palette and fonts
 ├── LoginForm.cs         # Device authentication UI
 ├── LoginForm.Designer.cs
@@ -127,10 +128,12 @@ To change these URLs, edit the respective files:
 
 ## Security
 
-- Access tokens are stored in memory only
+- Access tokens are encrypted and stored locally using Windows DPAPI
+- Credentials are stored in `%LOCALAPPDATA%\OpenChat\credentials.dat`
+- Credentials remain valid for 365 days before requiring re-pairing
 - Device pairing uses secure 8-character codes
 - All communication uses HTTPS/WSS encryption
-- Tokens expire after 30 days
+- Tokens expire after 30 days (server-side)
 - Device sessions can be revoked from the web interface
 
 ## Troubleshooting

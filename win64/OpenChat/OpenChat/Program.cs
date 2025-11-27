@@ -1,3 +1,5 @@
+using OpenChat.Services;
+
 namespace OpenChat
 {
     internal static class Program
@@ -12,13 +14,25 @@ namespace OpenChat
             // see https://aka.ms/applicationconfiguration.
             ApplicationConfiguration.Initialize();
 
-            // Show login form first
-            using (var loginForm = new LoginForm())
+            // Try to load stored credentials first
+            if (CredentialManager.TryLoadCredentials(out var accessToken, out var deviceId, out var user))
             {
-                if (loginForm.ShowDialog() == DialogResult.OK)
+                // Valid stored credentials found - skip login
+                AppSettings.AccessToken = accessToken;
+                AppSettings.DeviceId = deviceId;
+                AppSettings.CurrentUser = user;
+                Application.Run(new MainForm());
+            }
+            else
+            {
+                // No valid credentials - show login form
+                using (var loginForm = new LoginForm())
                 {
-                    // If login successful, show main chat form
-                    Application.Run(new MainForm());
+                    if (loginForm.ShowDialog() == DialogResult.OK)
+                    {
+                        // If login successful, show main chat form
+                        Application.Run(new MainForm());
+                    }
                 }
             }
         }

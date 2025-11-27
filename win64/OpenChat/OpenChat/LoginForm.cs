@@ -1,5 +1,6 @@
 using OpenChat.Services;
 using System.Drawing.Drawing2D;
+using OpenChat.Models;
 
 namespace OpenChat
 {
@@ -127,6 +128,10 @@ namespace OpenChat
 
                 AppSettings.AccessToken = response.AccessToken;
                 AppSettings.CurrentUser = response.User;
+                AppSettings.DeviceId = response.DeviceId;
+
+                // Save credentials securely for 365 days
+                CredentialManager.SaveCredentials(response.AccessToken, response.DeviceId, response.User);
 
                 this.DialogResult = DialogResult.OK;
                 this.Close();
@@ -147,5 +152,6 @@ namespace OpenChat
     {
         public static string? AccessToken { get; set; }
         public static OpenChat.Models.UserInfo? CurrentUser { get; set; }
+        public static Guid DeviceId { get; set; }
     }
 }

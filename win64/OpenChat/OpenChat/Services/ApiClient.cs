@@ -173,6 +173,53 @@ namespace OpenChat.Services
             }
         }
 
+        // Reactions
+        public async Task<Reaction?> AddReactionAsync(Guid messageId, string emoji)
+        {
+            var request = new AddReactionRequest { Emoji = emoji };
+            return await PostAsync<Reaction>($"/api/messages/{messageId}/reactions", request);
+        }
+
+        public async Task RemoveReactionAsync(Guid messageId, string emoji)
+        {
+            try
+            {
+                var encodedEmoji = Uri.EscapeDataString(emoji);
+                var response = await _httpClient.DeleteAsync($"/api/messages/{messageId}/reactions/{encodedEmoji}");
+                response.EnsureSuccessStatusCode();
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"DELETE reaction {emoji} on message {messageId} failed: {ex.Message}");
+                throw;
+            }
+        }
+
+        public async Task<List<ReactionCount>> GetReactionCountsAsync(Guid messageId)
+        {
+            return await GetAsync<List<ReactionCount>>($"/api/messages/{messageId}/reactions/counts") ?? new List<ReactionCount>();
+        }
+
+        /// <summary>
+        /// Toggle a reaction - adds if not present, removes if present
+        /// </summary>
+        public async Task<bool> ToggleReactionAsync(Guid messageId, string emoji, Guid currentUserId)
+        {
+            var counts = await GetReactionCountsAsync(messageId);
+            var existingReaction = counts.FirstOrDefault(r => r.Emoji == emoji);
+
+            if (existingReaction != null && existingReaction.UserIds.Contains(currentUserId))
+            {
+                await RemoveReactionAsync(messageId, emoji);
+                return false; // Reaction was removed
+            }
+            else
+            {
+                await AddReactionAsync(messageId, emoji);
+                return true; // Reaction was added
+            }
+        }
+
         private static string GetMimeType(string filePath)
         {
             var ext = Path.GetExtension(filePath).ToLowerInvariant();

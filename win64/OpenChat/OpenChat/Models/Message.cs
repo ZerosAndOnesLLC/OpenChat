@@ -42,5 +42,11 @@ namespace OpenChat.Models
 
         [JsonProperty("is_edited")]
         public bool IsEdited { get; set; }
+
+        /// <summary>
+        /// Reaction counts for this message (loaded separately)
+        /// </summary>
+        [JsonIgnore]
+        public List<ReactionCount> Reactions { get; set; } = new();
     }
 }

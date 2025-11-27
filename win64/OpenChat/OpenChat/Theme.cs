@@ -52,6 +52,14 @@ namespace OpenChat
             public static readonly Color TabInactiveBackground = Color.FromArgb(30, 31, 34);
             public static readonly Color SearchBackground = Color.FromArgb(43, 45, 49);
             public static readonly Color CategoryHeaderText = Color.FromArgb(142, 146, 151);
+
+            // Reaction colors
+            public static readonly Color ReactionBackground = Color.FromArgb(43, 45, 49);
+            public static readonly Color ReactionHoverBackground = Color.FromArgb(55, 57, 63);
+            public static readonly Color ReactionActiveBackground = Color.FromArgb(30, 76, 126);
+            public static readonly Color ReactionBorder = Color.FromArgb(62, 65, 71);
+            public static readonly Color ReactionActiveBorder = Color.FromArgb(18, 100, 163);
+            public static readonly Color ReactionActiveText = Color.FromArgb(125, 185, 245);
         }
 
         public static class Fonts
@@ -72,6 +80,7 @@ namespace OpenChat
             public static readonly Font EmojiName = new("Segoe UI", 8F);
             public static readonly Font TabText = new("Segoe UI", 9F, FontStyle.Bold);
             public static readonly Font StandardEmoji = new("Segoe UI Emoji", 20F);
+            public static readonly Font ReactionText = new("Segoe UI Emoji", 11F);
         }
     }
 }

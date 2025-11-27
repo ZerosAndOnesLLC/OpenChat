@@ -1,6 +1,7 @@
 using OpenChat.Models;
 using OpenChat.Services;
 using System.Drawing.Drawing2D;
+using System.Drawing.Text;
 
 namespace OpenChat
 {
@@ -15,13 +16,16 @@ namespace OpenChat
         private Button btnStandardTab = null!;
         private Button btnCustomTab = null!;
         private TextBox txtSearch = null!;
-        private FlowLayoutPanel pnlEmojis = null!;
+        private VirtualizedEmojiPanel pnlEmojis = null!;
         private Label lblCategory = null!;
         private Button btnUpload = null!;
 
         private bool _showingCustom = false;
         private List<CustomEmoji> _customEmojis = new();
         private string _searchFilter = "";
+
+        // Flattened emoji list for virtualization
+        private List<EmojiItem> _currentItems = new();
 
         private static readonly Dictionary<string, string[]> StandardEmojiCategories = new()
         {
@@ -35,6 +39,13 @@ namespace OpenChat
             ["Objects"] = new[] { "⌚", "📱", "📲", "💻", "⌨️", "🖥️", "🖨️", "🖱️", "🖲️", "🕹️", "🗜️", "💽", "💾", "💿", "📀", "📼", "📷", "📸", "📹", "🎥", "📽️", "🎞️", "📞", "☎️", "📟", "📠", "📺", "📻", "🎙️", "🎚️", "🎛️", "🧭", "⏱️", "⏲️", "⏰", "🕰️", "⌛", "⏳", "📡", "🔋", "🔌", "💡", "🔦", "🕯️", "🪔", "🧯", "🛢️", "💸", "💵", "💴", "💶", "💷", "🪙", "💰", "💳", "💎", "⚖️", "🪜", "🧰", "🪛", "🔧", "🔨", "⚒️", "🛠️", "⛏️", "🪚", "🔩", "⚙️", "🪤", "🧱", "⛓️", "🧲", "🔫", "💣", "🧨", "🪓", "🔪", "🗡️", "⚔️", "🛡️", "🚬", "⚰️", "🪦", "⚱️", "🏺", "🔮", "📿", "🧿", "💈", "⚗️", "🔭", "🔬", "🕳️", "🩹", "🩺", "💊", "💉", "🩸", "🧬", "🦠", "🧫", "🧪", "🌡️", "🧹", "🪠", "🧺", "🧻", "🚽", "🚰", "🚿", "🛁", "🛀", "🧼", "🪥", "🪒", "🧽", "🪣", "🧴", "🛎️", "🔑", "🗝️", "🚪", "🪑", "🛋️", "🛏️", "🛌", "🧸", "🪆", "🖼️", "🪞", "🪟", "🛍️", "🛒", "🎁", "🎈", "🎏", "🎀", "🪄", "🪅", "🎊", "🎉", "🎎", "🏮", "🎐", "🧧", "✉️", "📩", "📨", "📧", "💌", "📥", "📤", "📦", "🏷️", "🪧", "📪", "📫", "📬", "📭", "📮", "📯", "📜", "📃", "📄", "📑", "🧾", "📊", "📈", "📉", "🗒️", "🗓️", "📆", "📅", "🗑️", "📇", "🗃️", "🗳️", "🗄️", "📋", "📁", "📂", "🗂️", "🗞️", "📰", "📓", "📔", "📒", "📕", "📗", "📘", "📙", "📚", "📖", "🔖", "🧷", "🔗", "📎", "🖇️", "📐", "📏", "🧮", "📌", "📍", "✂️", "🖊️", "🖋️", "✒️", "🖌️", "🖍️", "📝", "✏️", "🔍", "🔎", "🔏", "🔐", "🔒", "🔓" },
             ["Symbols"] = new[] { "❤️", "🧡", "💛", "💚", "💙", "💜", "🖤", "🤍", "🤎", "💔", "❣️", "💕", "💞", "💓", "💗", "💖", "💘", "💝", "💟", "☮️", "✝️", "☪️", "🕉️", "☸️", "✡️", "🔯", "🕎", "☯️", "☦️", "🛐", "⛎", "♈", "♉", "♊", "♋", "♌", "♍", "♎", "♏", "♐", "♑", "♒", "♓", "🆔", "⚛️", "🉑", "☢️", "☣️", "📴", "📳", "🈶", "🈚", "🈸", "🈺", "🈷️", "✴️", "🆚", "💮", "🉐", "㊙️", "㊗️", "🈴", "🈵", "🈹", "🈲", "🅰️", "🅱️", "🆎", "🆑", "🅾️", "🆘", "❌", "⭕", "🛑", "⛔", "📛", "🚫", "💯", "💢", "♨️", "🚷", "🚯", "🚳", "🚱", "🔞", "📵", "🚭", "❗", "❕", "❓", "❔", "‼️", "⁉️", "🔅", "🔆", "〽️", "⚠️", "🚸", "🔱", "⚜️", "🔰", "♻️", "✅", "🈯", "💹", "❇️", "✳️", "❎", "🌐", "💠", "Ⓜ️", "🌀", "💤", "🏧", "🚾", "♿", "🅿️", "🛗", "🈳", "🈂️", "🛂", "🛃", "🛄", "🛅", "🚹", "🚺", "🚼", "⚧️", "🚻", "🚮", "🎦", "📶", "🈁", "🔣", "ℹ️", "🔤", "🔡", "🔠", "🆖", "🆗", "🆙", "🆒", "🆕", "🆓", "0️⃣", "1️⃣", "2️⃣", "3️⃣", "4️⃣", "5️⃣", "6️⃣", "7️⃣", "8️⃣", "9️⃣", "🔟", "🔢", "#️⃣", "*️⃣", "⏏️", "▶️", "⏸️", "⏯️", "⏹️", "⏺️", "⏭️", "⏮️", "⏩", "⏪", "⏫", "⏬", "◀️", "🔼", "🔽", "➡️", "⬅️", "⬆️", "⬇️", "↗️", "↘️", "↙️", "↖️", "↕️", "↔️", "↪️", "↩️", "⤴️", "⤵️", "🔀", "🔁", "🔂", "🔄", "🔃", "🎵", "🎶", "➕", "➖", "➗", "✖️", "🟰", "♾️", "💲", "💱", "™️", "©️", "®️", "〰️", "➰", "➿", "🔚", "🔙", "🔛", "🔝", "🔜", "✔️", "☑️", "🔘", "🔴", "🟠", "🟡", "🟢", "🔵", "🟣", "⚫", "⚪", "🟤", "🔺", "🔻", "🔸", "🔹", "🔶", "🔷", "🔳", "🔲", "▪️", "▫️", "◾", "◽", "◼️", "◻️", "🟥", "🟧", "🟨", "🟩", "🟦", "🟪", "⬛", "⬜", "🟫", "🔈", "🔇", "🔉", "🔊", "🔔", "🔕", "📣", "📢", "👁️‍🗨️", "💬", "💭", "🗯️", "♠️", "♣️", "♥️", "♦️", "🃏", "🎴", "🀄", "🕐", "🕑", "🕒", "🕓", "🕔", "🕕", "🕖", "🕗", "🕘", "🕙", "🕚", "🕛", "🕜", "🕝", "🕞", "🕟", "🕠", "🕡", "🕢", "🕣", "🕤", "🕥", "🕦", "🕧" },
             ["Flags"] = new[] { "🏳️", "🏴", "🏴‍☠️", "🏁", "🚩", "🎌", "🏳️‍🌈", "🏳️‍⚧️", "🇺🇸", "🇬🇧", "🇨🇦", "🇦🇺", "🇩🇪", "🇫🇷", "🇯🇵", "🇰🇷", "🇨🇳", "🇮🇳", "🇧🇷", "🇲🇽", "🇪🇸", "🇮🇹", "🇷🇺", "🇳🇱", "🇧🇪", "🇨🇭", "🇦🇹", "🇸🇪", "🇳🇴", "🇩🇰", "🇫🇮", "🇵🇱", "🇮🇪", "🇵🇹", "🇬🇷", "🇹🇷", "🇮🇱", "🇸🇦", "🇦🇪", "🇪🇬", "🇿🇦", "🇳🇬", "🇰🇪", "🇦🇷", "🇨🇴", "🇨🇱", "🇵🇪", "🇻🇪", "🇹🇭", "🇻🇳", "🇮🇩", "🇲🇾", "🇸🇬", "🇵🇭", "🇳🇿", "🇭🇰", "🇹🇼" }
+        };
+
+        // Frequently used emojis for quick access
+        private static readonly string[] FrequentEmojis = new[]
+        {
+            "👍", "❤️", "😂", "🎉", "👀", "🔥", "✅", "👏", "😊", "🙏",
+            "💯", "🚀", "✨", "💪", "👋", "🤔", "😍", "🙌", "💡", "⭐"
         };
 
         public EmojiPickerForm(EmojiCache emojiCache, Action<string> onEmojiSelected, Action? onUploadRequested = null)
@@ -140,19 +151,17 @@ namespace OpenChat
                 BackColor = Theme.Dark.EmojiPickerBackground,
                 ForeColor = Theme.Dark.CategoryHeaderText,
                 Font = Theme.Fonts.EmojiCategory,
-                Text = "SMILEYS",
+                Text = "FREQUENTLY USED",
                 Padding = new Padding(12, 5, 0, 0)
             };
 
-            // Emojis panel
-            pnlEmojis = new FlowLayoutPanel
+            // Virtualized emoji panel
+            pnlEmojis = new VirtualizedEmojiPanel
             {
                 Dock = DockStyle.Fill,
-                BackColor = Theme.Dark.EmojiPickerBackground,
-                AutoScroll = true,
-                Padding = new Padding(8, 0, 8, 8),
-                WrapContents = true
+                BackColor = Theme.Dark.EmojiPickerBackground
             };
+            pnlEmojis.EmojiClicked += OnEmojiClicked;
 
             pnlMain.Controls.Add(pnlEmojis);
             pnlMain.Controls.Add(lblCategory);
@@ -208,55 +217,45 @@ namespace OpenChat
 
         private void LoadStandardEmojis()
         {
-            pnlEmojis.SuspendLayout();
-            pnlEmojis.Controls.Clear();
+            _currentItems.Clear();
 
-            var firstCategory = true;
-            foreach (var category in StandardEmojiCategories)
+            if (string.IsNullOrEmpty(_searchFilter))
             {
-                if (!string.IsNullOrEmpty(_searchFilter))
+                // Add frequent emojis first
+                _currentItems.Add(new EmojiItem { IsHeader = true, Category = "FREQUENTLY USED" });
+                foreach (var emoji in FrequentEmojis)
                 {
-                    var matchingEmojis = category.Value.Where(e => MatchesSearch(e, category.Key)).ToArray();
-                    if (matchingEmojis.Length == 0) continue;
-
-                    AddCategoryHeader(category.Key, firstCategory);
-                    firstCategory = false;
-
-                    foreach (var emoji in matchingEmojis)
-                    {
-                        AddEmojiButton(emoji, null);
-                    }
+                    _currentItems.Add(new EmojiItem { Emoji = emoji, IsStandard = true });
                 }
-                else
-                {
-                    AddCategoryHeader(category.Key, firstCategory);
-                    firstCategory = false;
 
+                // Add all categories
+                foreach (var category in StandardEmojiCategories)
+                {
+                    _currentItems.Add(new EmojiItem { IsHeader = true, Category = category.Key.ToUpperInvariant() });
                     foreach (var emoji in category.Value)
                     {
-                        AddEmojiButton(emoji, null);
+                        _currentItems.Add(new EmojiItem { Emoji = emoji, IsStandard = true });
+                    }
+                }
+            }
+            else
+            {
+                // Search mode - just show matching emojis
+                _currentItems.Add(new EmojiItem { IsHeader = true, Category = "SEARCH RESULTS" });
+                foreach (var category in StandardEmojiCategories)
+                {
+                    if (category.Key.Contains(_searchFilter, StringComparison.OrdinalIgnoreCase))
+                    {
+                        foreach (var emoji in category.Value)
+                        {
+                            _currentItems.Add(new EmojiItem { Emoji = emoji, IsStandard = true });
+                        }
                     }
                 }
             }
 
-            pnlEmojis.ResumeLayout();
-            lblCategory.Text = string.IsNullOrEmpty(_searchFilter) ? "SMILEYS" : "SEARCH RESULTS";
-        }
-
-        private void AddCategoryHeader(string categoryName, bool isFirst)
-        {
-            var header = new Label
-            {
-                Text = categoryName.ToUpperInvariant(),
-                Font = Theme.Fonts.EmojiCategory,
-                ForeColor = Theme.Dark.CategoryHeaderText,
-                AutoSize = false,
-                Size = new Size(pnlEmojis.Width - 30, 30),
-                Padding = new Padding(4, isFirst ? 4 : 12, 0, 4),
-                Margin = new Padding(0)
-            };
-            pnlEmojis.SetFlowBreak(header, true);
-            pnlEmojis.Controls.Add(header);
+            pnlEmojis.SetItems(_currentItems, _emojiCache);
+            lblCategory.Text = string.IsNullOrEmpty(_searchFilter) ? "FREQUENTLY USED" : "SEARCH RESULTS";
         }
 
         private async Task LoadCustomEmojisAsync()
@@ -273,8 +272,7 @@ namespace OpenChat
 
         private void LoadCustomEmojis()
         {
-            pnlEmojis.SuspendLayout();
-            pnlEmojis.Controls.Clear();
+            _currentItems.Clear();
 
             var filteredEmojis = _customEmojis;
             if (!string.IsNullOrEmpty(_searchFilter))
@@ -286,128 +284,38 @@ namespace OpenChat
 
             if (filteredEmojis.Count == 0)
             {
-                var emptyLabel = new Label
+                _currentItems.Add(new EmojiItem
                 {
-                    Text = _customEmojis.Count == 0
-                        ? "No custom emojis yet.\nClick '+ Upload' to add one!"
-                        : "No emojis match your search.",
-                    Font = Theme.Fonts.SidebarItem,
-                    ForeColor = Theme.Dark.TextSecondary,
-                    AutoSize = false,
-                    Size = new Size(pnlEmojis.Width - 30, 80),
-                    TextAlign = ContentAlignment.MiddleCenter,
-                    Margin = new Padding(0, 20, 0, 0)
-                };
-                pnlEmojis.Controls.Add(emptyLabel);
+                    IsHeader = true,
+                    Category = _customEmojis.Count == 0
+                        ? "No custom emojis yet. Click '+ Upload' to add one!"
+                        : "No emojis match your search."
+                });
             }
             else
             {
+                _currentItems.Add(new EmojiItem { IsHeader = true, Category = "CUSTOM EMOJIS" });
                 foreach (var emoji in filteredEmojis)
                 {
-                    AddCustomEmojiButton(emoji);
+                    _currentItems.Add(new EmojiItem { CustomEmoji = emoji, IsStandard = false });
                 }
             }
 
-            pnlEmojis.ResumeLayout();
+            pnlEmojis.SetItems(_currentItems, _emojiCache);
             lblCategory.Text = string.IsNullOrEmpty(_searchFilter) ? "CUSTOM EMOJIS" : "SEARCH RESULTS";
         }
 
-        private void AddEmojiButton(string emoji, CustomEmoji? customEmoji)
+        private void OnEmojiClicked(EmojiItem item)
         {
-            var btn = new Button
+            if (item.IsStandard)
             {
-                Text = emoji,
-                Size = new Size(40, 40),
-                Margin = new Padding(2),
-                FlatStyle = FlatStyle.Flat,
-                BackColor = Theme.Dark.EmojiPickerBackground,
-                Font = Theme.Fonts.StandardEmoji,
-                Cursor = Cursors.Hand,
-                Tag = customEmoji
-            };
-            btn.FlatAppearance.BorderSize = 0;
-            btn.FlatAppearance.MouseOverBackColor = Theme.Dark.EmojiHoverBackground;
-            btn.Click += (s, e) =>
-            {
-                _onEmojiSelected(emoji);
-                Close();
-            };
-
-            var toolTip = new ToolTip();
-            toolTip.SetToolTip(btn, customEmoji?.Name ?? emoji);
-
-            pnlEmojis.Controls.Add(btn);
-        }
-
-        private void AddCustomEmojiButton(CustomEmoji emoji)
-        {
-            var btn = new Button
-            {
-                Size = new Size(48, 48),
-                Margin = new Padding(4),
-                FlatStyle = FlatStyle.Flat,
-                BackColor = Theme.Dark.EmojiPickerBackground,
-                Cursor = Cursors.Hand,
-                Tag = emoji
-            };
-            btn.FlatAppearance.BorderSize = 0;
-            btn.FlatAppearance.MouseOverBackColor = Theme.Dark.EmojiHoverBackground;
-
-            // Load image asynchronously
-            _ = LoadEmojiImageAsync(btn, emoji);
-
-            btn.Click += (s, e) =>
-            {
-                _onEmojiSelected($":{emoji.Name}:");
-                Close();
-            };
-
-            var toolTip = new ToolTip();
-            toolTip.SetToolTip(btn, $":{emoji.Name}:");
-
-            pnlEmojis.Controls.Add(btn);
-        }
-
-        private async Task LoadEmojiImageAsync(Button btn, CustomEmoji emoji)
-        {
-            try
-            {
-                var image = await _emojiCache.GetEmojiImageAsync(emoji);
-                if (image != null && !btn.IsDisposed)
-                {
-                    var resized = new Bitmap(image, new Size(32, 32));
-                    btn.Invoke(() =>
-                    {
-                        if (!btn.IsDisposed)
-                        {
-                            btn.Image = resized;
-                            btn.ImageAlign = ContentAlignment.MiddleCenter;
-                        }
-                    });
-                }
+                _onEmojiSelected(item.Emoji!);
             }
-            catch
+            else if (item.CustomEmoji != null)
             {
-                // Failed to load image, show placeholder
-                if (!btn.IsDisposed)
-                {
-                    btn.Invoke(() =>
-                    {
-                        if (!btn.IsDisposed)
-                        {
-                            btn.Text = "?";
-                            btn.Font = Theme.Fonts.SidebarItem;
-                            btn.ForeColor = Theme.Dark.TextSecondary;
-                        }
-                    });
-                }
+                _onEmojiSelected($":{item.CustomEmoji.Name}:");
             }
-        }
-
-        private bool MatchesSearch(string emoji, string category)
-        {
-            if (string.IsNullOrEmpty(_searchFilter)) return true;
-            return category.Contains(_searchFilter, StringComparison.OrdinalIgnoreCase);
+            Close();
         }
 
         private void BtnStandardTab_Click(object? sender, EventArgs e)
@@ -498,6 +406,361 @@ namespace OpenChat
             {
                 LoadCustomEmojis();
             }
+        }
+    }
+
+    /// <summary>
+    /// Represents an item in the emoji grid (either a header or an emoji)
+    /// </summary>
+    public class EmojiItem
+    {
+        public bool IsHeader { get; set; }
+        public string? Category { get; set; }
+        public string? Emoji { get; set; }
+        public bool IsStandard { get; set; }
+        public CustomEmoji? CustomEmoji { get; set; }
+    }
+
+    /// <summary>
+    /// High-performance virtualized emoji panel using owner-draw rendering
+    /// </summary>
+    public class VirtualizedEmojiPanel : Panel
+    {
+        private List<EmojiItem> _items = new();
+        private EmojiCache? _emojiCache;
+        private readonly Dictionary<Guid, Image?> _imageCache = new();
+        private int _scrollOffset = 0;
+        private int _hoverIndex = -1;
+        private readonly ToolTip _toolTip;
+
+        private const int CellSize = 40;
+        private const int CellSpacing = 4;
+        private const int HeaderHeight = 32;
+        private new const int Padding = 8;
+
+        // Pre-calculated layout
+        private int _columnsPerRow;
+        private List<RowInfo> _rows = new();
+
+        public event Action<EmojiItem>? EmojiClicked;
+
+        public VirtualizedEmojiPanel()
+        {
+            DoubleBuffered = true;
+            SetStyle(ControlStyles.AllPaintingInWmPaint | ControlStyles.UserPaint | ControlStyles.OptimizedDoubleBuffer, true);
+
+            _toolTip = new ToolTip
+            {
+                InitialDelay = 300,
+                ReshowDelay = 100
+            };
+
+            AutoScroll = true;
+        }
+
+        public void SetItems(List<EmojiItem> items, EmojiCache emojiCache)
+        {
+            _items = items;
+            _emojiCache = emojiCache;
+            _scrollOffset = 0;
+            _hoverIndex = -1;
+            CalculateLayout();
+            AutoScrollMinSize = new Size(0, CalculateTotalHeight());
+            AutoScrollPosition = new Point(0, 0);
+            Invalidate();
+
+            // Pre-load custom emoji images
+            _ = PreloadCustomEmojisAsync();
+        }
+
+        private async Task PreloadCustomEmojisAsync()
+        {
+            if (_emojiCache == null) return;
+
+            foreach (var item in _items.Where(i => !i.IsStandard && i.CustomEmoji != null))
+            {
+                if (item.CustomEmoji != null && !_imageCache.ContainsKey(item.CustomEmoji.Id))
+                {
+                    try
+                    {
+                        var image = await _emojiCache.GetEmojiImageAsync(item.CustomEmoji);
+                        _imageCache[item.CustomEmoji.Id] = image;
+                    }
+                    catch
+                    {
+                        _imageCache[item.CustomEmoji.Id] = null;
+                    }
+                }
+            }
+            Invalidate();
+        }
+
+        private void CalculateLayout()
+        {
+            _rows.Clear();
+            _columnsPerRow = Math.Max(1, (Width - Padding * 2) / (CellSize + CellSpacing));
+
+            int currentY = Padding;
+            int currentCol = 0;
+            int rowStartIndex = 0;
+
+            for (int i = 0; i < _items.Count; i++)
+            {
+                var item = _items[i];
+
+                if (item.IsHeader)
+                {
+                    // Headers take full row
+                    if (currentCol > 0)
+                    {
+                        currentY += CellSize + CellSpacing;
+                        currentCol = 0;
+                    }
+
+                    _rows.Add(new RowInfo
+                    {
+                        Y = currentY,
+                        Height = HeaderHeight,
+                        StartIndex = i,
+                        EndIndex = i,
+                        IsHeader = true
+                    });
+
+                    currentY += HeaderHeight;
+                    rowStartIndex = i + 1;
+                }
+                else
+                {
+                    if (currentCol == 0)
+                    {
+                        rowStartIndex = i;
+                    }
+
+                    currentCol++;
+
+                    if (currentCol >= _columnsPerRow || i == _items.Count - 1)
+                    {
+                        _rows.Add(new RowInfo
+                        {
+                            Y = currentY,
+                            Height = CellSize,
+                            StartIndex = rowStartIndex,
+                            EndIndex = i,
+                            IsHeader = false
+                        });
+
+                        currentY += CellSize + CellSpacing;
+                        currentCol = 0;
+                    }
+                }
+            }
+        }
+
+        private int CalculateTotalHeight()
+        {
+            if (_rows.Count == 0) return Padding * 2;
+            var lastRow = _rows[_rows.Count - 1];
+            return lastRow.Y + lastRow.Height + Padding;
+        }
+
+        protected override void OnResize(EventArgs e)
+        {
+            base.OnResize(e);
+            CalculateLayout();
+            AutoScrollMinSize = new Size(0, CalculateTotalHeight());
+            Invalidate();
+        }
+
+        protected override void OnPaint(PaintEventArgs e)
+        {
+            base.OnPaint(e);
+
+            var g = e.Graphics;
+            g.SmoothingMode = SmoothingMode.AntiAlias;
+            g.TextRenderingHint = TextRenderingHint.ClearTypeGridFit;
+
+            var scrollY = -AutoScrollPosition.Y;
+            var visibleTop = scrollY;
+            var visibleBottom = scrollY + Height;
+
+            using var headerFont = new Font("Segoe UI", 9F, FontStyle.Bold);
+            using var headerBrush = new SolidBrush(Theme.Dark.CategoryHeaderText);
+            using var hoverBrush = new SolidBrush(Theme.Dark.EmojiHoverBackground);
+            using var emojiFont = new Font("Segoe UI Emoji", 22F);
+
+            foreach (var row in _rows)
+            {
+                var rowTop = row.Y - scrollY;
+                var rowBottom = rowTop + row.Height;
+
+                // Skip rows outside visible area
+                if (rowBottom < 0 || rowTop > Height)
+                    continue;
+
+                if (row.IsHeader)
+                {
+                    // Draw header
+                    var item = _items[row.StartIndex];
+                    g.DrawString(item.Category, headerFont, headerBrush, Padding, rowTop + 8);
+                }
+                else
+                {
+                    // Draw emoji cells
+                    int col = 0;
+                    for (int i = row.StartIndex; i <= row.EndIndex && i < _items.Count; i++)
+                    {
+                        var item = _items[i];
+                        if (item.IsHeader) continue;
+
+                        var cellX = Padding + col * (CellSize + CellSpacing);
+                        var cellY = rowTop;
+                        var cellRect = new Rectangle(cellX, (int)cellY, CellSize, CellSize);
+
+                        // Draw hover background
+                        if (i == _hoverIndex)
+                        {
+                            using var path = GetRoundedRectPath(cellRect, 6);
+                            g.FillPath(hoverBrush, path);
+                        }
+
+                        if (item.IsStandard && item.Emoji != null)
+                        {
+                            // Draw standard emoji using TextRenderer for better rendering
+                            TextRenderer.DrawText(g, item.Emoji, emojiFont, cellRect,
+                                Color.White, TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter);
+                        }
+                        else if (item.CustomEmoji != null)
+                        {
+                            // Draw custom emoji image
+                            if (_imageCache.TryGetValue(item.CustomEmoji.Id, out var image) && image != null)
+                            {
+                                var imgSize = 28;
+                                var imgX = cellX + (CellSize - imgSize) / 2;
+                                var imgY = (int)cellY + (CellSize - imgSize) / 2;
+                                g.DrawImage(image, imgX, imgY, imgSize, imgSize);
+                            }
+                            else
+                            {
+                                // Draw placeholder
+                                using var placeholderBrush = new SolidBrush(Theme.Dark.TextMuted);
+                                var sf = new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center };
+                                g.DrawString("?", headerFont, placeholderBrush, cellRect, sf);
+                            }
+                        }
+
+                        col++;
+                    }
+                }
+            }
+        }
+
+        protected override void OnMouseMove(MouseEventArgs e)
+        {
+            base.OnMouseMove(e);
+
+            var newHoverIndex = GetItemIndexAtPoint(e.Location);
+            if (newHoverIndex != _hoverIndex)
+            {
+                _hoverIndex = newHoverIndex;
+                Invalidate();
+
+                // Update tooltip
+                if (_hoverIndex >= 0 && _hoverIndex < _items.Count)
+                {
+                    var item = _items[_hoverIndex];
+                    if (!item.IsHeader)
+                    {
+                        var tooltip = item.IsStandard ? item.Emoji : $":{item.CustomEmoji?.Name}:";
+                        _toolTip.SetToolTip(this, tooltip);
+                    }
+                    else
+                    {
+                        _toolTip.SetToolTip(this, null);
+                    }
+                }
+                else
+                {
+                    _toolTip.SetToolTip(this, null);
+                }
+            }
+        }
+
+        protected override void OnMouseLeave(EventArgs e)
+        {
+            base.OnMouseLeave(e);
+            _hoverIndex = -1;
+            _toolTip.SetToolTip(this, null);
+            Invalidate();
+        }
+
+        protected override void OnMouseClick(MouseEventArgs e)
+        {
+            base.OnMouseClick(e);
+
+            var index = GetItemIndexAtPoint(e.Location);
+            if (index >= 0 && index < _items.Count)
+            {
+                var item = _items[index];
+                if (!item.IsHeader)
+                {
+                    EmojiClicked?.Invoke(item);
+                }
+            }
+        }
+
+        private int GetItemIndexAtPoint(Point point)
+        {
+            var scrollY = -AutoScrollPosition.Y;
+            var adjustedY = point.Y + scrollY;
+
+            foreach (var row in _rows)
+            {
+                if (adjustedY >= row.Y && adjustedY < row.Y + row.Height)
+                {
+                    if (row.IsHeader)
+                    {
+                        return row.StartIndex;
+                    }
+
+                    var col = (point.X - Padding) / (CellSize + CellSpacing);
+                    if (col < 0 || col >= _columnsPerRow) return -1;
+
+                    var index = row.StartIndex + col;
+                    if (index <= row.EndIndex && index < _items.Count)
+                    {
+                        return index;
+                    }
+                }
+            }
+
+            return -1;
+        }
+
+        private static GraphicsPath GetRoundedRectPath(Rectangle rect, int radius)
+        {
+            var path = new GraphicsPath();
+            var diameter = radius * 2;
+            var arc = new Rectangle(rect.Location, new Size(diameter, diameter));
+
+            path.AddArc(arc, 180, 90);
+            arc.X = rect.Right - diameter;
+            path.AddArc(arc, 270, 90);
+            arc.Y = rect.Bottom - diameter;
+            path.AddArc(arc, 0, 90);
+            arc.X = rect.Left;
+            path.AddArc(arc, 90, 90);
+            path.CloseFigure();
+
+            return path;
+        }
+
+        private class RowInfo
+        {
+            public int Y { get; set; }
+            public int Height { get; set; }
+            public int StartIndex { get; set; }
+            public int EndIndex { get; set; }
+            public bool IsHeader { get; set; }
         }
     }
 }

@@ -38,6 +38,7 @@ namespace OpenChat
             lblCurrentChannel = new Label();
             pnlMessageInput = new Panel();
             pnlInputContainer = new Panel();
+            btnEmoji = new Button();
             txtMessage = new TextBox();
             btnSend = new Button();
             pnlSidebar.SuspendLayout();
@@ -301,6 +302,7 @@ namespace OpenChat
             //
             pnlInputContainer.BackColor = Color.FromArgb(43, 46, 51);
             pnlInputContainer.Controls.Add(txtMessage);
+            pnlInputContainer.Controls.Add(btnEmoji);
             pnlInputContainer.Controls.Add(btnSend);
             pnlInputContainer.Dock = DockStyle.Fill;
             pnlInputContainer.Location = new Point(20, 10);
@@ -308,6 +310,25 @@ namespace OpenChat
             pnlInputContainer.Padding = new Padding(12, 8, 8, 8);
             pnlInputContainer.Size = new Size(884, 50);
             pnlInputContainer.TabIndex = 0;
+            //
+            // btnEmoji
+            //
+            btnEmoji.BackColor = Color.Transparent;
+            btnEmoji.Cursor = Cursors.Hand;
+            btnEmoji.Dock = DockStyle.Right;
+            btnEmoji.FlatAppearance.BorderSize = 0;
+            btnEmoji.FlatAppearance.MouseDownBackColor = Color.FromArgb(60, 63, 68);
+            btnEmoji.FlatAppearance.MouseOverBackColor = Color.FromArgb(55, 57, 63);
+            btnEmoji.FlatStyle = FlatStyle.Flat;
+            btnEmoji.Font = new Font("Segoe UI Emoji", 16F);
+            btnEmoji.ForeColor = Color.FromArgb(171, 171, 173);
+            btnEmoji.Location = new Point(746, 8);
+            btnEmoji.Name = "btnEmoji";
+            btnEmoji.Size = new Size(50, 34);
+            btnEmoji.TabIndex = 2;
+            btnEmoji.Text = "😀";
+            btnEmoji.UseVisualStyleBackColor = false;
+            btnEmoji.Click += BtnEmoji_Click;
             //
             // txtMessage
             //
@@ -320,7 +341,7 @@ namespace OpenChat
             txtMessage.Multiline = true;
             txtMessage.Name = "txtMessage";
             txtMessage.PlaceholderText = "Type a message...";
-            txtMessage.Size = new Size(784, 34);
+            txtMessage.Size = new Size(734, 34);
             txtMessage.TabIndex = 0;
             txtMessage.KeyDown += TxtMessage_KeyDown;
             //
@@ -393,6 +414,7 @@ namespace OpenChat
         private Label lblCurrentChannel;
         private Panel pnlMessageInput;
         private Panel pnlInputContainer;
+        private Button btnEmoji;
         private TextBox txtMessage;
         private Button btnSend;
     }

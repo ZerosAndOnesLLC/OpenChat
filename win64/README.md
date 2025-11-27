@@ -8,12 +8,20 @@ A native Windows Forms desktop client for OpenChat.
 - **Real-time Messaging**: WebSocket-based real-time message delivery
 - **Channels**: View and participate in public and private channels
 - **Direct Messages**: 1-on-1 and group conversations
+- **Emoji Support**: Full emoji integration with:
+  - Standard Unicode emoji picker with categories (Smileys, Gestures, People, Animals, Food, Activities, Travel, Objects, Symbols, Flags)
+  - Custom organization emojis synced from the web UI
+  - Emoji search/filter functionality
+  - Upload custom emojis (admin users)
+  - Inline custom emoji rendering in messages
+  - Local emoji image caching for performance
 - **Modern Dark UI**: Slack/Mattermost-inspired dark theme with:
   - Custom-drawn sidebar with rounded selection highlights
   - Unread badges with notification counts
   - Online status indicators
   - Smooth anti-aliased graphics
   - Rounded input fields and buttons
+  - Beautiful emoji picker with tabbed interface
 - **Message History**: Load and view message history
 - **Typing Indicators**: See when others are typing (backend support)
 - **Unread Counts**: Track unread messages per channel/DM
@@ -72,6 +80,14 @@ A native Windows Forms desktop client for OpenChat.
 - Press Enter or click "Send" to send
 - Supports Shift+Enter for new lines
 
+**Using Emojis:**
+- Click the 😀 button next to the Send button to open the emoji picker
+- **Standard Tab**: Browse Unicode emojis by category or use the search bar
+- **Custom Tab**: View and use your organization's custom emojis
+- Click any emoji to insert it into your message
+- Custom emojis use the `:emoji_name:` format (e.g., `:thumbsup:`)
+- Admins can upload custom emojis by clicking "+ Upload" in the Custom tab
+
 ## Architecture
 
 The application is structured as follows:
@@ -83,15 +99,19 @@ OpenChat/
 │   ├── Channel.cs
 │   ├── Message.cs
 │   ├── DirectMessage.cs
+│   ├── CustomEmoji.cs   # Custom emoji models
 │   └── AuthResponse.cs
 ├── Services/            # Business logic and API communication
 │   ├── ApiClient.cs     # REST API client
-│   └── WebSocketClient.cs  # WebSocket client for real-time updates
+│   ├── WebSocketClient.cs  # WebSocket client for real-time updates
+│   └── EmojiCache.cs    # Local emoji caching service
 ├── Theme.cs             # Dark theme color palette and fonts
 ├── LoginForm.cs         # Device authentication UI
 ├── LoginForm.Designer.cs
 ├── MainForm.cs          # Main chat interface
 ├── MainForm.Designer.cs
+├── EmojiPickerForm.cs   # Emoji picker popup
+├── EmojiUploadDialog.cs # Custom emoji upload dialog
 └── Program.cs           # Application entry point
 ```
 
@@ -134,7 +154,6 @@ To change these URLs, edit the respective files:
 
 - No support for file attachments yet
 - No support for reactions or threads yet
-- No support for emoji picker
 - No notifications for new messages when app is in background
 
 ## Future Enhancements
@@ -144,12 +163,12 @@ To change these URLs, edit the respective files:
 - [ ] Threaded conversations
 - [ ] Desktop notifications
 - [ ] System tray integration
-- [ ] Custom emoji support
 - [ ] Message search
 - [ ] User presence indicators
 - [ ] Typing indicators display
 - [ ] Message editing
 - [ ] Message deletion
+- [ ] Emoji autocomplete while typing
 
 ## License
 

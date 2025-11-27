@@ -1,5 +1,6 @@
 using Newtonsoft.Json;
 using OpenChat.Models;
+using System.Net.Http.Headers;
 using System.Text;
 
 namespace OpenChat.Services
@@ -12,9 +13,11 @@ namespace OpenChat.Services
 
         public string? AccessToken => _accessToken;
         public UserInfo? CurrentUser => _currentUser;
+        public string BaseUrl { get; }
 
         public ApiClient(string baseUrl)
         {
+            BaseUrl = baseUrl;
             _httpClient = new HttpClient
             {
                 BaseAddress = new Uri(baseUrl)
@@ -108,6 +111,79 @@ namespace OpenChat.Services
         public async Task<List<User>> GetUsersAsync()
         {
             return await GetAsync<List<User>>("/api/users") ?? new List<User>();
+        }
+
+        // Custom Emojis
+        public async Task<List<CustomEmoji>> GetCustomEmojisAsync()
+        {
+            return await GetAsync<List<CustomEmoji>>("/api/emojis") ?? new List<CustomEmoji>();
+        }
+
+        public async Task<byte[]?> GetEmojiImageAsync(Guid emojiId)
+        {
+            try
+            {
+                var response = await _httpClient.GetAsync($"/api/emojis/{emojiId}/image");
+                response.EnsureSuccessStatusCode();
+                return await response.Content.ReadAsByteArrayAsync();
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"GET emoji image {emojiId} failed: {ex.Message}");
+                return null;
+            }
+        }
+
+        public async Task<EmojiUploadResponse?> UploadCustomEmojiAsync(string name, string filePath)
+        {
+            try
+            {
+                using var form = new MultipartFormDataContent();
+                form.Add(new StringContent(name), "name");
+
+                var fileBytes = await File.ReadAllBytesAsync(filePath);
+                var fileContent = new ByteArrayContent(fileBytes);
+                var mimeType = GetMimeType(filePath);
+                fileContent.Headers.ContentType = new MediaTypeHeaderValue(mimeType);
+                form.Add(fileContent, "file", Path.GetFileName(filePath));
+
+                var response = await _httpClient.PostAsync("/api/emojis/upload", form);
+                response.EnsureSuccessStatusCode();
+                var responseContent = await response.Content.ReadAsStringAsync();
+                return JsonConvert.DeserializeObject<EmojiUploadResponse>(responseContent);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Upload emoji failed: {ex.Message}");
+                throw;
+            }
+        }
+
+        public async Task DeleteCustomEmojiAsync(Guid emojiId)
+        {
+            try
+            {
+                var response = await _httpClient.DeleteAsync($"/api/emojis/{emojiId}");
+                response.EnsureSuccessStatusCode();
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"DELETE emoji {emojiId} failed: {ex.Message}");
+                throw;
+            }
+        }
+
+        private static string GetMimeType(string filePath)
+        {
+            var ext = Path.GetExtension(filePath).ToLowerInvariant();
+            return ext switch
+            {
+                ".png" => "image/png",
+                ".jpg" or ".jpeg" => "image/jpeg",
+                ".gif" => "image/gif",
+                ".webp" => "image/webp",
+                _ => "application/octet-stream"
+            };
         }
 
         // Generic HTTP methods

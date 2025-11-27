@@ -1,6 +1,7 @@
 using OpenChat.Models;
 using OpenChat.Services;
 using System.Drawing.Drawing2D;
+using System.Text.RegularExpressions;
 
 namespace OpenChat
 {
@@ -8,6 +9,7 @@ namespace OpenChat
     {
         private ApiClient _apiClient;
         private WebSocketClient? _webSocketClient;
+        private EmojiCache _emojiCache = null!;
 
         private Guid? _currentChannelId;
         private Guid? _currentDmId;
@@ -15,12 +17,15 @@ namespace OpenChat
         private List<DirectMessage> _directMessages = new();
         private HashSet<Guid> _displayedMessageIds = new();
 
+        private static readonly Regex CustomEmojiPattern = new(@":([a-zA-Z0-9_-]+):", RegexOptions.Compiled);
+
         public MainForm()
         {
             InitializeComponent();
             SetupUI();
 
             _apiClient = new ApiClient("https://openchat-api.zerosandones.us:9876");
+            _emojiCache = new EmojiCache(_apiClient);
 
             if (!string.IsNullOrEmpty(AppSettings.AccessToken))
             {
@@ -249,6 +254,8 @@ namespace OpenChat
                 await ConnectWebSocketAsync();
                 await LoadChannelsAsync();
                 await LoadDirectMessagesAsync();
+                // Pre-load custom emojis in background
+                _ = _emojiCache.GetCustomEmojisAsync();
             }
             catch (Exception ex)
             {
@@ -410,18 +417,155 @@ namespace OpenChat
             rtbMessages.SelectionColor = Theme.Dark.MessageTimestamp;
             rtbMessages.AppendText($"{timestamp}\n");
 
-            // Message content - use Segoe UI Emoji for proper emoji rendering
-            rtbMessages.SelectionFont = Theme.Fonts.MessageTextEmoji;
-            rtbMessages.SelectionColor = Theme.Dark.MessageText;
-            rtbMessages.AppendText($"{content}\n\n");
+            // Message content - render with custom emoji support
+            AppendMessageContentWithEmojis(content);
+            rtbMessages.AppendText("\n\n");
 
             rtbMessages.SelectionStart = rtbMessages.TextLength;
             rtbMessages.ScrollToCaret();
         }
 
+        private void AppendMessageContentWithEmojis(string content)
+        {
+            rtbMessages.SelectionFont = Theme.Fonts.MessageTextEmoji;
+            rtbMessages.SelectionColor = Theme.Dark.MessageText;
+
+            var matches = CustomEmojiPattern.Matches(content);
+            if (matches.Count == 0)
+            {
+                rtbMessages.AppendText(content);
+                return;
+            }
+
+            var lastIndex = 0;
+            foreach (Match match in matches)
+            {
+                // Append text before the emoji
+                if (match.Index > lastIndex)
+                {
+                    rtbMessages.AppendText(content[lastIndex..match.Index]);
+                }
+
+                var emojiName = match.Groups[1].Value;
+                var emoji = _emojiCache.GetEmojiByName(emojiName);
+
+                if (emoji != null)
+                {
+                    // Try to insert the custom emoji image
+                    _ = InsertCustomEmojiAsync(emoji);
+                }
+                else
+                {
+                    // Emoji not found, show the text as-is
+                    rtbMessages.SelectionColor = Theme.Dark.TextMuted;
+                    rtbMessages.AppendText(match.Value);
+                    rtbMessages.SelectionColor = Theme.Dark.MessageText;
+                }
+
+                lastIndex = match.Index + match.Length;
+            }
+
+            // Append remaining text after the last emoji
+            if (lastIndex < content.Length)
+            {
+                rtbMessages.AppendText(content[lastIndex..]);
+            }
+        }
+
+        private async Task InsertCustomEmojiAsync(CustomEmoji emoji)
+        {
+            try
+            {
+                var image = await _emojiCache.GetEmojiImageAsync(emoji);
+                if (image != null)
+                {
+                    // RichTextBox doesn't support inline images easily
+                    // So we'll insert a placeholder that indicates an emoji
+                    // and show the emoji name in a special format
+                    this.Invoke(() =>
+                    {
+                        // Copy image to clipboard and paste
+                        var resized = new Bitmap(image, new Size(20, 20));
+                        Clipboard.SetImage(resized);
+                        rtbMessages.Paste();
+                        resized.Dispose();
+                    });
+                }
+                else
+                {
+                    // Fallback to showing emoji name
+                    this.Invoke(() =>
+                    {
+                        rtbMessages.SelectionColor = Theme.Dark.AccentBlue;
+                        rtbMessages.AppendText($"[:{emoji.Name}:]");
+                        rtbMessages.SelectionColor = Theme.Dark.MessageText;
+                    });
+                }
+            }
+            catch
+            {
+                // Fallback to showing emoji name
+                this.Invoke(() =>
+                {
+                    rtbMessages.SelectionColor = Theme.Dark.AccentBlue;
+                    rtbMessages.AppendText($"[:{emoji.Name}:]");
+                    rtbMessages.SelectionColor = Theme.Dark.MessageText;
+                });
+            }
+        }
+
         private async void BtnSend_Click(object? sender, EventArgs e)
         {
             await SendMessageAsync();
+        }
+
+        private void BtnEmoji_Click(object? sender, EventArgs e)
+        {
+            ShowEmojiPicker();
+        }
+
+        private void ShowEmojiPicker()
+        {
+            var picker = new EmojiPickerForm(
+                _emojiCache,
+                OnEmojiSelected,
+                ShowEmojiUploadDialog
+            );
+
+            // Position the picker above the emoji button
+            var btnLocation = btnEmoji.PointToScreen(Point.Empty);
+            picker.Location = new Point(
+                btnLocation.X - picker.Width + btnEmoji.Width + 10,
+                btnLocation.Y - picker.Height - 10
+            );
+
+            // Ensure it stays on screen
+            var screen = Screen.FromControl(this);
+            if (picker.Left < screen.WorkingArea.Left)
+                picker.Left = screen.WorkingArea.Left + 10;
+            if (picker.Top < screen.WorkingArea.Top)
+                picker.Top = btnLocation.Y + btnEmoji.Height + 10;
+
+            picker.Show();
+        }
+
+        private void OnEmojiSelected(string emoji)
+        {
+            // Insert emoji at cursor position
+            var selectionStart = txtMessage.SelectionStart;
+            txtMessage.Text = txtMessage.Text.Insert(selectionStart, emoji);
+            txtMessage.SelectionStart = selectionStart + emoji.Length;
+            txtMessage.Focus();
+        }
+
+        private void ShowEmojiUploadDialog()
+        {
+            using var dialog = new EmojiUploadDialog(_apiClient, _emojiCache, () =>
+            {
+                // Refresh emoji cache after successful upload
+                _ = _emojiCache.GetCustomEmojisAsync(forceRefresh: true);
+            });
+            dialog.ShowDialog(this);
         }
 
         private async void TxtMessage_KeyDown(object? sender, KeyEventArgs e)

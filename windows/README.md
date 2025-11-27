@@ -21,6 +21,8 @@ OpenChat Desktop provides a native desktop experience for OpenChat, leveraging t
 - Shell integration
 - Lightweight (~3-10MB bundle size)
 - Secure communication with native APIs
+- Secure credential storage with 365-day expiry (using OS keychain)
+- Deep link authentication support
 
 ## Prerequisites
 
@@ -143,6 +145,8 @@ Manage Rust dependencies in `Cargo.toml`. Current plugins:
 - `tauri-plugin-fs`: File system access
 - `tauri-plugin-notification`: System notifications
 - `tauri-plugin-log`: Logging functionality
+- `tauri-plugin-deep-link`: Deep link / URL protocol handling
+- `keyring`: Secure OS credential storage (Windows Credential Manager, macOS Keychain, Linux Secret Service)
 
 ## Security
 

@@ -14,9 +14,9 @@ pub fn run() {
     .manage(auth::AppState::default())
     .invoke_handler(tauri::generate_handler![
       auth::verify_pairing_code,
-      auth::get_stored_token,
-      auth::store_token,
-      auth::clear_token,
+      auth::get_stored_credentials,
+      auth::store_credentials,
+      auth::clear_credentials,
       auth::validate_token,
       auth::process_deep_link_payload,
     ])

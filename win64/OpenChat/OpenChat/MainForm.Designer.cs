@@ -118,6 +118,21 @@ namespace OpenChat
             lblDirectMessagesHeader.TabIndex = 0;
             lblDirectMessagesHeader.Text = "Direct Messages";
             //
+            // btnNewDm
+            //
+            btnNewDm = new Button();
+            btnNewDm.Text = "+";
+            btnNewDm.Size = new Size(24, 24);
+            btnNewDm.Location = new Point(200, 3);
+            btnNewDm.FlatStyle = FlatStyle.Flat;
+            btnNewDm.FlatAppearance.BorderSize = 0;
+            btnNewDm.BackColor = Color.Transparent;
+            btnNewDm.ForeColor = Color.FromArgb(171, 171, 173);
+            btnNewDm.Font = new Font("Segoe UI", 14F);
+            btnNewDm.Cursor = Cursors.Hand;
+            btnNewDm.Click += BtnNewDm_Click;
+            lblDirectMessagesHeader.Controls.Add(btnNewDm);
+            //
             // pnlChannels
             //
             pnlChannels.BackColor = Color.FromArgb(27, 27, 31);
@@ -158,6 +173,21 @@ namespace OpenChat
             lblChannelsHeader.Size = new Size(236, 30);
             lblChannelsHeader.TabIndex = 0;
             lblChannelsHeader.Text = "Channels";
+            //
+            // btnBrowseChannels
+            //
+            btnBrowseChannels = new Button();
+            btnBrowseChannels.Text = "+";
+            btnBrowseChannels.Size = new Size(24, 24);
+            btnBrowseChannels.Location = new Point(200, 3);
+            btnBrowseChannels.FlatStyle = FlatStyle.Flat;
+            btnBrowseChannels.FlatAppearance.BorderSize = 0;
+            btnBrowseChannels.BackColor = Color.Transparent;
+            btnBrowseChannels.ForeColor = Color.FromArgb(171, 171, 173);
+            btnBrowseChannels.Font = new Font("Segoe UI", 14F);
+            btnBrowseChannels.Cursor = Cursors.Hand;
+            btnBrowseChannels.Click += BtnBrowseChannels_Click;
+            lblChannelsHeader.Controls.Add(btnBrowseChannels);
             //
             // pnlWorkspace
             //
@@ -417,5 +447,7 @@ namespace OpenChat
         private Button btnEmoji;
         private TextBox txtMessage;
         private Button btnSend;
+        private Button btnBrowseChannels;
+        private Button btnNewDm;
     }
 }

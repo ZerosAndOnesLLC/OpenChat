@@ -17,6 +17,7 @@ namespace OpenChat
         private Guid? _currentDmId;
         private List<Channel> _channels = new();
         private List<DirectMessage> _directMessages = new();
+        private UserStatus? _currentUserStatus;
 
         public MainForm()
         {
@@ -157,13 +158,64 @@ namespace OpenChat
 
             // Add bottom border to channel header
             pnlChannelHeader.Paint += PnlChannelHeader_Paint;
+
+            // Make user status panel clickable for status picker
+            pnlUserStatus.Cursor = Cursors.Hand;
+            pnlUserStatus.Click += PnlUserStatus_Click;
+            lblUserName.Click += PnlUserStatus_Click;
+            pnlStatusIndicator.Click += PnlUserStatus_Click;
         }
 
         private void PnlStatusIndicator_Paint(object? sender, PaintEventArgs e)
         {
             e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
-            using var brush = new SolidBrush(Theme.Dark.OnlineGreen);
+            var statusColor = GetStatusColor(_currentUserStatus?.Status ?? "online");
+            using var brush = new SolidBrush(statusColor);
             e.Graphics.FillEllipse(brush, 0, 4, 10, 10);
+        }
+
+        private static Color GetStatusColor(string status)
+        {
+            return status switch
+            {
+                "online" => Color.FromArgb(46, 182, 125),
+                "away" => Color.FromArgb(250, 168, 26),
+                "dnd" => Color.FromArgb(237, 66, 69),
+                "offline" or "invisible" => Color.FromArgb(116, 116, 116),
+                _ => Color.FromArgb(46, 182, 125)
+            };
+        }
+
+        private void PnlUserStatus_Click(object? sender, EventArgs e)
+        {
+            ShowStatusPicker();
+        }
+
+        private void ShowStatusPicker()
+        {
+            var picker = new StatusPickerForm(_apiClient, _currentUserStatus, OnStatusChanged);
+
+            // Position below the user status panel
+            var panelLocation = pnlUserStatus.PointToScreen(Point.Empty);
+            picker.Location = new Point(
+                panelLocation.X,
+                panelLocation.Y + pnlUserStatus.Height + 5
+            );
+
+            // Ensure it stays on screen
+            var screen = Screen.FromControl(this);
+            if (picker.Right > screen.WorkingArea.Right)
+                picker.Left = screen.WorkingArea.Right - picker.Width - 10;
+            if (picker.Bottom > screen.WorkingArea.Bottom)
+                picker.Top = panelLocation.Y - picker.Height - 5;
+
+            picker.Show();
+        }
+
+        private void OnStatusChanged(UserStatus newStatus)
+        {
+            _currentUserStatus = newStatus;
+            pnlStatusIndicator.Invalidate();
         }
 
         private void PnlUserStatus_Paint(object? sender, PaintEventArgs e)
@@ -357,12 +409,27 @@ namespace OpenChat
                 await ConnectWebSocketAsync();
                 await LoadChannelsAsync();
                 await LoadDirectMessagesAsync();
+                await LoadUserStatusAsync();
                 // Pre-load custom emojis in background
                 _ = _emojiCache.GetCustomEmojisAsync();
             }
             catch (Exception ex)
             {
                 ShowError("Initialization Failed", "Failed to initialize the application.", ex.ToString());
+            }
+        }
+
+        private async Task LoadUserStatusAsync()
+        {
+            try
+            {
+                _currentUserStatus = await _apiClient.GetMyStatusAsync();
+                pnlStatusIndicator.Invalidate();
+            }
+            catch
+            {
+                // Default to online if we can't fetch status
+                _currentUserStatus = new UserStatus { Status = "online" };
             }
         }
 
@@ -502,10 +569,10 @@ namespace OpenChat
 
         private void ShowEmojiPicker()
         {
-            var picker = new EmojiPickerForm(
+            var picker = new WebEmojiPickerForm(
                 _emojiCache,
-                OnEmojiSelected,
-                ShowEmojiUploadDialog
+                _apiClient.BaseUrl,
+                OnEmojiSelected
             );
 
             // Position the picker above the emoji button
@@ -601,6 +668,39 @@ namespace OpenChat
         private void ShowError(string title, string message, string? details = null)
         {
             ErrorDialog.Show(this, title, message, details);
+        }
+
+        private void BtnBrowseChannels_Click(object? sender, EventArgs e)
+        {
+            using var form = new BrowseChannelsForm(_apiClient, OnChannelJoined);
+            form.ShowDialog(this);
+        }
+
+        private async void OnChannelJoined(Channel channel)
+        {
+            // Reload channels to include the newly joined one
+            await LoadChannelsAsync();
+        }
+
+        private void BtnNewDm_Click(object? sender, EventArgs e)
+        {
+            if (AppSettings.CurrentUser == null) return;
+
+            using var form = new NewDmForm(_apiClient, AppSettings.CurrentUser.Id, OnDmCreated);
+            form.ShowDialog(this);
+        }
+
+        private async void OnDmCreated(DirectMessage dm)
+        {
+            // Reload DMs and select the new one
+            await LoadDirectMessagesAsync();
+
+            // Find and select the new DM
+            var index = _directMessages.FindIndex(d => d.Id == dm.Id);
+            if (index >= 0)
+            {
+                lstDirectMessages.SelectedIndex = index;
+            }
         }
     }
 }

@@ -2,6 +2,7 @@ use actix_web::{web, HttpMessage, HttpRequest, HttpResponse};
 use redis::aio::MultiplexedConnection;
 use serde::{Deserialize, Serialize};
 use sqlx::PgPool;
+use std::sync::Arc;
 use uuid::Uuid;
 
 use crate::{
@@ -168,7 +169,7 @@ pub async fn generate_code(
 pub async fn verify_code(
     pool: web::Data<PgPool>,
     redis: web::Data<MultiplexedConnection>,
-    tv_api_client: web::Data<TvApiClient>,
+    tv_api_client: web::Data<Arc<TvApiClient>>,
     config: web::Data<Config>,
     body: web::Json<VerifyCodeRequest>,
     req: HttpRequest,

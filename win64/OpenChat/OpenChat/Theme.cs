@@ -42,6 +42,16 @@ namespace OpenChat
 
             // Unread indicator
             public static readonly Color UnreadBadge = Color.FromArgb(224, 30, 90);
+
+            // Emoji picker colors
+            public static readonly Color EmojiPickerBackground = Color.FromArgb(30, 31, 34);
+            public static readonly Color EmojiPickerBorder = Color.FromArgb(50, 52, 56);
+            public static readonly Color EmojiHoverBackground = Color.FromArgb(55, 57, 63);
+            public static readonly Color EmojiSelectedBackground = Color.FromArgb(71, 82, 196);
+            public static readonly Color TabActiveBackground = Color.FromArgb(55, 57, 63);
+            public static readonly Color TabInactiveBackground = Color.FromArgb(30, 31, 34);
+            public static readonly Color SearchBackground = Color.FromArgb(43, 45, 49);
+            public static readonly Color CategoryHeaderText = Color.FromArgb(142, 146, 151);
         }
 
         public static class Fonts
@@ -57,6 +67,11 @@ namespace OpenChat
             public static readonly Font MessageTextEmoji = new("Segoe UI Emoji", 10F);
             public static readonly Font InputText = new("Segoe UI", 10F);
             public static readonly Font ButtonText = new("Segoe UI", 10F, FontStyle.Bold);
+            public static readonly Font EmojiCategory = new("Segoe UI", 9F, FontStyle.Bold);
+            public static readonly Font EmojiSearch = new("Segoe UI", 10F);
+            public static readonly Font EmojiName = new("Segoe UI", 8F);
+            public static readonly Font TabText = new("Segoe UI", 9F, FontStyle.Bold);
+            public static readonly Font StandardEmoji = new("Segoe UI Emoji", 20F);
         }
     }
 }

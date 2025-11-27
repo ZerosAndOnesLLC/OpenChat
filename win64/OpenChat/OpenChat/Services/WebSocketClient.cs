@@ -108,17 +108,28 @@ namespace OpenChat.Services
                 switch (messageType)
                 {
                     case "NewMessage":
-                        var msg = json["message"]?.ToObject<Models.Message>();
-                        if (msg != null)
+                        // Server sends fields directly on the object, not nested under "message"
+                        var msg = new Models.Message
                         {
-                            MessageReceived?.Invoke(this, msg);
-                        }
+                            Id = json["id"]?.ToObject<Guid>() ?? Guid.Empty,
+                            ChannelId = json["channel_id"]?.ToObject<Guid?>(),
+                            DmId = json["dm_id"]?.ToObject<Guid?>(),
+                            UserId = json["user_id"]?.ToObject<Guid>() ?? Guid.Empty,
+                            Content = json["content"]?.ToString() ?? string.Empty,
+                            ParentMessageId = json["parent_message_id"]?.ToObject<Guid?>(),
+                            CreatedAt = DateTime.TryParse(json["created_at"]?.ToString(), out var dt) ? dt : DateTime.UtcNow,
+                            User = new Models.User
+                            {
+                                Id = json["user_id"]?.ToObject<Guid>() ?? Guid.Empty,
+                                DisplayName = json["user_name"]?.ToString() ?? "Unknown"
+                            }
+                        };
+                        MessageReceived?.Invoke(this, msg);
                         break;
                     case "MessageDeleted":
-                    case "MessageUpdated":
-                    case "UserStatusChanged":
-                    case "TypingStarted":
-                    case "TypingStopped":
+                    case "MessageEdited":
+                    case "UserStatus":
+                    case "UserTyping":
                         // Handle other message types as needed
                         break;
                 }

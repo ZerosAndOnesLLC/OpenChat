@@ -54,6 +54,7 @@ namespace OpenChat
             public static readonly Font MessageUsername = new("Segoe UI", 10F, FontStyle.Bold);
             public static readonly Font MessageTimestamp = new("Segoe UI", 9F);
             public static readonly Font MessageText = new("Segoe UI", 10F);
+            public static readonly Font MessageTextEmoji = new("Segoe UI Emoji", 10F);
             public static readonly Font InputText = new("Segoe UI", 10F);
             public static readonly Font ButtonText = new("Segoe UI", 10F, FontStyle.Bold);
         }

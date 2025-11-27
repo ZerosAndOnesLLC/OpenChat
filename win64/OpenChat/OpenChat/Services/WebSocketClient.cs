@@ -23,7 +23,9 @@ namespace OpenChat.Services
 
         public WebSocketClient(string wsUrl, string accessToken)
         {
-            _wsUrl = wsUrl;
+            // Append token as query parameter (required by openchat-api WebSocket auth)
+            var separator = wsUrl.Contains("?") ? "&" : "?";
+            _wsUrl = $"{wsUrl}{separator}token={Uri.EscapeDataString(accessToken)}";
             _accessToken = accessToken;
         }
 
@@ -33,9 +35,6 @@ namespace OpenChat.Services
             {
                 _webSocket = new ClientWebSocket();
                 _cancellationTokenSource = new CancellationTokenSource();
-
-                // Add authorization header
-                _webSocket.Options.SetRequestHeader("Authorization", $"Bearer {_accessToken}");
 
                 await _webSocket.ConnectAsync(new Uri(_wsUrl), _cancellationTokenSource.Token);
                 Connected?.Invoke(this, "Connected to WebSocket");

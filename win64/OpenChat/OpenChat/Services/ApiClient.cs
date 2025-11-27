@@ -70,7 +70,8 @@ namespace OpenChat.Services
             {
                 url += $"&before={before.Value}";
             }
-            return await GetAsync<List<Models.Message>>(url) ?? new List<Models.Message>();
+            var response = await GetAsync<Models.MessagesResponse>(url);
+            return response?.Messages ?? new List<Models.Message>();
         }
 
         // Direct Messages
@@ -86,7 +87,8 @@ namespace OpenChat.Services
             {
                 url += $"&before={before.Value}";
             }
-            return await GetAsync<List<Models.Message>>(url) ?? new List<Models.Message>();
+            var response = await GetAsync<Models.MessagesResponse>(url);
+            return response?.Messages ?? new List<Models.Message>();
         }
 
         // Messages

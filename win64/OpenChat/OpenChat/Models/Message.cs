@@ -2,6 +2,12 @@ using Newtonsoft.Json;
 
 namespace OpenChat.Models
 {
+    public class MessagesResponse
+    {
+        [JsonProperty("messages")]
+        public List<Message> Messages { get; set; } = new();
+    }
+
     public class Message
     {
         [JsonProperty("id")]

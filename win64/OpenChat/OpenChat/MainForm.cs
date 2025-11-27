@@ -1,7 +1,8 @@
+using OpenChat.Controls;
 using OpenChat.Models;
 using OpenChat.Services;
 using System.Drawing.Drawing2D;
-using System.Text.RegularExpressions;
+using ChatMessage = OpenChat.Models.Message;
 
 namespace OpenChat
 {
@@ -10,19 +11,18 @@ namespace OpenChat
         private ApiClient _apiClient;
         private WebSocketClient? _webSocketClient;
         private EmojiCache _emojiCache = null!;
+        private MessagePanel _messagePanel = null!;
 
         private Guid? _currentChannelId;
         private Guid? _currentDmId;
         private List<Channel> _channels = new();
         private List<DirectMessage> _directMessages = new();
-        private HashSet<Guid> _displayedMessageIds = new();
-
-        private static readonly Regex CustomEmojiPattern = new(@":([a-zA-Z0-9_-]+):", RegexOptions.Compiled);
 
         public MainForm()
         {
             InitializeComponent();
             SetupUI();
+            SetupMessagePanel();
 
             _apiClient = new ApiClient("https://openchat-api.zerosandones.us:9876");
             _emojiCache = new EmojiCache(_apiClient);
@@ -36,8 +36,111 @@ namespace OpenChat
                 }
             }
 
+            // Initialize message panel with services
+            _messagePanel.Initialize(_apiClient, _emojiCache, AppSettings.CurrentUser?.Id);
+
             lblUserName.Text = AppSettings.CurrentUser?.DisplayName ?? "User";
             Load += MainForm_Load;
+        }
+
+        private void SetupMessagePanel()
+        {
+            // Replace RichTextBox with MessagePanel
+            _messagePanel = new MessagePanel
+            {
+                Dock = DockStyle.Fill,
+                BackColor = Theme.Dark.ContentBackground
+            };
+
+            _messagePanel.ReactionToggled += OnReactionToggled;
+            _messagePanel.AddReactionRequested += OnAddReactionRequested;
+
+            // Remove rtbMessages and add _messagePanel
+            pnlContent.Controls.Remove(rtbMessages);
+            pnlContent.Controls.Add(_messagePanel);
+        }
+
+        private async Task OnReactionToggled(Guid messageId, string emoji)
+        {
+            if (AppSettings.CurrentUser == null) return;
+
+            try
+            {
+                await _apiClient.ToggleReactionAsync(messageId, emoji, AppSettings.CurrentUser.Id);
+
+                // Refresh reactions for this message
+                var counts = await _apiClient.GetReactionCountsAsync(messageId);
+                _messagePanel.UpdateReactions(messageId, counts);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Failed to toggle reaction: {ex.Message}");
+            }
+        }
+
+        private void OnAddReactionRequested(ChatMessage message, Point screenLocation)
+        {
+            ShowReactionPicker(message, screenLocation);
+        }
+
+        private void ShowReactionPicker(ChatMessage message, Point screenLocation)
+        {
+            var picker = new ReactionPickerForm(
+                async emoji =>
+                {
+                    await OnReactionToggled(message.Id, emoji);
+                },
+                () =>
+                {
+                    // Show full emoji picker for reactions
+                    ShowFullEmojiPickerForReaction(message, screenLocation);
+                }
+            );
+
+            // Position the picker at the click location
+            picker.Location = new Point(
+                screenLocation.X - picker.Width / 2,
+                screenLocation.Y - picker.Height - 5
+            );
+
+            // Ensure it stays on screen
+            var screen = Screen.FromPoint(screenLocation);
+            if (picker.Left < screen.WorkingArea.Left)
+                picker.Left = screen.WorkingArea.Left + 10;
+            if (picker.Right > screen.WorkingArea.Right)
+                picker.Left = screen.WorkingArea.Right - picker.Width - 10;
+            if (picker.Top < screen.WorkingArea.Top)
+                picker.Top = screenLocation.Y + 10;
+
+            picker.Show();
+        }
+
+        private void ShowFullEmojiPickerForReaction(ChatMessage message, Point screenLocation)
+        {
+            var picker = new EmojiPickerForm(
+                _emojiCache,
+                async emoji =>
+                {
+                    await OnReactionToggled(message.Id, emoji);
+                }
+            );
+
+            // Position near the message
+            picker.Location = new Point(
+                screenLocation.X - picker.Width / 2,
+                screenLocation.Y - picker.Height - 5
+            );
+
+            // Ensure it stays on screen
+            var screen = Screen.FromPoint(screenLocation);
+            if (picker.Left < screen.WorkingArea.Left)
+                picker.Left = screen.WorkingArea.Left + 10;
+            if (picker.Right > screen.WorkingArea.Right)
+                picker.Left = screen.WorkingArea.Right - picker.Width - 10;
+            if (picker.Top < screen.WorkingArea.Top)
+                picker.Top = screenLocation.Y + 10;
+
+            picker.Show();
         }
 
         private void SetupUI()
@@ -287,7 +390,7 @@ namespace OpenChat
                 if ((message.ChannelId == _currentChannelId && _currentChannelId != null) ||
                     (message.DmId == _currentDmId && _currentDmId != null))
                 {
-                    AppendMessage(message);
+                    _messagePanel.AppendMessage(message);
                 }
             });
         }
@@ -360,8 +463,7 @@ namespace OpenChat
 
         private async Task LoadMessagesAsync()
         {
-            rtbMessages.Clear();
-            _displayedMessageIds.Clear();
+            _messagePanel.ClearMessages();
 
             try
             {
@@ -380,137 +482,11 @@ namespace OpenChat
                 }
 
                 messages.Reverse();
-                foreach (var message in messages)
-                {
-                    AppendMessage(message);
-                }
+                _messagePanel.SetMessages(messages);
             }
             catch (Exception ex)
             {
                 ShowError("Load Failed", "Failed to load messages.", ex.ToString());
-            }
-        }
-
-        private void AppendMessage(Models.Message message)
-        {
-            // Skip if we've already displayed this message (prevents duplicates from WebSocket)
-            if (message.Id != Guid.Empty && _displayedMessageIds.Contains(message.Id))
-                return;
-
-            if (message.Id != Guid.Empty)
-                _displayedMessageIds.Add(message.Id);
-
-            var userName = message.User?.DisplayName ?? "Unknown User";
-            var timestamp = message.CreatedAt.ToLocalTime().ToString("h:mm tt");
-            var content = message.Content;
-
-            rtbMessages.SelectionStart = rtbMessages.TextLength;
-            rtbMessages.SelectionLength = 0;
-
-            // Username in bold white
-            rtbMessages.SelectionFont = Theme.Fonts.MessageUsername;
-            rtbMessages.SelectionColor = Theme.Dark.MessageUsername;
-            rtbMessages.AppendText($"{userName}  ");
-
-            // Timestamp in muted gray
-            rtbMessages.SelectionFont = Theme.Fonts.MessageTimestamp;
-            rtbMessages.SelectionColor = Theme.Dark.MessageTimestamp;
-            rtbMessages.AppendText($"{timestamp}\n");
-
-            // Message content - render with custom emoji support
-            AppendMessageContentWithEmojis(content);
-            rtbMessages.AppendText("\n\n");
-
-            rtbMessages.SelectionStart = rtbMessages.TextLength;
-            rtbMessages.ScrollToCaret();
-        }
-
-        private void AppendMessageContentWithEmojis(string content)
-        {
-            rtbMessages.SelectionFont = Theme.Fonts.MessageTextEmoji;
-            rtbMessages.SelectionColor = Theme.Dark.MessageText;
-
-            var matches = CustomEmojiPattern.Matches(content);
-            if (matches.Count == 0)
-            {
-                rtbMessages.AppendText(content);
-                return;
-            }
-
-            var lastIndex = 0;
-            foreach (Match match in matches)
-            {
-                // Append text before the emoji
-                if (match.Index > lastIndex)
-                {
-                    rtbMessages.AppendText(content[lastIndex..match.Index]);
-                }
-
-                var emojiName = match.Groups[1].Value;
-                var emoji = _emojiCache.GetEmojiByName(emojiName);
-
-                if (emoji != null)
-                {
-                    // Try to insert the custom emoji image
-                    _ = InsertCustomEmojiAsync(emoji);
-                }
-                else
-                {
-                    // Emoji not found, show the text as-is
-                    rtbMessages.SelectionColor = Theme.Dark.TextMuted;
-                    rtbMessages.AppendText(match.Value);
-                    rtbMessages.SelectionColor = Theme.Dark.MessageText;
-                }
-
-                lastIndex = match.Index + match.Length;
-            }
-
-            // Append remaining text after the last emoji
-            if (lastIndex < content.Length)
-            {
-                rtbMessages.AppendText(content[lastIndex..]);
-            }
-        }
-
-        private async Task InsertCustomEmojiAsync(CustomEmoji emoji)
-        {
-            try
-            {
-                var image = await _emojiCache.GetEmojiImageAsync(emoji);
-                if (image != null)
-                {
-                    // RichTextBox doesn't support inline images easily
-                    // So we'll insert a placeholder that indicates an emoji
-                    // and show the emoji name in a special format
-                    this.Invoke(() =>
-                    {
-                        // Copy image to clipboard and paste
-                        var resized = new Bitmap(image, new Size(20, 20));
-                        Clipboard.SetImage(resized);
-                        rtbMessages.Paste();
-                        resized.Dispose();
-                    });
-                }
-                else
-                {
-                    // Fallback to showing emoji name
-                    this.Invoke(() =>
-                    {
-                        rtbMessages.SelectionColor = Theme.Dark.AccentBlue;
-                        rtbMessages.AppendText($"[:{emoji.Name}:]");
-                        rtbMessages.SelectionColor = Theme.Dark.MessageText;
-                    });
-                }
-            }
-            catch
-            {
-                // Fallback to showing emoji name
-                this.Invoke(() =>
-                {
-                    rtbMessages.SelectionColor = Theme.Dark.AccentBlue;
-                    rtbMessages.AppendText($"[:{emoji.Name}:]");
-                    rtbMessages.SelectionColor = Theme.Dark.MessageText;
-                });
             }
         }
 
@@ -607,7 +583,7 @@ namespace OpenChat
                             DisplayName = AppSettings.CurrentUser.DisplayName
                         };
                     }
-                    AppendMessage(sentMessage);
+                    _messagePanel.AppendMessage(sentMessage);
                 }
             }
             catch (Exception ex)

@@ -9,12 +9,20 @@ A native Windows Forms desktop client for OpenChat.
 - **Channels**: View and participate in public and private channels
 - **Direct Messages**: 1-on-1 and group conversations
 - **Emoji Support**: Full emoji integration with:
-  - Standard Unicode emoji picker with categories (Smileys, Gestures, People, Animals, Food, Activities, Travel, Objects, Symbols, Flags)
+  - High-performance virtualized emoji picker with categories (Smileys, Gestures, People, Animals, Food, Activities, Travel, Objects, Symbols, Flags)
+  - Frequently used emojis section for quick access
   - Custom organization emojis synced from the web UI
   - Emoji search/filter functionality
   - Upload custom emojis (admin users)
   - Inline custom emoji rendering in messages
   - Local emoji image caching for performance
+- **Message Reactions**: Slack-style reactions on messages
+  - Click + button on any message to add a reaction
+  - Quick reaction picker with common emojis
+  - Full emoji picker for more options
+  - Click existing reaction to toggle (add/remove)
+  - Reaction counts with visual indicator for your reactions
+  - Highlighted reactions you've added
 - **Modern Dark UI**: Slack/Mattermost-inspired dark theme with:
   - Custom-drawn sidebar with rounded selection highlights
   - Unread badges with notification counts
@@ -100,9 +108,12 @@ OpenChat/
 │   ├── Message.cs
 │   ├── DirectMessage.cs
 │   ├── CustomEmoji.cs   # Custom emoji models
+│   ├── Reaction.cs      # Message reaction models
 │   └── AuthResponse.cs
+├── Controls/            # Custom UI controls
+│   └── MessagePanel.cs  # Virtualized message display with reactions
 ├── Services/            # Business logic and API communication
-│   ├── ApiClient.cs     # REST API client
+│   ├── ApiClient.cs     # REST API client (includes reaction endpoints)
 │   ├── WebSocketClient.cs  # WebSocket client for real-time updates
 │   ├── EmojiCache.cs    # Local emoji caching service
 │   └── CredentialManager.cs  # Secure credential storage using DPAPI
@@ -111,7 +122,8 @@ OpenChat/
 ├── LoginForm.Designer.cs
 ├── MainForm.cs          # Main chat interface
 ├── MainForm.Designer.cs
-├── EmojiPickerForm.cs   # Emoji picker popup
+├── EmojiPickerForm.cs   # High-performance virtualized emoji picker
+├── ReactionPickerForm.cs # Quick reaction picker popup
 ├── EmojiUploadDialog.cs # Custom emoji upload dialog
 └── Program.cs           # Application entry point
 ```
@@ -156,13 +168,13 @@ To change these URLs, edit the respective files:
 ## Known Limitations
 
 - No support for file attachments yet
-- No support for reactions or threads yet
+- No support for threaded conversations yet
 - No notifications for new messages when app is in background
 
 ## Future Enhancements
 
 - [ ] File upload/download support
-- [ ] Message reactions
+- [x] Message reactions
 - [ ] Threaded conversations
 - [ ] Desktop notifications
 - [ ] System tray integration

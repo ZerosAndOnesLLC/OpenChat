@@ -177,6 +177,13 @@ async fn main() -> std::io::Result<()> {
     tasks::start_background_tasks(db_pool.clone(), ws_server.clone());
     info!("Background tasks started");
 
+    // Clone config values needed after the closure
+    let server_host = config.host.clone();
+    let server_port = config.port;
+    let enable_tls = config.enable_tls;
+    let tls_cert_path = config.tls_cert_path.clone();
+    let tls_key_path = config.tls_key_path.clone();
+
     // Build HTTP server
     let server = HttpServer::new(move || {
         // Configure CORS
@@ -204,6 +211,7 @@ async fn main() -> std::io::Result<()> {
             .app_data(web::Data::new(ws_server.clone()))
             .app_data(web::Data::new(tv_api_client.clone()))
             .app_data(web::Data::new(storage_factory.clone()))
+            .app_data(web::Data::new(config.clone()))
             .route("/health", web::get().to(health_check))
             .route("/api/ws", web::get().to(websocket::ws_route))
             // User routes - require "openchat" role
@@ -431,14 +439,14 @@ async fn main() -> std::io::Result<()> {
     });
 
     // Bind server with or without TLS
-    if config.enable_tls {
-        let cert_path = config.tls_cert_path.as_ref()
+    if enable_tls {
+        let cert_path = tls_cert_path.as_ref()
             .ok_or_else(|| std::io::Error::new(
                 std::io::ErrorKind::InvalidInput,
                 "TLS_CERT_PATH must be set when ENABLE_TLS is true"
             ))?;
 
-        let key_path = config.tls_key_path.as_ref()
+        let key_path = tls_key_path.as_ref()
             .ok_or_else(|| std::io::Error::new(
                 std::io::ErrorKind::InvalidInput,
                 "TLS_KEY_PATH must be set when ENABLE_TLS is true"
@@ -447,15 +455,15 @@ async fn main() -> std::io::Result<()> {
         info!("Loading TLS configuration from cert: {}, key: {}", cert_path, key_path);
         let tls_config = load_tls_config(cert_path, key_path)?;
 
-        info!("Starting OpenChat API server with TLS on {}:{}", config.host, config.port);
+        info!("Starting OpenChat API server with TLS on {}:{}", server_host, server_port);
         server
-            .bind_rustls_0_23((config.host.as_str(), config.port), tls_config)?
+            .bind_rustls_0_23((server_host.as_str(), server_port), tls_config)?
             .run()
             .await
     } else {
-        info!("Starting OpenChat API server (HTTP only) on {}:{}", config.host, config.port);
+        info!("Starting OpenChat API server (HTTP only) on {}:{}", server_host, server_port);
         server
-            .bind((config.host.as_str(), config.port))?
+            .bind((server_host.as_str(), server_port))?
             .run()
             .await
     }

@@ -113,6 +113,36 @@ namespace OpenChat.Services
             return await GetAsync<List<User>>("/api/users") ?? new List<User>();
         }
 
+        // User Status
+        public async Task<UserStatus?> GetMyStatusAsync()
+        {
+            if (_currentUser == null) return null;
+            return await GetAsync<UserStatus>($"/api/users/{_currentUser.Id}/status");
+        }
+
+        public async Task<UserStatus?> UpdateMyStatusAsync(UpdateStatusRequest request)
+        {
+            return await PutAsync<UserStatus>("/api/users/me/status", request);
+        }
+
+        // Public Channels
+        public async Task<List<Channel>> GetPublicChannelsAsync()
+        {
+            return await GetAsync<List<Channel>>("/api/channels/public") ?? new List<Channel>();
+        }
+
+        public async Task<Channel?> JoinChannelAsync(Guid channelId)
+        {
+            return await PostAsync<Channel>($"/api/channels/{channelId}/join", new { });
+        }
+
+        // Create DM
+        public async Task<DirectMessage?> CreateDmAsync(List<Guid> participantIds)
+        {
+            var request = new { participant_ids = participantIds };
+            return await PostAsync<DirectMessage>("/api/dms", request);
+        }
+
         // Custom Emojis
         public async Task<List<CustomEmoji>> GetCustomEmojisAsync()
         {
@@ -264,6 +294,24 @@ namespace OpenChat.Services
             catch (Exception ex)
             {
                 Console.WriteLine($"POST {endpoint} failed: {ex.Message}");
+                throw;
+            }
+        }
+
+        private async Task<T?> PutAsync<T>(string endpoint, object data)
+        {
+            try
+            {
+                var json = JsonConvert.SerializeObject(data);
+                var content = new StringContent(json, Encoding.UTF8, "application/json");
+                var response = await _httpClient.PutAsync(endpoint, content);
+                response.EnsureSuccessStatusCode();
+                var responseContent = await response.Content.ReadAsStringAsync();
+                return JsonConvert.DeserializeObject<T>(responseContent);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"PUT {endpoint} failed: {ex.Message}");
                 throw;
             }
         }

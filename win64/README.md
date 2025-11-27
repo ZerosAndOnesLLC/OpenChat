@@ -7,13 +7,24 @@ A native Windows Forms desktop client for OpenChat.
 - **Device Authentication**: Secure pairing code-based authentication
 - **Real-time Messaging**: WebSocket-based real-time message delivery
 - **Channels**: View and participate in public and private channels
+  - Browse and search public channels
+  - Join public channels directly from the app
+  - Click the + button next to "Channels" to browse
 - **Direct Messages**: 1-on-1 and group conversations
+  - Start new DM conversations with any user in your org
+  - Click the + button next to "Direct Messages" to start a new conversation
+  - Search users by name or email
+- **User Status**: Set and display your presence status
+  - Click on your username to change status
+  - Status options: Online, Away, Do Not Disturb, Invisible
+  - Set custom status messages with emoji
+  - Auto-clear status after a set time period
 - **Emoji Support**: Full emoji integration with:
-  - High-performance virtualized emoji picker with categories (Smileys, Gestures, People, Animals, Food, Activities, Travel, Objects, Symbols, Flags)
+  - WebView2-based emoji picker matching the web UI exactly
+  - Categories: Smileys, Gestures, People, Animals, Food, Activities, Travel, Objects, Symbols
   - Frequently used emojis section for quick access
-  - Custom organization emojis synced from the web UI
+  - Custom organization emojis synced from the server
   - Emoji search/filter functionality
-  - Upload custom emojis (admin users)
   - Inline custom emoji rendering in messages
   - Local emoji image caching for performance
 - **Message Reactions**: Slack-style reactions on messages
@@ -26,10 +37,10 @@ A native Windows Forms desktop client for OpenChat.
 - **Modern Dark UI**: Slack/Mattermost-inspired dark theme with:
   - Custom-drawn sidebar with rounded selection highlights
   - Unread badges with notification counts
-  - Online status indicators
+  - Online status indicators with real-time updates
   - Smooth anti-aliased graphics
   - Rounded input fields and buttons
-  - Beautiful emoji picker with tabbed interface
+  - Beautiful emoji picker matching the web UI
 - **Message History**: Load and view message history
 - **Typing Indicators**: See when others are typing (backend support)
 - **Unread Counts**: Track unread messages per channel/DM
@@ -38,6 +49,7 @@ A native Windows Forms desktop client for OpenChat.
 
 - Windows 10 or later
 - .NET 10.0 Runtime
+- Microsoft Edge WebView2 Runtime (for emoji picker)
 - Internet connection to connect to OpenChat API
 
 ## Building from Source
@@ -103,7 +115,7 @@ The application is structured as follows:
 ```
 OpenChat/
 ├── Models/              # Data models matching API responses
-│   ├── User.cs
+│   ├── User.cs          # User and UserStatus models
 │   ├── Channel.cs
 │   ├── Message.cs
 │   ├── DirectMessage.cs
@@ -113,7 +125,7 @@ OpenChat/
 ├── Controls/            # Custom UI controls
 │   └── MessagePanel.cs  # Virtualized message display with reactions
 ├── Services/            # Business logic and API communication
-│   ├── ApiClient.cs     # REST API client (includes reaction endpoints)
+│   ├── ApiClient.cs     # REST API client (channels, DMs, status, emojis, reactions)
 │   ├── WebSocketClient.cs  # WebSocket client for real-time updates
 │   ├── EmojiCache.cs    # Local emoji caching service
 │   └── CredentialManager.cs  # Secure credential storage using DPAPI
@@ -122,9 +134,13 @@ OpenChat/
 ├── LoginForm.Designer.cs
 ├── MainForm.cs          # Main chat interface
 ├── MainForm.Designer.cs
-├── EmojiPickerForm.cs   # High-performance virtualized emoji picker
+├── WebEmojiPickerForm.cs # WebView2-based emoji picker (matches web UI)
+├── EmojiPickerForm.cs   # Legacy virtualized emoji picker (fallback)
 ├── ReactionPickerForm.cs # Quick reaction picker popup
 ├── EmojiUploadDialog.cs # Custom emoji upload dialog
+├── StatusPickerForm.cs  # User status picker (online/away/dnd/offline)
+├── BrowseChannelsForm.cs # Public channel browser and join
+├── NewDmForm.cs         # New direct message dialog
 └── Program.cs           # Application entry point
 ```
 
@@ -179,11 +195,14 @@ To change these URLs, edit the respective files:
 - [ ] Desktop notifications
 - [ ] System tray integration
 - [ ] Message search
-- [ ] User presence indicators
+- [x] User presence/status indicators
+- [x] Status picker (online/away/dnd/offline)
 - [ ] Typing indicators display
 - [ ] Message editing
 - [ ] Message deletion
 - [ ] Emoji autocomplete while typing
+- [x] Browse and join public channels
+- [x] Create new DM conversations
 
 ## License
 

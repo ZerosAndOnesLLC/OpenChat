@@ -10,14 +10,29 @@ use std::{
     rc::Rc,
 };
 use tracing::{debug, error};
+use uuid::Uuid;
 
 use crate::{
     cache::{self, metrics::{CacheType, record_hit, record_miss}},
+    config::Config,
     db,
     errors::ApiError,
     models::{organization::Organization, user::User},
-    services::tv_api::TvApiClient,
+    services::{device_token::verify_device_token, tv_api::TvApiClient},
 };
+
+/// Verified token claims that can come from either TitaniumVault or device tokens
+#[derive(Clone)]
+pub struct VerifiedClaims {
+    pub user_id: Uuid,
+    pub org_id: Uuid,
+    pub email: String,
+    pub display_name: String,
+    pub org_name: String,
+    pub roles: Vec<String>,
+    /// Whether this came from a device token (vs TitaniumVault token)
+    pub is_device_token: bool,
+}
 
 #[derive(Clone)]
 pub struct AuthMiddleware {
@@ -98,50 +113,7 @@ where
 
             let mut redis = redis_conn.as_ref().clone();
 
-            // Try to get cached token claims first
-            let claims = match cache::tokens::get_cached_token_claims(&mut redis, &token)
-                .await
-                .ok()
-                .flatten()
-            {
-                Some(claims) => {
-                    debug!("Token cache hit");
-                    record_hit(&mut redis, CacheType::Tokens).await;
-                    claims
-                }
-                None => {
-                    debug!("Token cache miss, verifying with TitaniumVault");
-                    record_miss(&mut redis, CacheType::Tokens).await;
-
-                    // Verify token with TV-API
-                    let claims = tv_api_client
-                        .verify_token(&token)
-                        .await
-                        .map_err(|e| actix_web::error::ErrorUnauthorized(e))?;
-
-                    // Cache the token claims for 5 minutes
-                    if let Err(e) = cache::tokens::cache_token_claims(&mut redis, &token, &claims, 300).await {
-                        error!("Failed to cache token claims: {}", e);
-                    }
-
-                    claims
-                }
-            };
-
-            // Check if user has the required role
-            if let Some(required) = &required_role {
-                if !claims.roles.contains(required) {
-                    error!(
-                        "User {} does not have required role: {}. User roles: {:?}",
-                        claims.email, required, claims.roles
-                    );
-                    return Err(actix_web::error::ErrorForbidden(ApiError::Authorization(
-                        format!("Missing required role: {}", required),
-                    )));
-                }
-            }
-
-            // Get database pool
+            // Get database pool (needed for device token user lookup)
             let pool = req
                 .app_data::<actix_web::web::Data<PgPool>>()
                 .ok_or_else(|| {
@@ -149,8 +121,109 @@ where
                     actix_web::error::ErrorInternalServerError("Database pool not configured")
                 })?;
 
+            // Get config (needed for device token verification)
+            let config = req
+                .app_data::<actix_web::web::Data<Config>>()
+                .ok_or_else(|| {
+                    error!("Config not found in app data");
+                    actix_web::error::ErrorInternalServerError("Config not configured")
+                })?;
+
+            // Try to get cached token claims first (only for TitaniumVault tokens)
+            let verified_claims: VerifiedClaims = match cache::tokens::get_cached_token_claims(&mut redis, &token)
+                .await
+                .ok()
+                .flatten()
+            {
+                Some(claims) => {
+                    debug!("Token cache hit");
+                    record_hit(&mut redis, CacheType::Tokens).await;
+                    VerifiedClaims {
+                        user_id: claims.user_id,
+                        org_id: claims.org_id,
+                        email: claims.email,
+                        display_name: claims.display_name,
+                        org_name: claims.org_name,
+                        roles: claims.roles,
+                        is_device_token: false,
+                    }
+                }
+                None => {
+                    record_miss(&mut redis, CacheType::Tokens).await;
+
+                    // Try TitaniumVault token first
+                    match tv_api_client.verify_token(&token).await {
+                        Ok(claims) => {
+                            debug!("TitaniumVault token verified");
+                            // Cache the token claims for 5 minutes
+                            if let Err(e) = cache::tokens::cache_token_claims(&mut redis, &token, &claims, 300).await {
+                                error!("Failed to cache token claims: {}", e);
+                            }
+                            VerifiedClaims {
+                                user_id: claims.user_id,
+                                org_id: claims.org_id,
+                                email: claims.email,
+                                display_name: claims.display_name,
+                                org_name: claims.org_name,
+                                roles: claims.roles,
+                                is_device_token: false,
+                            }
+                        }
+                        Err(_) => {
+                            // Try device token verification
+                            debug!("TitaniumVault verification failed, trying device token");
+                            let device_claims = verify_device_token(&token, &config.jwt_secret)
+                                .map_err(|e| {
+                                    error!("Device token verification failed: {}", e);
+                                    actix_web::error::ErrorUnauthorized(ApiError::Authentication(
+                                        "Invalid token".to_string(),
+                                    ))
+                                })?;
+
+                            // Look up user from database to get email/display_name
+                            let user = User::get_by_tv_user_id(pool.get_ref(), device_claims.sub)
+                                .await
+                                .map_err(|e| {
+                                    error!("Failed to look up user for device token: {}", e);
+                                    actix_web::error::ErrorInternalServerError(e)
+                                })?
+                                .ok_or_else(|| {
+                                    error!("User not found for device token");
+                                    actix_web::error::ErrorUnauthorized(ApiError::Authentication(
+                                        "User not found".to_string(),
+                                    ))
+                                })?;
+
+                            debug!("Device token verified for user {}", user.id);
+                            VerifiedClaims {
+                                user_id: device_claims.sub,
+                                org_id: device_claims.org_id,
+                                email: user.email,
+                                display_name: user.display_name,
+                                org_name: format!("org-{}", device_claims.org_id),
+                                roles: vec!["openchat".to_string()], // Device tokens implicitly have openchat role
+                                is_device_token: true,
+                            }
+                        }
+                    }
+                }
+            };
+
+            // Check if user has the required role (device tokens always pass since they were validated at pairing)
+            if let Some(required) = &required_role {
+                if !verified_claims.roles.contains(required) {
+                    error!(
+                        "User {} does not have required role: {}. User roles: {:?}",
+                        verified_claims.email, required, verified_claims.roles
+                    );
+                    return Err(actix_web::error::ErrorForbidden(ApiError::Authorization(
+                        format!("Missing required role: {}", required),
+                    )));
+                }
+            }
+
             // Set RLS context for this request
-            db::set_rls_context(pool.get_ref(), claims.org_id)
+            db::set_rls_context(pool.get_ref(), verified_claims.org_id)
                 .await
                 .map_err(|e| {
                     error!("Failed to set RLS context: {}", e);
@@ -158,15 +231,15 @@ where
                 })?;
 
             // Check cache for organization first
-            let cached_org = cache::organizations::get_org_from_cache(&mut redis, claims.org_id)
+            let cached_org = cache::organizations::get_org_from_cache(&mut redis, verified_claims.org_id)
                 .await
                 .ok()
                 .flatten();
 
             if cached_org.is_none() {
-                debug!("Organization cache miss for {}, upserting", claims.org_id);
+                debug!("Organization cache miss for {}, upserting", verified_claims.org_id);
                 // Create or update organization (required foreign key for users)
-                let org = Organization::upsert(pool.get_ref(), claims.org_id, &claims.org_name)
+                let org = Organization::upsert(pool.get_ref(), verified_claims.org_id, &verified_claims.org_name)
                     .await
                     .map_err(|e| {
                         error!("Failed to upsert organization: {}", e);
@@ -178,27 +251,51 @@ where
                     error!("Failed to cache organization: {}", e);
                 }
             } else {
-                debug!("Organization cache hit for {}", claims.org_id);
+                debug!("Organization cache hit for {}", verified_claims.org_id);
             }
 
-            // Check cache for user first
-            let cached_user = cache::users::get_user_by_tv_id_from_cache(&mut redis, claims.user_id)
-                .await
-                .ok()
-                .flatten();
+            // For device tokens, we already looked up the user, so skip upsert logic
+            if !verified_claims.is_device_token {
+                // Check cache for user first
+                let cached_user = cache::users::get_user_by_tv_id_from_cache(&mut redis, verified_claims.user_id)
+                    .await
+                    .ok()
+                    .flatten();
 
-            match cached_user {
-                Some(user) => {
-                    debug!("User cache hit for {}", claims.user_id);
-                    // Check if user data needs updating (email or display name changed)
-                    if user.email != claims.email || user.display_name != claims.display_name {
-                        debug!("User data changed, upserting and invalidating cache");
-                        let updated_user = User::upsert(
+                match cached_user {
+                    Some(user) => {
+                        debug!("User cache hit for {}", verified_claims.user_id);
+                        // Check if user data needs updating (email or display name changed)
+                        if user.email != verified_claims.email || user.display_name != verified_claims.display_name {
+                            debug!("User data changed, upserting and invalidating cache");
+                            let updated_user = User::upsert(
+                                pool.get_ref(),
+                                verified_claims.user_id,
+                                &verified_claims.org_id,
+                                &verified_claims.email,
+                                &verified_claims.display_name,
+                            )
+                            .await
+                            .map_err(|e| {
+                                error!("Failed to upsert user: {}", e);
+                                actix_web::error::ErrorInternalServerError(e)
+                            })?;
+
+                            // Update cache with new user data
+                            if let Err(e) = cache::users::set_user_with_tv_index_in_cache(&mut redis, &updated_user).await {
+                                error!("Failed to cache updated user: {}", e);
+                            }
+                        }
+                    }
+                    None => {
+                        debug!("User cache miss for {}, upserting", verified_claims.user_id);
+                        // Create or update user in database
+                        let user = User::upsert(
                             pool.get_ref(),
-                            claims.user_id,
-                            &claims.org_id,
-                            &claims.email,
-                            &claims.display_name,
+                            verified_claims.user_id,
+                            &verified_claims.org_id,
+                            &verified_claims.email,
+                            &verified_claims.display_name,
                         )
                         .await
                         .map_err(|e| {
@@ -206,37 +303,25 @@ where
                             actix_web::error::ErrorInternalServerError(e)
                         })?;
 
-                        // Update cache with new user data
-                        if let Err(e) = cache::users::set_user_with_tv_index_in_cache(&mut redis, &updated_user).await {
-                            error!("Failed to cache updated user: {}", e);
+                        // Cache the user
+                        if let Err(e) = cache::users::set_user_with_tv_index_in_cache(&mut redis, &user).await {
+                            error!("Failed to cache user: {}", e);
                         }
-                    }
-                }
-                None => {
-                    debug!("User cache miss for {}, upserting", claims.user_id);
-                    // Create or update user in database
-                    let user = User::upsert(
-                        pool.get_ref(),
-                        claims.user_id,
-                        &claims.org_id,
-                        &claims.email,
-                        &claims.display_name,
-                    )
-                    .await
-                    .map_err(|e| {
-                        error!("Failed to upsert user: {}", e);
-                        actix_web::error::ErrorInternalServerError(e)
-                    })?;
-
-                    // Cache the user
-                    if let Err(e) = cache::users::set_user_with_tv_index_in_cache(&mut redis, &user).await {
-                        error!("Failed to cache user: {}", e);
                     }
                 }
             }
 
             // Store claims in request extensions for handlers to use
-            req.extensions_mut().insert(claims);
+            // Convert to TokenClaims for backwards compatibility with existing handlers
+            let token_claims = crate::services::tv_api::TokenClaims {
+                user_id: verified_claims.user_id,
+                email: verified_claims.email,
+                org_id: verified_claims.org_id,
+                org_name: verified_claims.org_name,
+                display_name: verified_claims.display_name,
+                roles: verified_claims.roles,
+            };
+            req.extensions_mut().insert(token_claims);
 
             // Continue to the next service
             service.call(req).await

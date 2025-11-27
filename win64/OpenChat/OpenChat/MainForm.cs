@@ -1,5 +1,6 @@
 using OpenChat.Models;
 using OpenChat.Services;
+using System.Drawing.Drawing2D;
 
 namespace OpenChat
 {
@@ -16,6 +17,8 @@ namespace OpenChat
         public MainForm()
         {
             InitializeComponent();
+            SetupUI();
+
             _apiClient = new ApiClient("https://openchat-api.zerosandones.us:9876");
 
             if (!string.IsNullOrEmpty(AppSettings.AccessToken))
@@ -27,8 +30,215 @@ namespace OpenChat
                 }
             }
 
-            lblUser.Text = AppSettings.CurrentUser?.DisplayName ?? "User";
+            lblUserName.Text = AppSettings.CurrentUser?.DisplayName ?? "User";
             Load += MainForm_Load;
+        }
+
+        private void SetupUI()
+        {
+            // Make status indicator circular
+            pnlStatusIndicator.Paint += PnlStatusIndicator_Paint;
+            pnlStatusIndicator.BackColor = Color.Transparent;
+
+            // Round the user status panel corners
+            pnlUserStatus.Paint += PnlUserStatus_Paint;
+
+            // Round the input container corners
+            pnlInputContainer.Paint += PnlInputContainer_Paint;
+
+            // Add bottom border to channel header
+            pnlChannelHeader.Paint += PnlChannelHeader_Paint;
+        }
+
+        private void PnlStatusIndicator_Paint(object? sender, PaintEventArgs e)
+        {
+            e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
+            using var brush = new SolidBrush(Theme.Dark.OnlineGreen);
+            e.Graphics.FillEllipse(brush, 0, 4, 10, 10);
+        }
+
+        private void PnlUserStatus_Paint(object? sender, PaintEventArgs e)
+        {
+            e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
+            var rect = pnlUserStatus.ClientRectangle;
+            using var path = GetRoundedRectPath(rect, 6);
+            using var brush = new SolidBrush(Color.FromArgb(35, 35, 40));
+            e.Graphics.FillPath(brush, path);
+        }
+
+        private void PnlInputContainer_Paint(object? sender, PaintEventArgs e)
+        {
+            e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
+            var rect = pnlInputContainer.ClientRectangle;
+            rect.Width -= 1;
+            rect.Height -= 1;
+            using var path = GetRoundedRectPath(rect, 8);
+            using var brush = new SolidBrush(Theme.Dark.InputBackground);
+            using var pen = new Pen(Theme.Dark.InputBorder, 1);
+            e.Graphics.FillPath(brush, path);
+            e.Graphics.DrawPath(pen, path);
+        }
+
+        private void PnlChannelHeader_Paint(object? sender, PaintEventArgs e)
+        {
+            var rect = pnlChannelHeader.ClientRectangle;
+            using var pen = new Pen(Theme.Dark.DividerColor, 1);
+            e.Graphics.DrawLine(pen, 0, rect.Height - 1, rect.Width, rect.Height - 1);
+        }
+
+        private static GraphicsPath GetRoundedRectPath(Rectangle rect, int radius)
+        {
+            var path = new GraphicsPath();
+            var diameter = radius * 2;
+            var arc = new Rectangle(rect.Location, new Size(diameter, diameter));
+
+            path.AddArc(arc, 180, 90);
+            arc.X = rect.Right - diameter;
+            path.AddArc(arc, 270, 90);
+            arc.Y = rect.Bottom - diameter;
+            path.AddArc(arc, 0, 90);
+            arc.X = rect.Left;
+            path.AddArc(arc, 90, 90);
+            path.CloseFigure();
+
+            return path;
+        }
+
+        private void LstChannels_DrawItem(object? sender, DrawItemEventArgs e)
+        {
+            if (e.Index < 0 || e.Index >= _channels.Count) return;
+
+            var channel = _channels[e.Index];
+            var isSelected = (e.State & DrawItemState.Selected) == DrawItemState.Selected;
+            var bounds = e.Bounds;
+
+            e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
+
+            // Background
+            var bgColor = isSelected ? Theme.Dark.SelectedBackground : Theme.Dark.SidebarBackground;
+            if (!isSelected && bounds.Contains(lstChannels.PointToClient(Cursor.Position)))
+            {
+                bgColor = Theme.Dark.HoverBackground;
+            }
+
+            using (var bgBrush = new SolidBrush(bgColor))
+            {
+                if (isSelected)
+                {
+                    var roundRect = new Rectangle(bounds.X + 4, bounds.Y + 2, bounds.Width - 8, bounds.Height - 4);
+                    using var path = GetRoundedRectPath(roundRect, 6);
+                    e.Graphics.FillPath(bgBrush, path);
+                }
+                else
+                {
+                    e.Graphics.FillRectangle(bgBrush, bounds);
+                }
+            }
+
+            // Channel icon and name
+            var textColor = isSelected ? Theme.Dark.TextWhite : Theme.Dark.TextSecondary;
+            if (channel.UnreadCount > 0)
+            {
+                textColor = Theme.Dark.TextWhite;
+            }
+
+            using var textBrush = new SolidBrush(textColor);
+            var font = channel.UnreadCount > 0 ? Theme.Fonts.SidebarItemBold : Theme.Fonts.SidebarItem;
+            var text = $"# {channel.Name}";
+
+            var textRect = new Rectangle(bounds.X + 16, bounds.Y, bounds.Width - 50, bounds.Height);
+            var sf = new StringFormat { LineAlignment = StringAlignment.Center, Trimming = StringTrimming.EllipsisCharacter };
+            e.Graphics.DrawString(text, font, textBrush, textRect, sf);
+
+            // Unread badge
+            if (channel.UnreadCount > 0)
+            {
+                var badgeText = channel.UnreadCount > 99 ? "99+" : channel.UnreadCount.ToString();
+                var badgeFont = new Font("Segoe UI", 8F, FontStyle.Bold);
+                var badgeSize = e.Graphics.MeasureString(badgeText, badgeFont);
+                var badgeWidth = Math.Max(20, (int)badgeSize.Width + 8);
+                var badgeRect = new Rectangle(bounds.Right - badgeWidth - 12, bounds.Y + (bounds.Height - 18) / 2, badgeWidth, 18);
+
+                using var badgePath = GetRoundedRectPath(badgeRect, 9);
+                using var badgeBrush = new SolidBrush(Theme.Dark.UnreadBadge);
+                e.Graphics.FillPath(badgeBrush, badgePath);
+
+                using var badgeTextBrush = new SolidBrush(Color.White);
+                var badgeSf = new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center };
+                e.Graphics.DrawString(badgeText, badgeFont, badgeTextBrush, badgeRect, badgeSf);
+            }
+        }
+
+        private void LstDirectMessages_DrawItem(object? sender, DrawItemEventArgs e)
+        {
+            if (e.Index < 0 || e.Index >= _directMessages.Count) return;
+
+            var dm = _directMessages[e.Index];
+            var isSelected = (e.State & DrawItemState.Selected) == DrawItemState.Selected;
+            var bounds = e.Bounds;
+
+            e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
+
+            // Background
+            var bgColor = isSelected ? Theme.Dark.SelectedBackground : Theme.Dark.SidebarBackground;
+            if (!isSelected && bounds.Contains(lstDirectMessages.PointToClient(Cursor.Position)))
+            {
+                bgColor = Theme.Dark.HoverBackground;
+            }
+
+            using (var bgBrush = new SolidBrush(bgColor))
+            {
+                if (isSelected)
+                {
+                    var roundRect = new Rectangle(bounds.X + 4, bounds.Y + 2, bounds.Width - 8, bounds.Height - 4);
+                    using var path = GetRoundedRectPath(roundRect, 6);
+                    e.Graphics.FillPath(bgBrush, path);
+                }
+                else
+                {
+                    e.Graphics.FillRectangle(bgBrush, bounds);
+                }
+            }
+
+            // Online status indicator
+            var statusRect = new Rectangle(bounds.X + 12, bounds.Y + (bounds.Height - 10) / 2, 10, 10);
+            using (var statusBrush = new SolidBrush(Theme.Dark.OnlineGreen))
+            {
+                e.Graphics.FillEllipse(statusBrush, statusRect);
+            }
+
+            // User name
+            var textColor = isSelected ? Theme.Dark.TextWhite : Theme.Dark.TextSecondary;
+            if (dm.UnreadCount > 0)
+            {
+                textColor = Theme.Dark.TextWhite;
+            }
+
+            using var textBrush = new SolidBrush(textColor);
+            var font = dm.UnreadCount > 0 ? Theme.Fonts.SidebarItemBold : Theme.Fonts.SidebarItem;
+            var displayName = dm.OtherUser?.DisplayName ?? "Unknown User";
+
+            var textRect = new Rectangle(bounds.X + 28, bounds.Y, bounds.Width - 66, bounds.Height);
+            var sf = new StringFormat { LineAlignment = StringAlignment.Center, Trimming = StringTrimming.EllipsisCharacter };
+            e.Graphics.DrawString(displayName, font, textBrush, textRect, sf);
+
+            // Unread badge
+            if (dm.UnreadCount > 0)
+            {
+                var badgeText = dm.UnreadCount > 99 ? "99+" : dm.UnreadCount.ToString();
+                var badgeFont = new Font("Segoe UI", 8F, FontStyle.Bold);
+                var badgeSize = e.Graphics.MeasureString(badgeText, badgeFont);
+                var badgeWidth = Math.Max(20, (int)badgeSize.Width + 8);
+                var badgeRect = new Rectangle(bounds.Right - badgeWidth - 12, bounds.Y + (bounds.Height - 18) / 2, badgeWidth, 18);
+
+                using var badgePath = GetRoundedRectPath(badgeRect, 9);
+                using var badgeBrush = new SolidBrush(Theme.Dark.UnreadBadge);
+                e.Graphics.FillPath(badgeBrush, badgePath);
+
+                using var badgeTextBrush = new SolidBrush(Color.White);
+                var badgeSf = new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center };
+                e.Graphics.DrawString(badgeText, badgeFont, badgeTextBrush, badgeRect, badgeSf);
+            }
         }
 
         private async void MainForm_Load(object? sender, EventArgs e)
@@ -41,7 +251,7 @@ namespace OpenChat
             }
             catch (Exception ex)
             {
-                MessageBox.Show($"Failed to initialize: {ex.Message}", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                ShowError("Initialization Failed", "Failed to initialize the application.", ex.ToString());
             }
         }
 
@@ -59,7 +269,7 @@ namespace OpenChat
 
         private void WebSocketClient_Error(object? sender, Exception ex)
         {
-            this.Invoke(() => MessageBox.Show($"WebSocket error: {ex.Message}", "Error"));
+            this.Invoke(() => ShowError("Connection Error", "WebSocket connection error occurred.", ex.ToString()));
         }
 
         private void WebSocketClient_MessageReceived(object? sender, Models.Message message)
@@ -82,17 +292,12 @@ namespace OpenChat
                 lstChannels.Items.Clear();
                 foreach (var channel in _channels)
                 {
-                    var display = $"# {channel.Name}";
-                    if (channel.UnreadCount > 0)
-                    {
-                        display += $" ({channel.UnreadCount})";
-                    }
-                    lstChannels.Items.Add(display);
+                    lstChannels.Items.Add(channel.Name);
                 }
             }
             catch (Exception ex)
             {
-                MessageBox.Show($"Failed to load channels: {ex.Message}", "Error");
+                ShowError("Load Failed", "Failed to load channels.", ex.ToString());
             }
         }
 
@@ -104,17 +309,12 @@ namespace OpenChat
                 lstDirectMessages.Items.Clear();
                 foreach (var dm in _directMessages)
                 {
-                    var display = dm.OtherUser?.DisplayName ?? "Unknown User";
-                    if (dm.UnreadCount > 0)
-                    {
-                        display += $" ({dm.UnreadCount})";
-                    }
-                    lstDirectMessages.Items.Add(display);
+                    lstDirectMessages.Items.Add(dm.OtherUser?.DisplayName ?? "Unknown");
                 }
             }
             catch (Exception ex)
             {
-                MessageBox.Show($"Failed to load direct messages: {ex.Message}", "Error");
+                ShowError("Load Failed", "Failed to load direct messages.", ex.ToString());
             }
         }
 
@@ -123,10 +323,13 @@ namespace OpenChat
             if (lstChannels.SelectedIndex < 0 || lstChannels.SelectedIndex >= _channels.Count)
                 return;
 
+            lstDirectMessages.ClearSelected();
+
             var channel = _channels[lstChannels.SelectedIndex];
             _currentChannelId = channel.Id;
             _currentDmId = null;
             lblCurrentChannel.Text = $"# {channel.Name}";
+            lblChannelDescription.Text = channel.Description ?? "This is the beginning of your conversation";
 
             await LoadMessagesAsync();
         }
@@ -136,10 +339,13 @@ namespace OpenChat
             if (lstDirectMessages.SelectedIndex < 0 || lstDirectMessages.SelectedIndex >= _directMessages.Count)
                 return;
 
+            lstChannels.ClearSelected();
+
             var dm = _directMessages[lstDirectMessages.SelectedIndex];
             _currentDmId = dm.Id;
             _currentChannelId = null;
-            lblCurrentChannel.Text = $"@ {dm.OtherUser?.DisplayName}";
+            lblCurrentChannel.Text = dm.OtherUser?.DisplayName ?? "Unknown User";
+            lblChannelDescription.Text = "Direct message conversation";
 
             await LoadMessagesAsync();
         }
@@ -172,29 +378,32 @@ namespace OpenChat
             }
             catch (Exception ex)
             {
-                MessageBox.Show($"Failed to load messages: {ex.Message}", "Error");
+                ShowError("Load Failed", "Failed to load messages.", ex.ToString());
             }
         }
 
         private void AppendMessage(Models.Message message)
         {
             var userName = message.User?.DisplayName ?? "Unknown User";
-            var timestamp = message.CreatedAt.ToLocalTime().ToString("HH:mm");
+            var timestamp = message.CreatedAt.ToLocalTime().ToString("h:mm tt");
             var content = message.Content;
 
             rtbMessages.SelectionStart = rtbMessages.TextLength;
             rtbMessages.SelectionLength = 0;
 
-            rtbMessages.SelectionFont = new Font(rtbMessages.Font, FontStyle.Bold);
-            rtbMessages.SelectionColor = Color.FromArgb(0, 120, 212);
-            rtbMessages.AppendText($"{userName} ");
+            // Username in bold white
+            rtbMessages.SelectionFont = Theme.Fonts.MessageUsername;
+            rtbMessages.SelectionColor = Theme.Dark.MessageUsername;
+            rtbMessages.AppendText($"{userName}  ");
 
-            rtbMessages.SelectionFont = new Font(rtbMessages.Font, FontStyle.Regular);
-            rtbMessages.SelectionColor = Color.Gray;
+            // Timestamp in muted gray
+            rtbMessages.SelectionFont = Theme.Fonts.MessageTimestamp;
+            rtbMessages.SelectionColor = Theme.Dark.MessageTimestamp;
             rtbMessages.AppendText($"{timestamp}\n");
 
-            rtbMessages.SelectionFont = new Font(rtbMessages.Font, FontStyle.Regular);
-            rtbMessages.SelectionColor = Color.Black;
+            // Message content
+            rtbMessages.SelectionFont = Theme.Fonts.MessageText;
+            rtbMessages.SelectionColor = Theme.Dark.MessageText;
             rtbMessages.AppendText($"{content}\n\n");
 
             rtbMessages.SelectionStart = rtbMessages.TextLength;
@@ -224,7 +433,7 @@ namespace OpenChat
 
             if (!_currentChannelId.HasValue && !_currentDmId.HasValue)
             {
-                MessageBox.Show("Please select a channel or direct message first.", "Info");
+                ShowError("No Conversation Selected", "Please select a channel or direct message first.");
                 return;
             }
 
@@ -235,7 +444,7 @@ namespace OpenChat
             }
             catch (Exception ex)
             {
-                MessageBox.Show($"Failed to send message: {ex.Message}", "Error");
+                ShowError("Send Failed", "Failed to send message.", ex.ToString());
             }
         }
 
@@ -243,6 +452,11 @@ namespace OpenChat
         {
             _webSocketClient?.DisconnectAsync().Wait();
             base.OnFormClosing(e);
+        }
+
+        private void ShowError(string title, string message, string? details = null)
+        {
+            ErrorDialog.Show(this, title, message, details);
         }
     }
 }

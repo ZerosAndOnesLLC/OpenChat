@@ -8,7 +8,12 @@ A native Windows Forms desktop client for OpenChat.
 - **Real-time Messaging**: WebSocket-based real-time message delivery
 - **Channels**: View and participate in public and private channels
 - **Direct Messages**: 1-on-1 and group conversations
-- **Modern UI**: Clean, modern interface with dark sidebar
+- **Modern Dark UI**: Slack/Mattermost-inspired dark theme with:
+  - Custom-drawn sidebar with rounded selection highlights
+  - Unread badges with notification counts
+  - Online status indicators
+  - Smooth anti-aliased graphics
+  - Rounded input fields and buttons
 - **Message History**: Load and view message history
 - **Typing Indicators**: See when others are typing (backend support)
 - **Unread Counts**: Track unread messages per channel/DM
@@ -82,8 +87,11 @@ OpenChat/
 ├── Services/            # Business logic and API communication
 │   ├── ApiClient.cs     # REST API client
 │   └── WebSocketClient.cs  # WebSocket client for real-time updates
+├── Theme.cs             # Dark theme color palette and fonts
 ├── LoginForm.cs         # Device authentication UI
+├── LoginForm.Designer.cs
 ├── MainForm.cs          # Main chat interface
+├── MainForm.Designer.cs
 └── Program.cs           # Application entry point
 ```
 

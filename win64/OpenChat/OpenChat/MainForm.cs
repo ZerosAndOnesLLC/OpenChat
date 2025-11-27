@@ -13,6 +13,7 @@ namespace OpenChat
         private Guid? _currentDmId;
         private List<Channel> _channels = new();
         private List<DirectMessage> _directMessages = new();
+        private HashSet<Guid> _displayedMessageIds = new();
 
         public MainForm()
         {
@@ -353,6 +354,7 @@ namespace OpenChat
         private async Task LoadMessagesAsync()
         {
             rtbMessages.Clear();
+            _displayedMessageIds.Clear();
 
             try
             {
@@ -384,6 +386,13 @@ namespace OpenChat
 
         private void AppendMessage(Models.Message message)
         {
+            // Skip if we've already displayed this message (prevents duplicates from WebSocket)
+            if (message.Id != Guid.Empty && _displayedMessageIds.Contains(message.Id))
+                return;
+
+            if (message.Id != Guid.Empty)
+                _displayedMessageIds.Add(message.Id);
+
             var userName = message.User?.DisplayName ?? "Unknown User";
             var timestamp = message.CreatedAt.ToLocalTime().ToString("h:mm tt");
             var content = message.Content;
@@ -401,8 +410,8 @@ namespace OpenChat
             rtbMessages.SelectionColor = Theme.Dark.MessageTimestamp;
             rtbMessages.AppendText($"{timestamp}\n");
 
-            // Message content
-            rtbMessages.SelectionFont = Theme.Fonts.MessageText;
+            // Message content - use Segoe UI Emoji for proper emoji rendering
+            rtbMessages.SelectionFont = Theme.Fonts.MessageTextEmoji;
             rtbMessages.SelectionColor = Theme.Dark.MessageText;
             rtbMessages.AppendText($"{content}\n\n");
 
@@ -439,8 +448,23 @@ namespace OpenChat
 
             try
             {
-                await _apiClient.SendMessageAsync(_currentChannelId, _currentDmId, content);
+                var sentMessage = await _apiClient.SendMessageAsync(_currentChannelId, _currentDmId, content);
                 txtMessage.Clear();
+
+                // Optimistically display the message immediately (don't wait for WebSocket)
+                if (sentMessage != null)
+                {
+                    // Add user info if not present
+                    if (sentMessage.User == null && AppSettings.CurrentUser != null)
+                    {
+                        sentMessage.User = new Models.User
+                        {
+                            Id = AppSettings.CurrentUser.Id,
+                            DisplayName = AppSettings.CurrentUser.DisplayName
+                        };
+                    }
+                    AppendMessage(sentMessage);
+                }
             }
             catch (Exception ex)
             {

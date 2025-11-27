@@ -75,6 +75,43 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
           return;
         }
 
+        // Check for token in URL query parameter (for desktop app embedding)
+        const urlParams = new URLSearchParams(window.location.search);
+        const urlToken = urlParams.get('token');
+        if (urlToken) {
+          console.log('Found token in URL, validating...');
+          try {
+            apiClient.setToken(urlToken);
+            const userInfo = await apiClient.getUserInfo(urlToken);
+
+            if (userInfo && userInfo.sub) {
+              const user: User = {
+                id: userInfo.sub,
+                org_id: userInfo.org_id || '',
+                tv_user_id: userInfo.sub,
+                email: userInfo.email || 'user@openchat.local',
+                display_name: userInfo.name || userInfo.email?.split('@')[0] || 'User',
+                status: 'online',
+                created_at: new Date().toISOString(),
+                updated_at: new Date().toISOString(),
+                roles: userInfo.roles || [],
+              };
+
+              console.log('URL token validated, setting auth state');
+              // Remove token from URL for security (without reload)
+              const newUrl = window.location.pathname;
+              window.history.replaceState({}, '', newUrl);
+              get().setAuth(urlToken, user);
+              return;
+            }
+          } catch (error) {
+            console.error('URL token validation failed:', error);
+            // Remove invalid token from URL
+            const newUrl = window.location.pathname;
+            window.history.replaceState({}, '', newUrl);
+          }
+        }
+
         // Check if running in Tauri desktop app
         if ((window as any).__TAURI__) {
           console.log('Detected Tauri environment, using desktop auth flow');

@@ -3,9 +3,22 @@
   "identifier": "default",
   "description": "enables the default permissions",
   "windows": [
-    "main"
+    "main",
+    "login",
+    "chat"
   ],
   "permissions": [
-    "core:default"
+    "core:default",
+    "core:window:default",
+    "core:window:allow-create",
+    "core:window:allow-close",
+    "core:window:allow-show",
+    "core:webview:default",
+    "core:webview:allow-create-webview-window",
+    "shell:default",
+    "dialog:default",
+    "fs:default",
+    "notification:default",
+    "deep-link:default"
   ]
 }

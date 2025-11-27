@@ -219,6 +219,48 @@ pub async fn clear_credentials(state: State<'_, AppState>) -> Result<(), String>
     clear_credentials_internal(&state)
 }
 
+/// Gets just the stored token (for web UI compatibility)
+#[tauri::command]
+pub async fn get_stored_token(state: State<'_, AppState>) -> Result<Option<String>, String> {
+    // First check in-memory state
+    {
+        if let Ok(creds_guard) = state.credentials.lock() {
+            if let Some(ref creds) = *creds_guard {
+                if chrono::Utc::now() < creds.expires_at {
+                    return Ok(Some(creds.access_token.clone()));
+                }
+            }
+        }
+    }
+
+    // Then check OS keychain
+    match keyring::Entry::new(KEYRING_SERVICE, KEYRING_USERNAME) {
+        Ok(entry) => match entry.get_password() {
+            Ok(json_str) => {
+                if let Ok(creds) = serde_json::from_str::<StoredCredentials>(&json_str) {
+                    if chrono::Utc::now() < creds.expires_at {
+                        // Update in-memory state
+                        if let Ok(mut creds_guard) = state.credentials.lock() {
+                            *creds_guard = Some(creds.clone());
+                        }
+                        return Ok(Some(creds.access_token));
+                    }
+                }
+                Ok(None)
+            }
+            Err(keyring::Error::NoEntry) => Ok(None),
+            Err(_) => Ok(None),
+        },
+        Err(_) => Ok(None),
+    }
+}
+
+/// Clears token (alias for clear_credentials for web UI compatibility)
+#[tauri::command]
+pub async fn clear_token(state: State<'_, AppState>) -> Result<(), String> {
+    clear_credentials_internal(&state)
+}
+
 #[tauri::command]
 pub async fn validate_token(token: String) -> Result<bool, String> {
     let client = reqwest::Client::new();

@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OpenChat - Connect</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #fff;
+        }
+        .container {
+            background: rgba(27, 27, 31, 0.95);
+            border-radius: 16px;
+            padding: 48px;
+            width: 100%;
+            max-width: 420px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+        }
+        .logo {
+            text-align: center;
+            margin-bottom: 32px;
+        }
+        .logo h1 {
+            font-size: 32px;
+            font-weight: 700;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        .logo p {
+            color: #8e8e93;
+            margin-top: 8px;
+            font-size: 14px;
+        }
+        .input-group {
+            margin-bottom: 24px;
+        }
+        .input-group label {
+            display: block;
+            margin-bottom: 8px;
+            font-size: 14px;
+            color: #d1d2d3;
+        }
+        .input-group input {
+            width: 100%;
+            padding: 14px 16px;
+            border: 1px solid #3e4147;
+            border-radius: 8px;
+            background: #2b2e33;
+            color: #fff;
+            font-size: 18px;
+            text-align: center;
+            letter-spacing: 4px;
+            text-transform: uppercase;
+            transition: border-color 0.2s, box-shadow 0.2s;
+        }
+        .input-group input:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.2);
+        }
+        .input-group input::placeholder {
+            letter-spacing: normal;
+            text-transform: none;
+            color: #616061;
+        }
+        button {
+            width: 100%;
+            padding: 14px;
+            border: none;
+            border-radius: 8px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: #fff;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+        button:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+        }
+        button:active {
+            transform: translateY(0);
+        }
+        button:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+        }
+        .help-text {
+            text-align: center;
+            margin-top: 24px;
+            font-size: 13px;
+            color: #8e8e93;
+        }
+        .help-text a {
+            color: #667eea;
+            text-decoration: none;
+        }
+        .help-text a:hover {
+            text-decoration: underline;
+        }
+        .error {
+            background: rgba(237, 66, 69, 0.1);
+            border: 1px solid #ed4245;
+            border-radius: 8px;
+            padding: 12px;
+            margin-bottom: 16px;
+            color: #ed4245;
+            font-size: 14px;
+            display: none;
+        }
+        .error.show {
+            display: block;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="logo">
+            <h1>OpenChat</h1>
+            <p>Enter your pairing code to connect</p>
+        </div>
+        <div id="error" class="error"></div>
+        <form id="loginForm">
+            <div class="input-group">
+                <label for="code">Pairing Code</label>
+                <input type="text" id="code" placeholder="Enter code" maxlength="20" autocomplete="off" autofocus>
+            </div>
+            <button type="submit" id="submitBtn">Connect</button>
+        </form>
+        <p class="help-text">
+            Get your pairing code from<br>
+            <a href="https://openchat.zerosandones.us" target="_blank">openchat.zerosandones.us</a>
+        </p>
+    </div>
+    <script>
+        const form = document.getElementById('loginForm');
+        const codeInput = document.getElementById('code');
+        const submitBtn = document.getElementById('submitBtn');
+        const errorDiv = document.getElementById('error');
+
+        // Debug: Check if Tauri is available
+        console.log('Tauri available:', typeof window.__TAURI__);
+        console.log('Tauri object:', window.__TAURI__);
+
+        function showError(message) {
+            console.error('Error:', message);
+            errorDiv.textContent = message;
+            errorDiv.classList.add('show');
+        }
+
+        // Wait for Tauri to be ready
+        function getTauriInvoke() {
+            if (window.__TAURI__ && window.__TAURI__.core && window.__TAURI__.core.invoke) {
+                return window.__TAURI__.core.invoke;
+            }
+            if (window.__TAURI__ && window.__TAURI__.tauri && window.__TAURI__.tauri.invoke) {
+                return window.__TAURI__.tauri.invoke;
+            }
+            if (window.__TAURI_INVOKE__) {
+                return window.__TAURI_INVOKE__;
+            }
+            return null;
+        }
+
+        form.addEventListener('submit', async (e) => {
+            e.preventDefault();
+
+            const invoke = getTauriInvoke();
+            if (!invoke) {
+                showError('Tauri API not available. Please restart the app.');
+                console.error('Tauri state:', {
+                    __TAURI__: window.__TAURI__,
+                    __TAURI_INVOKE__: window.__TAURI_INVOKE__
+                });
+                return;
+            }
+
+            const code = codeInput.value.trim();
+            if (!code) {
+                showError('Please enter a pairing code');
+                return;
+            }
+
+            submitBtn.disabled = true;
+            submitBtn.textContent = 'Connecting...';
+            errorDiv.classList.remove('show');
+
+            try {
+                console.log('Calling verify_pairing_code with code:', code);
+                const response = await invoke('verify_pairing_code', {
+                    code: code,
+                    deviceName: 'Windows Desktop (Tauri)'
+                });
+                console.log('Response:', response);
+
+                // Signal successful login
+                console.log('Calling login_success');
+                await invoke('login_success', { token: response.access_token });
+            } catch (err) {
+                console.error('Error during login:', err);
+                showError(err.toString());
+                submitBtn.disabled = false;
+                submitBtn.textContent = 'Connect';
+                codeInput.focus();
+                codeInput.select();
+            }
+        });
+
+        // Auto-uppercase input
+        codeInput.addEventListener('input', (e) => {
+            e.target.value = e.target.value.toUpperCase();
+        });
+
+        // Log when page is ready
+        window.addEventListener('DOMContentLoaded', () => {
+            console.log('Page loaded, Tauri:', window.__TAURI__);
+        });
+    </script>
+</body>
+</html>

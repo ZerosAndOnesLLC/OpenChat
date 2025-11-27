@@ -4,15 +4,15 @@
   "version": "0.1.0",
   "identifier": "com.openchat.desktop",
   "build": {
-    "frontendDist": "../ui/out",
-    "devUrl": "http://localhost:3000",
-    "beforeDevCommand": "cd ui && npm run dev",
-    "beforeBuildCommand": "cd ui && npm run build"
+    "frontendDist": "./dist",
+    "beforeBuildCommand": ""
   },
   "app": {
+    "withGlobalTauri": true,
     "windows": [
       {
         "title": "OpenChat",
+        "visible": false,
         "width": 1200,
         "height": 800,
         "minWidth": 800,

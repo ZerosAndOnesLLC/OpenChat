@@ -48,10 +48,11 @@ export default function Sidebar({
     enabled: !initialStateLoaded,
   });
 
-  // Convert WebSocket metadata to Channel objects
+  // Convert WebSocket metadata to Channel objects and sort alphabetically
   const channelsList = useMemo(() => {
+    let channels: Channel[];
     if (initialStateLoaded && wsChannels.length > 0) {
-      return wsChannels.map(ch => ({
+      channels = wsChannels.map(ch => ({
         id: ch.id,
         name: ch.name,
         description: ch.description,
@@ -61,14 +62,18 @@ export default function Sidebar({
         created_at: '',
         updated_at: '',
       } as Channel));
+    } else {
+      channels = Array.isArray(httpChannels) ? httpChannels : [];
     }
-    return Array.isArray(httpChannels) ? httpChannels : [];
+    // Sort channels alphabetically by name (case-insensitive)
+    return channels.sort((a, b) => a.name.toLowerCase().localeCompare(b.name.toLowerCase()));
   }, [initialStateLoaded, wsChannels, httpChannels]);
 
-  // Convert WebSocket DM metadata to DirectMessage objects
+  // Convert WebSocket DM metadata to DirectMessage objects and sort alphabetically
   const dmsList = useMemo(() => {
+    let dms: DirectMessage[];
     if (initialStateLoaded && wsDms.length > 0) {
-      return wsDms.map(dm => ({
+      dms = wsDms.map(dm => ({
         id: dm.id,
         org_id: '',
         created_by: '',
@@ -84,8 +89,15 @@ export default function Sidebar({
           updated_at: '',
         }],
       } as DirectMessage));
+    } else {
+      dms = Array.isArray(httpDms) ? httpDms : [];
     }
-    return Array.isArray(httpDms) ? httpDms : [];
+    // Sort DMs alphabetically by participant name (case-insensitive)
+    return dms.sort((a, b) => {
+      const nameA = a.participants?.[0]?.display_name || '';
+      const nameB = b.participants?.[0]?.display_name || '';
+      return nameA.toLowerCase().localeCompare(nameB.toLowerCase());
+    });
   }, [initialStateLoaded, wsDms, httpDms]);
 
   const handleCreateChannel = async (e: React.FormEvent) => {

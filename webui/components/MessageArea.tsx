@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useMemo, useState } from 'react';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query';
 import { apiClient } from '@/lib/api';
 import { useWebSocketStore } from '@/lib/websocket';
 import type { Channel, DirectMessage, Message } from '@/lib/types';
@@ -15,16 +15,43 @@ import Toast from './Toast';
 interface MessageAreaProps {
   channel: Channel | null;
   dm: DirectMessage | null;
+  onLeaveChannel?: () => void;
 }
 
-export default function MessageArea({ channel, dm }: MessageAreaProps) {
+export default function MessageArea({ channel, dm, onLeaveChannel }: MessageAreaProps) {
   const { messages, channelData, setMessages, subscribeChannel, unsubscribeChannel, typing, setLastReadMessageId, lastReadMessageIds, unreadCounts } =
     useWebSocketStore();
   const prevChannelRef = useRef<string | null>(null);
   const [replyTo, setReplyTo] = useState<Message | undefined>(undefined);
   const [openThread, setOpenThread] = useState<string | null>(null);
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
+  const [showChannelMenu, setShowChannelMenu] = useState(false);
   const queryClient = useQueryClient();
+  const channelMenuRef = useRef<HTMLDivElement>(null);
+
+  // Close menu when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (channelMenuRef.current && !channelMenuRef.current.contains(event.target as Node)) {
+        setShowChannelMenu(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  // Leave channel mutation
+  const leaveChannelMutation = useMutation({
+    mutationFn: (channelId: string) => apiClient.leaveChannel(channelId),
+    onSuccess: () => {
+      setToast({ message: 'You have left the channel', type: 'success' });
+      queryClient.invalidateQueries({ queryKey: ['channels'] });
+      onLeaveChannel?.();
+    },
+    onError: (error: Error) => {
+      setToast({ message: error.message || 'Failed to leave channel', type: 'error' });
+    },
+  });
 
   const currentKey = channel?.id || dm?.id || '';
 
@@ -272,7 +299,7 @@ export default function MessageArea({ channel, dm }: MessageAreaProps) {
     <>
       <div className="flex flex-1 overflow-hidden">
         <div className="flex flex-1 flex-col bg-black">
-          <div className="flex h-14 items-center border-b border-gray-800 px-6">
+          <div className="flex h-14 items-center justify-between border-b border-gray-800 px-6">
             <div className="flex items-center">
               <span className="mr-2 text-xl">
                 {channel
@@ -284,9 +311,40 @@ export default function MessageArea({ channel, dm }: MessageAreaProps) {
               <h2 className="text-lg font-semibold text-white">
                 {channel?.name || (dm && 'Direct Message')}
               </h2>
+              {channel?.description && (
+                <p className="ml-4 text-sm text-gray-400">{channel.description}</p>
+              )}
             </div>
-            {channel?.description && (
-              <p className="ml-4 text-sm text-gray-400">{channel.description}</p>
+            {channel && (
+              <div className="relative" ref={channelMenuRef}>
+                <button
+                  onClick={() => setShowChannelMenu(!showChannelMenu)}
+                  className="rounded p-2 text-gray-400 hover:bg-gray-800 hover:text-white"
+                  title="Channel options"
+                >
+                  <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 5v.01M12 12v.01M12 19v.01M12 6a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2z" />
+                  </svg>
+                </button>
+                {showChannelMenu && (
+                  <div className="absolute right-0 top-full z-50 mt-1 w-48 rounded-md bg-gray-800 py-1 shadow-lg ring-1 ring-black ring-opacity-5">
+                    <button
+                      onClick={() => {
+                        if (confirm('Are you sure you want to leave this channel?')) {
+                          leaveChannelMutation.mutate(channel.id);
+                        }
+                        setShowChannelMenu(false);
+                      }}
+                      className="flex w-full items-center px-4 py-2 text-sm text-red-400 hover:bg-gray-700"
+                    >
+                      <svg className="mr-2 h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                      </svg>
+                      Leave channel
+                    </button>
+                  </div>
+                )}
+              </div>
             )}
           </div>
 

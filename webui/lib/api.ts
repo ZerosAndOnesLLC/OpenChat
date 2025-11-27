@@ -170,6 +170,12 @@ class ApiClient {
     });
   }
 
+  async leaveChannel(channelId: string): Promise<void> {
+    return this.request<void>(`/api/channels/${channelId}/leave`, {
+      method: 'POST',
+    });
+  }
+
   async getChannel(id: string): Promise<Channel> {
     return this.request<Channel>(`/api/channels/${id}`);
   }
@@ -627,6 +633,41 @@ class ApiClient {
   async revokeDeviceSession(deviceId: string): Promise<void> {
     return this.request<void>(`/api/auth/device/sessions/${deviceId}`, {
       method: 'DELETE',
+    });
+  }
+
+  // Incoming Webhook endpoints
+  async listIncomingWebhooks(): Promise<IncomingWebhook[]> {
+    return this.request<IncomingWebhook[]>('/api/webhooks/incoming');
+  }
+
+  async createIncomingWebhook(data: CreateWebhookRequest): Promise<IncomingWebhook> {
+    return this.request<IncomingWebhook>('/api/webhooks/incoming', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async getIncomingWebhook(id: string): Promise<IncomingWebhook> {
+    return this.request<IncomingWebhook>(`/api/webhooks/incoming/${id}`);
+  }
+
+  async updateIncomingWebhook(id: string, data: UpdateWebhookRequest): Promise<IncomingWebhook> {
+    return this.request<IncomingWebhook>(`/api/webhooks/incoming/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async deleteIncomingWebhook(id: string): Promise<void> {
+    return this.request<void>(`/api/webhooks/incoming/${id}`, {
+      method: 'DELETE',
+    });
+  }
+
+  async regenerateWebhookToken(id: string): Promise<IncomingWebhook> {
+    return this.request<IncomingWebhook>(`/api/webhooks/incoming/${id}/regenerate`, {
+      method: 'POST',
     });
   }
 }

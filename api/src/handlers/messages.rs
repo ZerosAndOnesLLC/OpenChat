@@ -431,9 +431,11 @@ pub async fn send_message(
             dm_id: message.dm_id,
             user_id: message.user_id,
             user_name: current_user.display_name.clone(),
+            user_avatar: current_user.avatar_url.clone(),
             content: message.content.clone(),
             parent_message_id: message.parent_message_id,
             created_at: message.created_at.to_rfc3339(),
+            is_webhook: None,
         },
     });
 

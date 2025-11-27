@@ -5,6 +5,7 @@ pub mod channel;
 pub mod device;
 pub mod direct_message;
 pub mod emoji;
+pub mod incoming_webhook;
 pub mod mention;
 pub mod message;
 pub mod message_draft;

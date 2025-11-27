@@ -124,9 +124,14 @@ pub enum ServerMessage {
         dm_id: Option<Uuid>,
         user_id: Uuid,
         user_name: String,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        user_avatar: Option<String>,
         content: String,
         parent_message_id: Option<Uuid>,
         created_at: String,
+        /// Whether this message was sent via webhook
+        #[serde(skip_serializing_if = "Option::is_none")]
+        is_webhook: Option<bool>,
     },
     /// Message was edited
     MessageEdited {

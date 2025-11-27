@@ -379,6 +379,49 @@ MigrationBackup/
 # Fody - auto-generated XML schema
 FodyWeavers.xsd
 
+# VS Code
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+!.vscode/*.code-snippets
+*.code-workspace
+
+# .NET / C# additional
+*.dll
+*.exe
+*.msi
+*.msix
+*.msm
+*.msp
+global.json
+launchSettings.json
+*.csproj.user
+*.unityproj
+*.booproj
+*.svd
+*.psd
+*.psm
+*.dbg
+
+# JetBrains Rider
+.idea/
+*.sln.iml
+
+# dotnet tools
+.config/dotnet-tools.json
+
+# .NET publish profiles
+*.pubxml
+*.pubxml.user
+
+# .NET Core SDK version
+global.json
+
+# User secrets
+secrets.json
+
 # NPM stuff
 .sqlx/
 .sqlx-data/

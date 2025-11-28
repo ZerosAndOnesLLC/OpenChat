@@ -206,6 +206,7 @@ export type WSServerMessage =
   | { type: 'message_deleted'; message_id: string }
   | { type: 'user_typing'; user_id: string; channel_id?: string; dm_id?: string; user_name: string }
   | { type: 'user_status'; user_id: string; status: 'online' | 'offline' | 'away' }
+  | { type: 'status_update'; user_id: string; status: 'online' | 'offline' | 'away' | 'dnd'; custom_message?: string; emoji?: string }
   | { type: 'reaction_added'; message_id: string; user_id: string; emoji: string }
   | { type: 'reaction_removed'; message_id: string; user_id: string; emoji: string }
   | { type: 'unread_count_updated'; channel_id?: string; dm_id?: string; unread_count: number; last_read_message_id?: string }
@@ -269,6 +270,7 @@ export interface UpdateUserStatusRequest {
   custom_message?: string;
   emoji?: string;
   clear_after_minutes?: number;
+  back_at?: string; // ISO 8601 datetime for when user will be back
 }
 
 // Pagination

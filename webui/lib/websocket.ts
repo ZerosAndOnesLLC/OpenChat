@@ -18,6 +18,12 @@ interface ChannelDataState {
   loaded: boolean;
 }
 
+interface UserStatusInfo {
+  status: 'online' | 'offline' | 'away' | 'dnd';
+  custom_message?: string;
+  emoji?: string;
+}
+
 interface WebSocketStore {
   ws: WebSocket | null;
   connected: boolean;
@@ -27,7 +33,8 @@ interface WebSocketStore {
   messages: Record<string, Message[]>; // channelId/dmId -> messages
   channelData: Record<string, ChannelDataState>; // channelId -> channel data (messages, pins, members)
   typing: TypingIndicator[];
-  userStatuses: Record<string, 'online' | 'offline' | 'away'>;
+  userStatuses: Record<string, 'online' | 'offline' | 'away' | 'dnd'>;
+  userStatusDetails: Record<string, UserStatusInfo>; // Full status info with custom message/emoji
   unreadCounts: Record<string, number>; // channelId/dmId -> unread count
   lastReadMessageIds: Record<string, string | undefined>; // channelId/dmId -> last read message ID
   notificationCount: number;
@@ -59,6 +66,7 @@ export const useWebSocketStore = create<WebSocketStore>((set, get) => ({
   channelData: {},
   typing: [],
   userStatuses: {},
+  userStatusDetails: {},
   unreadCounts: {},
   lastReadMessageIds: {},
   notificationCount: 0,
@@ -262,6 +270,34 @@ export const useWebSocketStore = create<WebSocketStore>((set, get) => ({
               userStatuses: {
                 ...state.userStatuses,
                 [message.user_id]: message.status,
+              },
+              userStatusDetails: {
+                ...state.userStatusDetails,
+                [message.user_id]: {
+                  status: message.status,
+                },
+              },
+            }));
+            break;
+          }
+
+          case 'status_update': {
+            if (!message.user_id || !message.status) {
+              console.error('Received status_update with missing data:', message);
+              break;
+            }
+            set((state) => ({
+              userStatuses: {
+                ...state.userStatuses,
+                [message.user_id]: message.status,
+              },
+              userStatusDetails: {
+                ...state.userStatusDetails,
+                [message.user_id]: {
+                  status: message.status,
+                  custom_message: message.custom_message,
+                  emoji: message.emoji,
+                },
               },
             }));
             break;

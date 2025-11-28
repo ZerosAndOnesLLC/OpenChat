@@ -1,10 +1,10 @@
 # OpenChat UI
 
-Modern real-time team chat application built with Next.js 15.
+Modern real-time team chat application built with Next.js 16.
 
 ## Tech Stack
 
-- **Next.js 15** - React framework with App Router
+- **Next.js 16** - React framework with App Router
 - **React 19** - Latest React with concurrent features
 - **TypeScript** - Type safety
 - **Tailwind CSS** - Utility-first styling
@@ -248,7 +248,7 @@ npm run build
 
 ## Version
 
-Current version: 0.17.0
+Current version: 0.22.3
 
 Increment version before commits:
 - **Patch** (0.1.x): Bug fixes, small tweaks
@@ -256,6 +256,10 @@ Increment version before commits:
 - **Major** (x.0.0): Breaking changes
 
 ### Recent Changes
+
+**v0.22.3** - Fix Turbopack build configuration
+- Added turbopack.root to next.config.ts to fix workspace root inference
+- Fixed package.json import path in settings page for Turbopack compatibility
 
 **v0.18.0** - Data Retention Policies UI (Phase 5.4 Complete)
 - Added retention policies management page at /admin/retention

@@ -137,18 +137,22 @@
         <div id="error" class="error"></div>
         <form id="loginForm">
             <div class="input-group">
+                <label for="apiUrl">Server URL</label>
+                <input type="url" id="apiUrl" placeholder="https://your-server.com" autocomplete="off" autofocus>
+            </div>
+            <div class="input-group">
                 <label for="code">Pairing Code</label>
-                <input type="text" id="code" placeholder="Enter code" maxlength="20" autocomplete="off" autofocus>
+                <input type="text" id="code" placeholder="Enter code" maxlength="20" autocomplete="off">
             </div>
             <button type="submit" id="submitBtn">Connect</button>
         </form>
         <p class="help-text">
-            Get your pairing code from<br>
-            <a href="https://openchat.zerosandones.us" target="_blank">openchat.zerosandones.us</a>
+            Get your server URL and pairing code from your OpenChat web app's Settings page.
         </p>
     </div>
     <script>
         const form = document.getElementById('loginForm');
+        const apiUrlInput = document.getElementById('apiUrl');
         const codeInput = document.getElementById('code');
         const submitBtn = document.getElementById('submitBtn');
         const errorDiv = document.getElementById('error');
@@ -190,9 +194,18 @@
                 return;
             }
 
+            const apiUrl = apiUrlInput.value.trim().replace(/\/+$/, ''); // Remove trailing slashes
             const code = codeInput.value.trim();
+
+            if (!apiUrl) {
+                showError('Please enter the server URL');
+                apiUrlInput.focus();
+                return;
+            }
+
             if (!code) {
                 showError('Please enter a pairing code');
+                codeInput.focus();
                 return;
             }
 
@@ -201,16 +214,17 @@
             errorDiv.classList.remove('show');
 
             try {
-                console.log('Calling verify_pairing_code with code:', code);
+                console.log('Calling verify_pairing_code with apiUrl:', apiUrl, 'code:', code);
                 const response = await invoke('verify_pairing_code', {
+                    apiUrl: apiUrl,
                     code: code,
                     deviceName: 'Windows Desktop (Tauri)'
                 });
                 console.log('Response:', response);
 
-                // Signal successful login
+                // Signal successful login - the api_url comes from the server response
                 console.log('Calling login_success');
-                await invoke('login_success', { token: response.access_token });
+                await invoke('login_success', { apiUrl: response.api_url });
             } catch (err) {
                 console.error('Error during login:', err);
                 showError(err.toString());
@@ -221,7 +235,7 @@
             }
         });
 
-        // Auto-uppercase input
+        // Auto-uppercase pairing code input
         codeInput.addEventListener('input', (e) => {
             e.target.value = e.target.value.toUpperCase();
         });

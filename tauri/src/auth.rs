@@ -8,7 +8,6 @@ use chrono::{DateTime, Utc, Duration};
 
 const KEYRING_SERVICE: &str = "openchat-desktop";
 const KEYRING_USERNAME: &str = "auth-credentials";
-const API_BASE_URL: &str = "https://openchat-api.zerosandones.us:9876";
 const TOKEN_VALIDITY_DAYS: i64 = 365;
 const CREDENTIALS_FILE: &str = "credentials.dat";
 
@@ -65,11 +64,31 @@ fn delete_credentials_file() {
     }
 }
 
+/// Synchronously read stored credentials (for startup check)
+/// Checks keychain first, then file fallback
+pub fn read_stored_credentials_sync() -> Option<StoredCredentials> {
+    // Try keychain first
+    if let Some(creds) = read_from_keychain() {
+        return Some(creds);
+    }
+
+    // Try file fallback
+    if let Some(json_str) = read_credentials_from_file() {
+        if let Ok(creds) = serde_json::from_str::<StoredCredentials>(&json_str) {
+            return Some(creds);
+        }
+    }
+
+    None
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AuthResponse {
     pub access_token: String,
     pub user: User,
     pub device_id: String,
+    /// API base URL returned from the server
+    pub api_url: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -86,6 +105,8 @@ pub struct StoredCredentials {
     pub device_id: String,
     pub user: User,
     pub expires_at: DateTime<Utc>,
+    /// API base URL for making requests
+    pub api_url: String,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -100,6 +121,9 @@ struct DeepLinkPayload {
     user_id: String,
     org_id: String,
     exp: i64,
+    /// API base URL for the desktop client to use
+    #[serde(default)]
+    api_url: Option<String>,
 }
 
 pub struct AppState {
@@ -116,6 +140,7 @@ impl Default for AppState {
 
 #[tauri::command]
 pub async fn verify_pairing_code(
+    api_url: String,
     code: String,
     device_name: String,
     state: State<'_, AppState>,
@@ -128,7 +153,7 @@ pub async fn verify_pairing_code(
     };
 
     let response = client
-        .post(&format!("{}/api/auth/device/verify-code", API_BASE_URL))
+        .post(&format!("{}/api/auth/device/verify-code", api_url))
         .json(&request_body)
         .send()
         .await
@@ -146,10 +171,12 @@ pub async fn verify_pairing_code(
         .map_err(|e| format!("Failed to parse response: {}", e))?;
 
     // Store full credentials with 365-day expiry
+    // The api_url comes from the server response
     store_credentials(
         auth_response.access_token.clone(),
         auth_response.device_id.clone(),
         auth_response.user.clone(),
+        auth_response.api_url.clone(),
         state,
     ).await?;
 
@@ -269,15 +296,17 @@ pub async fn store_credentials(
     access_token: String,
     device_id: String,
     user: User,
+    api_url: String,
     state: State<'_, AppState>,
 ) -> Result<(), String> {
-    log::info!("store_credentials: storing credentials for user {}", user.email);
+    log::info!("store_credentials: storing credentials for user {} with api_url {}", user.email, api_url);
 
     let credentials = StoredCredentials {
         access_token,
         device_id,
         user,
         expires_at: Utc::now() + Duration::days(TOKEN_VALIDITY_DAYS),
+        api_url,
     };
 
     // Serialize to JSON
@@ -445,14 +474,14 @@ pub struct TokenValidationResult {
 }
 
 #[tauri::command]
-pub async fn validate_token(token: String) -> Result<TokenValidationResult, String> {
-    log::info!("validate_token: validating token with API");
+pub async fn validate_token(api_url: String, token: String) -> Result<TokenValidationResult, String> {
+    log::info!("validate_token: validating token with API at {}", api_url);
     let client = reqwest::Client::builder()
         .timeout(std::time::Duration::from_secs(10))
         .build()
         .map_err(|e| format!("Failed to create HTTP client: {}", e))?;
 
-    let url = format!("{}/api/sso/userinfo", API_BASE_URL);
+    let url = format!("{}/api/sso/userinfo", api_url);
     log::info!("validate_token: POST {}", url);
 
     match client
@@ -522,8 +551,12 @@ pub async fn process_deep_link_payload(
         return Err("Deep link has expired".to_string());
     }
 
+    // Get api_url from payload (required for new deep links)
+    let api_url = payload.api_url
+        .ok_or("Deep link missing api_url - please generate a new link")?;
+
     // Validate the token with backend
-    let validation = validate_token(payload.token.clone()).await?;
+    let validation = validate_token(api_url.clone(), payload.token.clone()).await?;
     if !validation.valid {
         return Err(format!("Invalid token in deep link: {}", validation.error.unwrap_or_else(|| "unknown error".to_string())));
     }
@@ -531,7 +564,7 @@ pub async fn process_deep_link_payload(
     // Fetch user info
     let client = reqwest::Client::new();
     let response = client
-        .post(&format!("{}/api/sso/userinfo", API_BASE_URL))
+        .post(&format!("{}/api/sso/userinfo", api_url))
         .header("Authorization", format!("Bearer {}", payload.token))
         .send()
         .await
@@ -565,6 +598,7 @@ pub async fn process_deep_link_payload(
         payload.token.clone(),
         device_id.clone(),
         user.clone(),
+        api_url.clone(),
         state,
     ).await?;
 
@@ -572,5 +606,6 @@ pub async fn process_deep_link_payload(
         access_token: payload.token,
         user,
         device_id,
+        api_url,
     })
 }

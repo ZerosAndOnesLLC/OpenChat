@@ -24,6 +24,18 @@ OpenChat Desktop provides a native desktop experience for OpenChat, leveraging t
 - Secure credential storage with 365-day expiry (OS keychain with file fallback for Windows)
 - Deep link authentication support
 - Robust token validation with graceful handling of network issues
+- **Configurable Server URL**: Connect to any OpenChat server instance - no hardcoded URLs
+- **Window State Persistence**: Remembers window position, size, and monitor across restarts (multi-monitor support)
+
+## Quick Start
+
+1. Launch the OpenChat Desktop app
+2. On first launch, you'll see a login screen
+3. Enter the **Server URL** (provided by your OpenChat instance)
+4. Enter the **Pairing Code** (generate one from the web app: Settings → Desktop App)
+5. Click Connect - you're logged in!
+
+The app remembers your server and credentials, so subsequent launches go straight to chat.
 
 ## Prerequisites
 
@@ -203,4 +215,6 @@ Follow semantic versioning in `Cargo.toml`:
 
 ## License
 
-MIT
+SSPL-1.0 (Server Side Public License)
+
+Copyright (c) 2025 Zeros and Ones LLC

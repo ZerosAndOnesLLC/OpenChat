@@ -43,6 +43,8 @@ fn get_client_ip(req: &HttpRequest) -> String {
 pub struct GenerateCodeResponse {
     pub code: String,
     pub expires_in: i64, // seconds
+    /// API base URL for desktop clients to connect to
+    pub api_url: String,
 }
 
 #[derive(Debug, Deserialize)]
@@ -57,6 +59,8 @@ pub struct VerifyCodeResponse {
     pub access_token: String,
     pub user: UserInfo,
     pub device_id: Uuid,
+    /// API base URL for the desktop client to use for future requests
+    pub api_url: String,
 }
 
 #[derive(Debug, Serialize)]
@@ -87,6 +91,8 @@ struct DeepLinkPayload {
     org_id: Uuid,
     /// Timestamp when payload was created
     created_at: i64,
+    /// API base URL for the desktop client to use
+    api_url: String,
 }
 
 #[derive(Debug, Serialize)]
@@ -115,6 +121,7 @@ impl From<DeviceSession> for DeviceSessionResponse {
 pub async fn generate_code(
     pool: web::Data<PgPool>,
     redis: web::Data<MultiplexedConnection>,
+    config: web::Data<Config>,
     req: HttpRequest,
 ) -> ApiResult<HttpResponse> {
     // Get claims from request extensions (set by auth middleware)
@@ -160,6 +167,7 @@ pub async fn generate_code(
     Ok(response.json(GenerateCodeResponse {
         code: pairing_code.code,
         expires_in,
+        api_url: config.api_base_url.clone(),
     }))
 }
 
@@ -222,6 +230,7 @@ pub async fn verify_code(
             avatar_url: user.avatar_url,
         },
         device_id: device_session.id,
+        api_url: config.api_base_url.clone(),
     };
 
     let mut response_builder = HttpResponse::Ok();
@@ -294,6 +303,7 @@ pub async fn generate_deep_link(
         user_id: claims.user_id,
         org_id: claims.org_id,
         created_at: chrono::Utc::now().timestamp(),
+        api_url: config.api_base_url.clone(),
     };
 
     // Serialize payload

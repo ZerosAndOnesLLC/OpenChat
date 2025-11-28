@@ -8,6 +8,7 @@ import { Copy, Check, Monitor, QrCode, Smartphone, RefreshCw, ExternalLink, Aler
 interface PairingCodeData {
   code: string;
   expiresAt: number;
+  apiUrl: string;
 }
 
 export default function DesktopLogin() {
@@ -27,6 +28,7 @@ export default function DesktopLogin() {
       setPairingData({
         code: response.code,
         expiresAt,
+        apiUrl: response.api_url,
       });
       setTimeRemaining(response.expires_in);
     } catch (err) {
@@ -84,7 +86,9 @@ export default function DesktopLogin() {
     return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
 
-  const qrCodeUrl = pairingData ? `openchat://pair?code=${pairingData.code}` : '';
+  const qrCodeUrl = pairingData
+    ? `openchat://pair?code=${pairingData.code}&api=${encodeURIComponent(pairingData.apiUrl)}`
+    : '';
 
   return (
     <div className="w-full max-w-2xl mx-auto">
@@ -185,6 +189,16 @@ export default function DesktopLogin() {
                     </div>
                   </div>
 
+                  {/* Server URL Display */}
+                  <div className="bg-gray-50 dark:bg-gray-900/50 rounded-xl p-4 border border-gray-200 dark:border-gray-700">
+                    <p className="text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">
+                      Server URL
+                    </p>
+                    <div className="font-mono text-sm text-gray-900 dark:text-white break-all select-all">
+                      {pairingData.apiUrl}
+                    </div>
+                  </div>
+
                   {/* Code Display */}
                   <div className="bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-900 dark:to-gray-800 rounded-2xl p-8 text-center border-2 border-dashed border-gray-300 dark:border-gray-600">
                     <p className="text-sm font-medium text-gray-600 dark:text-gray-400 mb-3">
@@ -236,7 +250,7 @@ export default function DesktopLogin() {
                       </li>
                       <li className="flex gap-3">
                         <span className="font-bold">2.</span>
-                        <span>Enter the code above or scan the QR code</span>
+                        <span>Enter the Server URL and Pairing Code shown above, or scan the QR code</span>
                       </li>
                       <li className="flex gap-3">
                         <span className="font-bold">3.</span>

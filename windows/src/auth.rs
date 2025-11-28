@@ -1,6 +1,8 @@
 use serde::{Deserialize, Serialize};
 use tauri::State;
 use std::sync::Mutex;
+use std::path::PathBuf;
+use std::fs;
 use base64::{Engine as _, engine::general_purpose};
 use chrono::{DateTime, Utc, Duration};
 
@@ -8,6 +10,60 @@ const KEYRING_SERVICE: &str = "openchat-desktop";
 const KEYRING_USERNAME: &str = "auth-credentials";
 const API_BASE_URL: &str = "https://openchat-api.zerosandones.us:9876";
 const TOKEN_VALIDITY_DAYS: i64 = 365;
+const CREDENTIALS_FILE: &str = "credentials.dat";
+
+/// Gets the app data directory for storing credentials
+fn get_credentials_path() -> Option<PathBuf> {
+    dirs::data_local_dir().map(|p| p.join("OpenChat").join(CREDENTIALS_FILE))
+}
+
+/// Stores credentials to a file (fallback when keyring fails)
+fn store_credentials_to_file(json_str: &str) -> Result<(), String> {
+    let path = get_credentials_path()
+        .ok_or_else(|| "Could not determine app data directory".to_string())?;
+
+    // Create parent directories if they don't exist
+    if let Some(parent) = path.parent() {
+        fs::create_dir_all(parent)
+            .map_err(|e| format!("Failed to create app data directory: {}", e))?;
+    }
+
+    // Encode as base64 for basic obfuscation
+    let encoded = general_purpose::STANDARD.encode(json_str.as_bytes());
+
+    fs::write(&path, encoded)
+        .map_err(|e| format!("Failed to write credentials file: {}", e))?;
+
+    log::info!("store_credentials_to_file: saved to {:?}", path);
+    Ok(())
+}
+
+/// Reads credentials from file (fallback when keyring fails)
+fn read_credentials_from_file() -> Option<String> {
+    let path = get_credentials_path()?;
+
+    if !path.exists() {
+        log::info!("read_credentials_from_file: file does not exist at {:?}", path);
+        return None;
+    }
+
+    let encoded = fs::read_to_string(&path).ok()?;
+    let decoded = general_purpose::STANDARD.decode(encoded.trim()).ok()?;
+    let json_str = String::from_utf8(decoded).ok()?;
+
+    log::info!("read_credentials_from_file: successfully read from {:?}", path);
+    Some(json_str)
+}
+
+/// Deletes the credentials file
+fn delete_credentials_file() {
+    if let Some(path) = get_credentials_path() {
+        if path.exists() {
+            let _ = fs::remove_file(&path);
+            log::info!("delete_credentials_file: removed {:?}", path);
+        }
+    }
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AuthResponse {
@@ -160,25 +216,31 @@ pub async fn get_stored_credentials(state: State<'_, AppState>) -> Result<Option
 
 /// Internal function to clear credentials without requiring async
 fn clear_credentials_internal(state: &State<'_, AppState>) -> Result<(), String> {
-    // Clear from OS keychain
-    let entry = keyring::Entry::new(KEYRING_SERVICE, KEYRING_USERNAME)
-        .map_err(|e| format!("Failed to access keychain: {}", e))?;
+    log::info!("clear_credentials_internal: clearing all stored credentials");
 
-    match entry.delete_credential() {
-        Ok(_) => {}
-        Err(keyring::Error::NoEntry) => {}
-        Err(e) => return Err(format!("Failed to clear credentials: {}", e)),
+    // Clear from OS keychain
+    if let Ok(entry) = keyring::Entry::new(KEYRING_SERVICE, KEYRING_USERNAME) {
+        match entry.delete_credential() {
+            Ok(_) => log::info!("clear_credentials_internal: cleared keychain"),
+            Err(keyring::Error::NoEntry) => log::info!("clear_credentials_internal: no keychain entry to clear"),
+            Err(e) => log::warn!("clear_credentials_internal: failed to clear keychain: {}", e),
+        }
     }
+
+    // Clear file fallback
+    delete_credentials_file();
 
     // Clear in-memory state
     if let Ok(mut creds_guard) = state.credentials.lock() {
         *creds_guard = None;
     }
 
+    log::info!("clear_credentials_internal: all credentials cleared");
     Ok(())
 }
 
 /// Stores credentials securely with a 365-day expiry.
+/// Uses OS keychain as primary storage with file-based fallback for Windows compatibility.
 #[tauri::command]
 pub async fn store_credentials(
     access_token: String,
@@ -199,22 +261,23 @@ pub async fn store_credentials(
     let json_str = serde_json::to_string(&credentials)
         .map_err(|e| format!("Failed to serialize credentials: {}", e))?;
 
-    // Store in OS keychain
-    log::info!("store_credentials: accessing keychain service '{}' with username '{}'", KEYRING_SERVICE, KEYRING_USERNAME);
-    let entry = keyring::Entry::new(KEYRING_SERVICE, KEYRING_USERNAME)
-        .map_err(|e| {
-            log::error!("store_credentials: failed to access keychain: {}", e);
-            format!("Failed to access keychain: {}", e)
-        })?;
+    // Try to store in OS keychain first
+    let keychain_result = store_in_keychain(&json_str);
 
-    entry
-        .set_password(&json_str)
-        .map_err(|e| {
-            log::error!("store_credentials: failed to store in keychain: {}", e);
-            format!("Failed to store credentials: {}", e)
-        })?;
+    // Always store to file as well (Windows keychain can be unreliable across restarts)
+    if let Err(e) = store_credentials_to_file(&json_str) {
+        log::warn!("store_credentials: file fallback failed: {}", e);
+    }
 
-    log::info!("store_credentials: successfully stored in keychain, expires_at: {}", credentials.expires_at);
+    // Log keychain result but don't fail if file storage worked
+    match keychain_result {
+        Ok(_) => {
+            log::info!("store_credentials: successfully stored in keychain, expires_at: {}", credentials.expires_at);
+        }
+        Err(e) => {
+            log::warn!("store_credentials: keychain storage failed (using file fallback): {}", e);
+        }
+    }
 
     // Update in-memory state
     if let Ok(mut creds_guard) = state.credentials.lock() {
@@ -225,6 +288,25 @@ pub async fn store_credentials(
     Ok(())
 }
 
+/// Helper to store in OS keychain
+fn store_in_keychain(json_str: &str) -> Result<(), String> {
+    log::info!("store_in_keychain: accessing keychain service '{}' with username '{}'", KEYRING_SERVICE, KEYRING_USERNAME);
+    let entry = keyring::Entry::new(KEYRING_SERVICE, KEYRING_USERNAME)
+        .map_err(|e| {
+            log::error!("store_in_keychain: failed to access keychain: {}", e);
+            format!("Failed to access keychain: {}", e)
+        })?;
+
+    entry
+        .set_password(json_str)
+        .map_err(|e| {
+            log::error!("store_in_keychain: failed to store in keychain: {}", e);
+            format!("Failed to store credentials: {}", e)
+        })?;
+
+    Ok(())
+}
+
 /// Clears stored credentials (logout).
 #[tauri::command]
 pub async fn clear_credentials(state: State<'_, AppState>) -> Result<(), String> {
@@ -232,6 +314,7 @@ pub async fn clear_credentials(state: State<'_, AppState>) -> Result<(), String>
 }
 
 /// Gets just the stored token (for web UI compatibility)
+/// Checks in-memory cache first, then OS keychain, then file fallback.
 #[tauri::command]
 pub async fn get_stored_token(state: State<'_, AppState>) -> Result<Option<String>, String> {
     log::info!("get_stored_token: checking for stored credentials");
@@ -252,42 +335,71 @@ pub async fn get_stored_token(state: State<'_, AppState>) -> Result<Option<Strin
 
     // Then check OS keychain
     log::info!("get_stored_token: checking OS keychain");
+    if let Some(creds) = read_from_keychain() {
+        if chrono::Utc::now() < creds.expires_at {
+            log::info!("get_stored_token: keychain token valid, expires_at: {}", creds.expires_at);
+            // Update in-memory state
+            if let Ok(mut creds_guard) = state.credentials.lock() {
+                *creds_guard = Some(creds.clone());
+            }
+            return Ok(Some(creds.access_token));
+        } else {
+            log::info!("get_stored_token: keychain token expired at {}", creds.expires_at);
+        }
+    }
+
+    // Finally check file fallback
+    log::info!("get_stored_token: checking file fallback");
+    if let Some(json_str) = read_credentials_from_file() {
+        match serde_json::from_str::<StoredCredentials>(&json_str) {
+            Ok(creds) => {
+                if chrono::Utc::now() < creds.expires_at {
+                    log::info!("get_stored_token: file token valid, expires_at: {}", creds.expires_at);
+                    // Update in-memory state
+                    if let Ok(mut creds_guard) = state.credentials.lock() {
+                        *creds_guard = Some(creds.clone());
+                    }
+                    return Ok(Some(creds.access_token));
+                } else {
+                    log::info!("get_stored_token: file token expired at {}", creds.expires_at);
+                }
+            }
+            Err(e) => {
+                log::error!("get_stored_token: failed to parse file data: {}", e);
+            }
+        }
+    }
+
+    log::info!("get_stored_token: no valid credentials found");
+    Ok(None)
+}
+
+/// Helper to read from OS keychain
+fn read_from_keychain() -> Option<StoredCredentials> {
     match keyring::Entry::new(KEYRING_SERVICE, KEYRING_USERNAME) {
         Ok(entry) => match entry.get_password() {
             Ok(json_str) => {
-                log::info!("get_stored_token: found entry in keychain, parsing...");
+                log::info!("read_from_keychain: found entry in keychain, parsing...");
                 match serde_json::from_str::<StoredCredentials>(&json_str) {
-                    Ok(creds) => {
-                        if chrono::Utc::now() < creds.expires_at {
-                            log::info!("get_stored_token: keychain token valid, expires_at: {}", creds.expires_at);
-                            // Update in-memory state
-                            if let Ok(mut creds_guard) = state.credentials.lock() {
-                                *creds_guard = Some(creds.clone());
-                            }
-                            return Ok(Some(creds.access_token));
-                        } else {
-                            log::info!("get_stored_token: keychain token expired at {}", creds.expires_at);
-                        }
-                        Ok(None)
-                    }
+                    Ok(creds) => Some(creds),
                     Err(e) => {
-                        log::error!("get_stored_token: failed to parse keychain data: {}", e);
-                        Ok(None)
+                        log::error!("read_from_keychain: failed to parse: {}", e);
+                        None
                     }
                 }
             }
             Err(keyring::Error::NoEntry) => {
-                log::info!("get_stored_token: no entry found in keychain");
-                Ok(None)
+                log::info!("read_from_keychain: no entry found");
+                None
             }
             Err(e) => {
-                log::error!("get_stored_token: keychain access error: {}", e);
-                Ok(None)
+                log::error!("read_from_keychain: access error: {}", e);
+                None
             }
         },
         Err(e) => {
-            log::error!("get_stored_token: failed to create keyring entry: {}", e);
-            Ok(None)
+            log::error!("read_from_keychain: failed to create entry: {}", e);
+            None
         }
     }
 }

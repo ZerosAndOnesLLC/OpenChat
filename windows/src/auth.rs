@@ -186,6 +186,8 @@ pub async fn store_credentials(
     user: User,
     state: State<'_, AppState>,
 ) -> Result<(), String> {
+    log::info!("store_credentials: storing credentials for user {}", user.email);
+
     let credentials = StoredCredentials {
         access_token,
         device_id,
@@ -198,18 +200,28 @@ pub async fn store_credentials(
         .map_err(|e| format!("Failed to serialize credentials: {}", e))?;
 
     // Store in OS keychain
+    log::info!("store_credentials: accessing keychain service '{}' with username '{}'", KEYRING_SERVICE, KEYRING_USERNAME);
     let entry = keyring::Entry::new(KEYRING_SERVICE, KEYRING_USERNAME)
-        .map_err(|e| format!("Failed to access keychain: {}", e))?;
+        .map_err(|e| {
+            log::error!("store_credentials: failed to access keychain: {}", e);
+            format!("Failed to access keychain: {}", e)
+        })?;
 
     entry
         .set_password(&json_str)
-        .map_err(|e| format!("Failed to store credentials: {}", e))?;
+        .map_err(|e| {
+            log::error!("store_credentials: failed to store in keychain: {}", e);
+            format!("Failed to store credentials: {}", e)
+        })?;
+
+    log::info!("store_credentials: successfully stored in keychain, expires_at: {}", credentials.expires_at);
 
     // Update in-memory state
     if let Ok(mut creds_guard) = state.credentials.lock() {
         *creds_guard = Some(credentials);
     }
 
+    log::info!("store_credentials: updated in-memory cache");
     Ok(())
 }
 
@@ -222,36 +234,61 @@ pub async fn clear_credentials(state: State<'_, AppState>) -> Result<(), String>
 /// Gets just the stored token (for web UI compatibility)
 #[tauri::command]
 pub async fn get_stored_token(state: State<'_, AppState>) -> Result<Option<String>, String> {
+    log::info!("get_stored_token: checking for stored credentials");
+
     // First check in-memory state
     {
         if let Ok(creds_guard) = state.credentials.lock() {
             if let Some(ref creds) = *creds_guard {
                 if chrono::Utc::now() < creds.expires_at {
+                    log::info!("get_stored_token: found valid token in memory cache");
                     return Ok(Some(creds.access_token.clone()));
+                } else {
+                    log::info!("get_stored_token: in-memory token expired");
                 }
             }
         }
     }
 
     // Then check OS keychain
+    log::info!("get_stored_token: checking OS keychain");
     match keyring::Entry::new(KEYRING_SERVICE, KEYRING_USERNAME) {
         Ok(entry) => match entry.get_password() {
             Ok(json_str) => {
-                if let Ok(creds) = serde_json::from_str::<StoredCredentials>(&json_str) {
-                    if chrono::Utc::now() < creds.expires_at {
-                        // Update in-memory state
-                        if let Ok(mut creds_guard) = state.credentials.lock() {
-                            *creds_guard = Some(creds.clone());
+                log::info!("get_stored_token: found entry in keychain, parsing...");
+                match serde_json::from_str::<StoredCredentials>(&json_str) {
+                    Ok(creds) => {
+                        if chrono::Utc::now() < creds.expires_at {
+                            log::info!("get_stored_token: keychain token valid, expires_at: {}", creds.expires_at);
+                            // Update in-memory state
+                            if let Ok(mut creds_guard) = state.credentials.lock() {
+                                *creds_guard = Some(creds.clone());
+                            }
+                            return Ok(Some(creds.access_token));
+                        } else {
+                            log::info!("get_stored_token: keychain token expired at {}", creds.expires_at);
                         }
-                        return Ok(Some(creds.access_token));
+                        Ok(None)
+                    }
+                    Err(e) => {
+                        log::error!("get_stored_token: failed to parse keychain data: {}", e);
+                        Ok(None)
                     }
                 }
+            }
+            Err(keyring::Error::NoEntry) => {
+                log::info!("get_stored_token: no entry found in keychain");
                 Ok(None)
             }
-            Err(keyring::Error::NoEntry) => Ok(None),
-            Err(_) => Ok(None),
+            Err(e) => {
+                log::error!("get_stored_token: keychain access error: {}", e);
+                Ok(None)
+            }
         },
-        Err(_) => Ok(None),
+        Err(e) => {
+            log::error!("get_stored_token: failed to create keyring entry: {}", e);
+            Ok(None)
+        }
     }
 }
 

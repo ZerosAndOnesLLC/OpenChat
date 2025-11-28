@@ -42,15 +42,8 @@ export default function Home() {
       return (
         <LoginScreen
           onLoginSuccess={async (authResponse) => {
-            // Store token in OS keychain
-            try {
-              const { invoke } = await import('@tauri-apps/api/core');
-              await invoke('store_token', { token: authResponse.access_token });
-            } catch (error) {
-              console.error('Failed to store token:', error);
-            }
-
-            // Set auth state
+            // Note: Credentials are already stored in OS keychain by verify_pairing_code
+            // Just need to set the auth state in the UI
             const user = {
               id: authResponse.user.id,
               org_id: authResponse.user.org_id,

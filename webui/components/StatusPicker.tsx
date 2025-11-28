@@ -3,6 +3,7 @@
 import { useState, useRef, useEffect } from 'react';
 import dynamic from 'next/dynamic';
 import { apiClient } from '@/lib/api';
+import { useWebSocketStore } from '@/lib/websocket';
 import type { UpdateUserStatusRequest } from '@/lib/types';
 
 // Dynamically import EmojiPicker to avoid SSR issues
@@ -10,6 +11,7 @@ const EmojiPicker = dynamic(() => import('emoji-picker-react'), { ssr: false });
 import { Theme } from 'emoji-picker-react';
 
 interface StatusPickerProps {
+  userId?: string;
   currentStatus?: 'online' | 'offline' | 'away' | 'dnd';
   currentCustomMessage?: string;
   currentEmoji?: string;
@@ -52,6 +54,7 @@ const TIME_OPTIONS = [
 ];
 
 export default function StatusPicker({
+  userId,
   currentStatus = 'online',
   currentCustomMessage = '',
   currentEmoji = '',
@@ -62,10 +65,32 @@ export default function StatusPicker({
   const [customMessage, setCustomMessage] = useState(currentCustomMessage);
   const [emoji, setEmoji] = useState(currentEmoji);
   const [clearAfter, setClearAfter] = useState<number | null>(null);
+  const [backAt, setBackAt] = useState<string>('');
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [saving, setSaving] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const emojiPickerRef = useRef<HTMLDivElement>(null);
+
+  // Subscribe to WebSocket status updates for this user
+  const wsStatusDetails = useWebSocketStore((state) =>
+    userId ? state.userStatusDetails[userId] : undefined
+  );
+
+  // Update local state when WebSocket status changes
+  useEffect(() => {
+    if (wsStatusDetails) {
+      setSelectedStatus(wsStatusDetails.status);
+      setCustomMessage(wsStatusDetails.custom_message || '');
+      setEmoji(wsStatusDetails.emoji || '');
+    }
+  }, [wsStatusDetails]);
+
+  // Sync with props when they change (e.g., initial load)
+  useEffect(() => {
+    setSelectedStatus(currentStatus);
+    setCustomMessage(currentCustomMessage);
+    setEmoji(currentEmoji);
+  }, [currentStatus, currentCustomMessage, currentEmoji]);
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -82,8 +107,13 @@ export default function StatusPicker({
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
+  // Get the display status from WebSocket store or props
+  const displayStatus = wsStatusDetails?.status || currentStatus;
+  const displayCustomMessage = wsStatusDetails?.custom_message || currentCustomMessage;
+  const displayEmoji = wsStatusDetails?.emoji || currentEmoji;
+
   const getCurrentStatusOption = () => {
-    return STATUS_OPTIONS.find(opt => opt.value === currentStatus) || STATUS_OPTIONS[0];
+    return STATUS_OPTIONS.find(opt => opt.value === displayStatus) || STATUS_OPTIONS[0];
   };
 
   const handleSave = async () => {
@@ -94,9 +124,12 @@ export default function StatusPicker({
         custom_message: customMessage || undefined,
         emoji: emoji || undefined,
         clear_after_minutes: clearAfter || undefined,
+        back_at: backAt || undefined,
       };
       await apiClient.updateMyStatus(data);
       setIsOpen(false);
+      // Reset back_at after save
+      setBackAt('');
       onStatusUpdate?.();
     } catch (error) {
       console.error('Failed to update status:', error);
@@ -105,7 +138,7 @@ export default function StatusPicker({
     }
   };
 
-  const handleEmojiClick = (emojiData: any) => {
+  const handleEmojiClick = (emojiData: { emoji: string }) => {
     setEmoji(emojiData.emoji);
     setShowEmojiPicker(false);
   };
@@ -119,10 +152,10 @@ export default function StatusPicker({
       >
         <span className="text-lg">{getCurrentStatusOption().icon}</span>
         <span className="text-sm text-gray-300">{getCurrentStatusOption().label}</span>
-        {currentCustomMessage && (
+        {displayCustomMessage && (
           <>
-            {currentEmoji && <span>{currentEmoji}</span>}
-            <span className="text-sm text-gray-400">{currentCustomMessage}</span>
+            {displayEmoji && <span>{displayEmoji}</span>}
+            <span className="text-sm text-gray-400 truncate max-w-32">{displayCustomMessage}</span>
           </>
         )}
         <svg className="h-4 w-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -220,6 +253,30 @@ export default function StatusPicker({
                 ))}
               </select>
             </div>
+
+            {/* Back at - only show for Away or DND status */}
+            {(selectedStatus === 'away' || selectedStatus === 'dnd') && (
+              <div className="mb-4">
+                <label className="mb-2 block text-sm font-medium text-gray-300">
+                  Back at (optional)
+                </label>
+                <input
+                  type="datetime-local"
+                  value={backAt}
+                  onChange={(e) => setBackAt(e.target.value)}
+                  min={new Date().toISOString().slice(0, 16)}
+                  className="w-full rounded border border-gray-600 bg-gray-800 px-3 py-2 text-sm text-white focus:border-blue-500 focus:outline-none [color-scheme:dark]"
+                />
+                {backAt && (
+                  <button
+                    onClick={() => setBackAt('')}
+                    className="mt-1 text-xs text-gray-400 hover:text-gray-300"
+                  >
+                    Clear
+                  </button>
+                )}
+              </div>
+            )}
 
             {/* Actions */}
             <div className="flex gap-2">

@@ -23,6 +23,7 @@ pub struct UserStatusResponse {
     pub custom_message: Option<String>,
     pub emoji: Option<String>,
     pub clear_at: Option<String>,
+    pub back_at: Option<String>,
     pub updated_at: String,
 }
 
@@ -34,6 +35,7 @@ impl From<UserStatus> for UserStatusResponse {
             custom_message: status.custom_message,
             emoji: status.emoji,
             clear_at: status.clear_at.map(|dt| dt.to_rfc3339()),
+            back_at: status.back_at.map(|dt| dt.to_rfc3339()),
             updated_at: status.updated_at.to_rfc3339(),
         }
     }
@@ -76,6 +78,13 @@ pub async fn update_my_status(
             }
         });
 
+    // Parse back_at if provided
+    let back_at = body
+        .back_at
+        .as_ref()
+        .and_then(|s| chrono::DateTime::parse_from_rfc3339(s).ok())
+        .map(|dt| dt.with_timezone(&Utc));
+
     // Update status in database
     let user_status = UserStatus::upsert(
         pool.get_ref(),
@@ -84,6 +93,7 @@ pub async fn update_my_status(
         body.custom_message.as_deref(),
         body.emoji.as_deref(),
         clear_at,
+        back_at,
     )
     .await?;
 
@@ -148,6 +158,7 @@ pub async fn get_user_status(
             custom_message: None,
             emoji: None,
             clear_at: None,
+            back_at: None,
             updated_at: Utc::now(),
         });
 

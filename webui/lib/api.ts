@@ -136,10 +136,11 @@ class ApiClient {
         throw new Error(message);
       }
 
-      const error = await response.json().catch(() => ({
+      const errorBody = await response.json().catch(() => ({
         message: `HTTP ${response.status}: ${response.statusText}`,
       }));
-      throw new Error(error.message || 'API request failed');
+      // API returns error as { "error": "...", "status": ... } but might also have { "message": "..." }
+      throw new Error(errorBody.error || errorBody.message || 'API request failed');
     }
 
     // Handle empty responses (204 No Content, etc.)

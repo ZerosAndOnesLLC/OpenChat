@@ -44,6 +44,7 @@ export default function UserProfile({ user }: UserProfileProps) {
       </div>
 
       <StatusPicker
+        userId={user.id}
         currentStatus={user.status}
         currentCustomMessage={user.user_status?.custom_message}
         currentEmoji={user.user_status?.emoji}

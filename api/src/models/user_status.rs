@@ -32,6 +32,7 @@ pub struct UserStatus {
     pub custom_message: Option<String>,
     pub emoji: Option<String>,
     pub clear_at: Option<DateTime<Utc>>,
+    pub back_at: Option<DateTime<Utc>>,
     pub updated_at: DateTime<Utc>,
 }
 
@@ -41,6 +42,7 @@ pub struct UpdateStatusRequest {
     pub custom_message: Option<String>,
     pub emoji: Option<String>,
     pub clear_after_minutes: Option<i32>, // Convert to clear_at
+    pub back_at: Option<String>,          // ISO 8601 datetime for when user will be back
 }
 
 impl UserStatus {
@@ -52,17 +54,19 @@ impl UserStatus {
         custom_message: Option<&str>,
         emoji: Option<&str>,
         clear_at: Option<DateTime<Utc>>,
+        back_at: Option<DateTime<Utc>>,
     ) -> ApiResult<UserStatus> {
         let user_status = sqlx::query_as::<_, UserStatus>(
             r#"
-            INSERT INTO user_status (user_id, status, custom_message, emoji, clear_at)
-            VALUES ($1, $2, $3, $4, $5)
+            INSERT INTO user_status (user_id, status, custom_message, emoji, clear_at, back_at)
+            VALUES ($1, $2, $3, $4, $5, $6)
             ON CONFLICT (user_id)
             DO UPDATE SET
                 status = EXCLUDED.status,
                 custom_message = EXCLUDED.custom_message,
                 emoji = EXCLUDED.emoji,
                 clear_at = EXCLUDED.clear_at,
+                back_at = EXCLUDED.back_at,
                 updated_at = NOW()
             RETURNING *
             "#,
@@ -72,6 +76,7 @@ impl UserStatus {
         .bind(custom_message)
         .bind(emoji)
         .bind(clear_at)
+        .bind(back_at)
         .fetch_one(pool)
         .await?;
 
@@ -130,17 +135,17 @@ impl UserStatus {
 
     /// Set user status to offline
     pub async fn set_offline(pool: &PgPool, user_id: Uuid) -> ApiResult<UserStatus> {
-        Self::upsert(pool, user_id, "offline", None, None, None).await
+        Self::upsert(pool, user_id, "offline", None, None, None, None).await
     }
 
     /// Set user status to online
     pub async fn set_online(pool: &PgPool, user_id: Uuid) -> ApiResult<UserStatus> {
-        Self::upsert(pool, user_id, "online", None, None, None).await
+        Self::upsert(pool, user_id, "online", None, None, None, None).await
     }
 
     /// Set user status to away
     pub async fn set_away(pool: &PgPool, user_id: Uuid) -> ApiResult<UserStatus> {
-        Self::upsert(pool, user_id, "away", None, None, None).await
+        Self::upsert(pool, user_id, "away", None, None, None, None).await
     }
 
     /// Clear expired custom statuses (run periodically)

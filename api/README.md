@@ -279,9 +279,10 @@ src/
 - Status types: online, away, dnd (do not disturb), offline
 - Custom status messages with emoji support
 - Auto-clear status after specified time
+- "Back at" datetime for away/dnd status (when user expects to return)
 - Auto-away after 15 minutes of inactivity
 - Redis caching for status data (5-minute TTL)
-- WebSocket broadcasting of status changes
+- Real-time WebSocket broadcasting of status changes to all org members
 - Activity tracking via WebSocket heartbeat
 - Background task for auto-away and expired status cleanup
 
@@ -898,6 +899,16 @@ Infrastructure is managed via Terraform in `~/dev/terraform/prod/us-east-1/openc
 ```
 
 ## Version History
+
+### v0.59.0 (Real-Time Status Updates, Back At Feature)
+- Fixed user status not updating in UI when changing status (e.g., clicking "Away")
+- Status updates now properly broadcast via WebSocket to all connected clients
+- Added `back_at` field for setting when user will return from away/dnd status
+- New datetime picker in StatusPicker for setting "Back at" time
+- WebSocket store now handles both `user_status` and `status_update` message types
+- Full status info (custom message, emoji) now synced in real-time via WebSocket
+- Fixed API error message parsing - now correctly extracts `error` field from JSON responses
+- Database migration adds `back_at` column to `user_status` table
 
 ### v0.58.0 (Incoming Webhooks, Leave Channel, 365-Day Sessions)
 - Added incoming webhooks for external service integration (Mattermost/Slack compatible)

@@ -118,44 +118,44 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
           try {
             const { invoke } = await import('@tauri-apps/api/core');
 
-            // Try to get stored token from OS keychain
-            const storedToken = await invoke<string | null>('get_stored_token');
+            // Try to get stored credentials from OS keychain/file
+            // This already checks local expiry (365 days) - no need to re-validate with server
+            // Matches the behavior of the win64 C# client which trusts local credential expiry
+            interface StoredCredentials {
+              access_token: string;
+              device_id: string;
+              user: {
+                id: string;
+                email: string;
+                name: string | null;
+                org_id: string;
+              };
+              expires_at: string;
+            }
+            const storedCreds = await invoke<StoredCredentials | null>('get_stored_credentials');
 
-            if (storedToken) {
-              // Verify token is still valid
-              const isValid = await invoke<boolean>('validate_token', { token: storedToken });
+            if (storedCreds) {
+              // Valid credentials found (not expired locally) - use them directly
+              const user: User = {
+                id: storedCreds.user.id,
+                org_id: storedCreds.user.org_id,
+                tv_user_id: storedCreds.user.id,
+                email: storedCreds.user.email,
+                display_name: storedCreds.user.name || storedCreds.user.email.split('@')[0] || 'User',
+                status: 'online',
+                created_at: new Date().toISOString(),
+                updated_at: new Date().toISOString(),
+                roles: [],
+              };
 
-              if (isValid) {
-                // Get user info with the stored token
-                apiClient.setToken(storedToken);
-                const userInfo = await apiClient.getUserInfo(storedToken);
-
-                if (userInfo && userInfo.sub) {
-                  const user: User = {
-                    id: userInfo.sub,
-                    org_id: userInfo.org_id || '',
-                    tv_user_id: userInfo.sub,
-                    email: userInfo.email || 'user@openchat.local',
-                    display_name: userInfo.name || userInfo.email?.split('@')[0] || 'User',
-                    status: 'online',
-                    created_at: new Date().toISOString(),
-                    updated_at: new Date().toISOString(),
-                    roles: userInfo.roles || [],
-                  };
-
-                  console.log('Desktop token validated, setting auth state');
-                  get().setAuth(storedToken, user);
-                  return;
-                }
-              } else {
-                // Token invalid, clear it
-                await invoke('clear_token');
-              }
+              console.log('Desktop credentials found, setting auth state for:', user.email);
+              get().setAuth(storedCreds.access_token, user);
+              return;
             }
 
-            // No valid token found, user needs to show login screen
+            // No valid credentials found, user needs to show login screen
             // Don't redirect to OAuth - the desktop login screen will be shown
-            console.log('No valid desktop token found, showing login screen');
+            console.log('No valid desktop credentials found, showing login screen');
             set({ isLoading: false, isAuthenticated: false });
             return;
           } catch (error) {

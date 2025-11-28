@@ -7,6 +7,7 @@ import { apiClient } from '@/lib/api';
 import DesktopLogin from '@/components/desktop-login';
 import DeviceManagement from '@/components/settings/devices';
 import WebhookManagement from '@/components/settings/webhooks';
+import packageJson from '@/../package.json';
 
 export default function SettingsPage() {
   const router = useRouter();
@@ -159,6 +160,17 @@ export default function SettingsPage() {
           {/* Webhooks Section */}
           <div className="rounded-lg border border-gray-800 bg-gray-900 p-6">
             <WebhookManagement />
+          </div>
+
+          {/* About Section */}
+          <div className="rounded-lg border border-gray-800 bg-gray-900 p-6">
+            <h2 className="mb-4 text-lg font-semibold text-white">About</h2>
+            <div className="space-y-3 text-sm text-gray-300">
+              <div className="flex justify-between">
+                <span className="text-gray-400">Version:</span>
+                <span className="font-medium font-mono">{packageJson.version}</span>
+              </div>
+            </div>
           </div>
         </div>
       </div>

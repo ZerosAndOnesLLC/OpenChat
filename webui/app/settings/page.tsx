@@ -7,7 +7,7 @@ import { apiClient } from '@/lib/api';
 import DesktopLogin from '@/components/desktop-login';
 import DeviceManagement from '@/components/settings/devices';
 import WebhookManagement from '@/components/settings/webhooks';
-import packageJson from '@/../package.json';
+import packageJson from '../../package.json';
 
 export default function SettingsPage() {
   const router = useRouter();

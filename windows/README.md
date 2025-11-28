@@ -21,8 +21,9 @@ OpenChat Desktop provides a native desktop experience for OpenChat, leveraging t
 - Shell integration
 - Lightweight (~3-10MB bundle size)
 - Secure communication with native APIs
-- Secure credential storage with 365-day expiry (using OS keychain)
+- Secure credential storage with 365-day expiry (OS keychain with file fallback for Windows)
 - Deep link authentication support
+- Robust token validation with graceful handling of network issues
 
 ## Prerequisites
 

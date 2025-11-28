@@ -158,15 +158,20 @@ pub async fn verify_pairing_code(
 
 /// Retrieves stored credentials if they exist and haven't expired.
 /// Returns None if no credentials exist or if they have expired (365-day expiry).
+/// Checks in-memory cache first, then OS keychain, then file fallback.
 #[tauri::command]
 pub async fn get_stored_credentials(state: State<'_, AppState>) -> Result<Option<StoredCredentials>, String> {
+    log::info!("get_stored_credentials: checking for stored credentials");
+
     // First check in-memory state
     let in_memory_result = {
         if let Ok(creds_guard) = state.credentials.lock() {
             if let Some(ref creds) = *creds_guard {
                 if Utc::now() >= creds.expires_at {
+                    log::info!("get_stored_credentials: in-memory credentials expired");
                     Some(Err("expired_memory"))
                 } else {
+                    log::info!("get_stored_credentials: found valid credentials in memory");
                     Some(Ok(creds.clone()))
                 }
             } else {
@@ -188,30 +193,48 @@ pub async fn get_stored_credentials(state: State<'_, AppState>) -> Result<Option
     }
 
     // Then check OS keychain
-    match keyring::Entry::new(KEYRING_SERVICE, KEYRING_USERNAME) {
-        Ok(entry) => match entry.get_password() {
-            Ok(json_str) => {
-                // Parse stored credentials
-                let creds: StoredCredentials = serde_json::from_str(&json_str)
-                    .map_err(|e| format!("Failed to parse stored credentials: {}", e))?;
+    log::info!("get_stored_credentials: checking OS keychain");
+    if let Some(creds) = read_from_keychain() {
+        if Utc::now() >= creds.expires_at {
+            log::info!("get_stored_credentials: keychain credentials expired");
+            clear_credentials_internal(&state)?;
+            return Ok(None);
+        }
 
-                // Check if credentials have expired
+        log::info!("get_stored_credentials: found valid credentials in keychain");
+        // Update in-memory state
+        if let Ok(mut creds_guard) = state.credentials.lock() {
+            *creds_guard = Some(creds.clone());
+        }
+        return Ok(Some(creds));
+    }
+
+    // Finally check file fallback (Windows keychain can be unreliable)
+    log::info!("get_stored_credentials: checking file fallback");
+    if let Some(json_str) = read_credentials_from_file() {
+        match serde_json::from_str::<StoredCredentials>(&json_str) {
+            Ok(creds) => {
                 if Utc::now() >= creds.expires_at {
+                    log::info!("get_stored_credentials: file credentials expired");
                     clear_credentials_internal(&state)?;
                     return Ok(None);
                 }
 
+                log::info!("get_stored_credentials: found valid credentials in file fallback");
                 // Update in-memory state
                 if let Ok(mut creds_guard) = state.credentials.lock() {
                     *creds_guard = Some(creds.clone());
                 }
-                Ok(Some(creds))
+                return Ok(Some(creds));
             }
-            Err(keyring::Error::NoEntry) => Ok(None),
-            Err(e) => Err(format!("Keychain error: {}", e)),
-        },
-        Err(e) => Err(format!("Failed to access keychain: {}", e)),
+            Err(e) => {
+                log::error!("get_stored_credentials: failed to parse file credentials: {}", e);
+            }
+        }
     }
+
+    log::info!("get_stored_credentials: no valid credentials found");
+    Ok(None)
 }
 
 /// Internal function to clear credentials without requiring async
@@ -410,35 +433,72 @@ pub async fn clear_token(state: State<'_, AppState>) -> Result<(), String> {
     clear_credentials_internal(&state)
 }
 
+/// Token validation result
+#[derive(Debug, Serialize)]
+pub struct TokenValidationResult {
+    /// Whether the token is valid
+    pub valid: bool,
+    /// Whether the validation was definitive (server responded) vs uncertain (network error)
+    pub definitive: bool,
+    /// Error message if any
+    pub error: Option<String>,
+}
+
 #[tauri::command]
-pub async fn validate_token(token: String) -> Result<bool, String> {
+pub async fn validate_token(token: String) -> Result<TokenValidationResult, String> {
     log::info!("validate_token: validating token with API");
-    let client = reqwest::Client::new();
+    let client = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(10))
+        .build()
+        .map_err(|e| format!("Failed to create HTTP client: {}", e))?;
 
     let url = format!("{}/api/sso/userinfo", API_BASE_URL);
     log::info!("validate_token: POST {}", url);
 
-    let response = client
+    match client
         .post(&url)
         .header("Authorization", format!("Bearer {}", token))
         .send()
         .await
-        .map_err(|e| {
+    {
+        Ok(response) => {
+            let status = response.status();
+            if status.is_success() {
+                log::info!("validate_token: token valid (status {})", status);
+                Ok(TokenValidationResult {
+                    valid: true,
+                    definitive: true,
+                    error: None,
+                })
+            } else if status == reqwest::StatusCode::UNAUTHORIZED || status == reqwest::StatusCode::FORBIDDEN {
+                // Definitive rejection - token is invalid
+                log::info!("validate_token: server rejected token with status {}", status);
+                Ok(TokenValidationResult {
+                    valid: false,
+                    definitive: true,
+                    error: Some(format!("Token rejected: {}", status)),
+                })
+            } else {
+                // Server error or other issue - not a definitive rejection
+                let body = response.text().await.unwrap_or_default();
+                log::warn!("validate_token: server returned status {}, treating as uncertain: {}", status, body);
+                Ok(TokenValidationResult {
+                    valid: false,
+                    definitive: false,
+                    error: Some(format!("Server error: {}", status)),
+                })
+            }
+        }
+        Err(e) => {
+            // Network error - cannot determine token validity
             log::error!("validate_token: network error: {}", e);
-            format!("Network error: {}", e)
-        })?;
-
-    let status = response.status();
-    let is_valid = status.is_success();
-
-    if is_valid {
-        log::info!("validate_token: token valid (status {})", status);
-    } else {
-        let body = response.text().await.unwrap_or_default();
-        log::warn!("validate_token: token invalid (status {}): {}", status, body);
+            Ok(TokenValidationResult {
+                valid: false,
+                definitive: false,
+                error: Some(format!("Network error: {}", e)),
+            })
+        }
     }
-
-    Ok(is_valid)
 }
 
 #[tauri::command]
@@ -463,9 +523,9 @@ pub async fn process_deep_link_payload(
     }
 
     // Validate the token with backend
-    let is_valid = validate_token(payload.token.clone()).await?;
-    if !is_valid {
-        return Err("Invalid token in deep link".to_string());
+    let validation = validate_token(payload.token.clone()).await?;
+    if !validation.valid {
+        return Err(format!("Invalid token in deep link: {}", validation.error.unwrap_or_else(|| "unknown error".to_string())));
     }
 
     // Fetch user info

@@ -412,16 +412,33 @@ pub async fn clear_token(state: State<'_, AppState>) -> Result<(), String> {
 
 #[tauri::command]
 pub async fn validate_token(token: String) -> Result<bool, String> {
+    log::info!("validate_token: validating token with API");
     let client = reqwest::Client::new();
 
+    let url = format!("{}/api/sso/userinfo", API_BASE_URL);
+    log::info!("validate_token: POST {}", url);
+
     let response = client
-        .post(&format!("{}/api/sso/userinfo", API_BASE_URL))
+        .post(&url)
         .header("Authorization", format!("Bearer {}", token))
         .send()
         .await
-        .map_err(|e| format!("Network error: {}", e))?;
+        .map_err(|e| {
+            log::error!("validate_token: network error: {}", e);
+            format!("Network error: {}", e)
+        })?;
 
-    Ok(response.status().is_success())
+    let status = response.status();
+    let is_valid = status.is_success();
+
+    if is_valid {
+        log::info!("validate_token: token valid (status {})", status);
+    } else {
+        let body = response.text().await.unwrap_or_default();
+        log::warn!("validate_token: token invalid (status {}): {}", status, body);
+    }
+
+    Ok(is_valid)
 }
 
 #[tauri::command]

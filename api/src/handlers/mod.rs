@@ -10,6 +10,7 @@ pub mod link_preview;
 pub mod mentions;
 pub mod messages;
 pub mod metrics;
+pub mod migration;
 pub mod notifications;
 pub mod pins;
 pub mod reactions;

@@ -15,6 +15,7 @@ mod db;
 mod errors;
 mod handlers;
 mod middleware;
+mod migration;
 mod models;
 mod routes;
 mod services;
@@ -37,6 +38,7 @@ use handlers::{
     mentions as mention_handlers,
     messages as message_handlers,
     metrics as metrics_handlers,
+    migration as migration_handlers,
     notifications as notification_handlers,
     pins as pin_handlers,
     reactions as reaction_handlers,
@@ -454,6 +456,19 @@ async fn main() -> std::io::Result<()> {
                 web::scope("/api/hooks")
                     .wrap(api_rate_limit.clone())
                     .route("/{token}", web::post().to(webhook_handlers::receive_webhook))
+            )
+            // Migration routes - require "openchat-admin" role and admin permissions
+            .service(
+                web::scope("/api/settings/import/mattermost")
+                    .wrap(api_rate_limit.clone())
+                    .wrap(PermissionMiddleware::require("org.manage_integrations"))
+                    .wrap(openchat_auth.clone())
+                    .route("/validate", web::post().to(migration_handlers::validate_connection))
+                    .route("/preview", web::post().to(migration_handlers::get_preview))
+                    .route("/start", web::post().to(migration_handlers::start_migration))
+                    .route("/jobs", web::get().to(migration_handlers::list_jobs))
+                    .route("/jobs/{id}", web::get().to(migration_handlers::get_job_status))
+                    .route("/jobs/{id}/cancel", web::post().to(migration_handlers::cancel_job))
             )
             // SSO routes - no auth required (they handle authentication themselves)
             .configure(routes::sso::configure)

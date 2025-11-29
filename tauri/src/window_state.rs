@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::PathBuf;
-use tauri::{PhysicalPosition, PhysicalSize, WebviewWindow};
+use tauri::WebviewWindow;
 
 const WINDOW_STATE_FILE: &str = "window_state.json";
 
@@ -90,35 +90,6 @@ pub fn capture_window_state(window: &WebviewWindow) -> Option<WindowState> {
         height: size.height,
         maximized: is_maximized,
     })
-}
-
-/// Applies saved window state to a window builder
-pub fn apply_window_state_to_builder(
-    builder: tauri::WebviewWindowBuilder<'_, tauri::Wry>,
-    state: &WindowState,
-) -> tauri::WebviewWindowBuilder<'_, tauri::Wry> {
-    builder
-        .inner_size(state.width as f64, state.height as f64)
-        .position(state.x as f64, state.y as f64)
-}
-
-/// Applies saved window state to an existing window
-pub fn apply_window_state(window: &WebviewWindow, state: &WindowState) {
-    // First set the position and size
-    if let Err(e) = window.set_position(PhysicalPosition::new(state.x, state.y)) {
-        log::warn!("Failed to set window position: {}", e);
-    }
-
-    if let Err(e) = window.set_size(PhysicalSize::new(state.width, state.height)) {
-        log::warn!("Failed to set window size: {}", e);
-    }
-
-    // Then maximize if it was maximized
-    if state.maximized {
-        if let Err(e) = window.maximize() {
-            log::warn!("Failed to maximize window: {}", e);
-        }
-    }
 }
 
 /// Validates that a window state is reasonable (window is at least partially visible)

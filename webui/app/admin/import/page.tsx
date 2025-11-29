@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect } from 'react';
 import { apiClient } from '@/lib/api';
 
 type ConnectionType = 'api' | 'database';

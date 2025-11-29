@@ -8,8 +8,6 @@ import { Copy, Check, Monitor, QrCode, Smartphone, RefreshCw, ExternalLink, Aler
 interface PairingCodeData {
   code: string;
   expiresAt: number;
-  apiUrl: string;
-  fullCode: string;
 }
 
 export default function DesktopLogin() {
@@ -29,8 +27,6 @@ export default function DesktopLogin() {
       setPairingData({
         code: response.code,
         expiresAt,
-        apiUrl: response.api_url,
-        fullCode: response.full_code,
       });
       setTimeRemaining(response.expires_in);
     } catch (err) {
@@ -59,7 +55,7 @@ export default function DesktopLogin() {
   const handleCopyCode = async () => {
     if (!pairingData) return;
     try {
-      await navigator.clipboard.writeText(pairingData.fullCode);
+      await navigator.clipboard.writeText(pairingData.code);
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     } catch (err) {
@@ -87,10 +83,6 @@ export default function DesktopLogin() {
     const secs = seconds % 60;
     return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
-
-  const qrCodeUrl = pairingData
-    ? `openchat://pair?code=${pairingData.code}&api=${encodeURIComponent(pairingData.apiUrl)}`
-    : '';
 
   return (
     <div className="w-full max-w-2xl mx-auto">
@@ -196,8 +188,8 @@ export default function DesktopLogin() {
                     <p className="text-sm font-medium text-gray-600 dark:text-gray-400 mb-3">
                       Your Pairing Code
                     </p>
-                    <div className="text-xl font-bold text-gray-900 dark:text-white font-mono mb-6 select-all break-all px-4">
-                      {pairingData.fullCode}
+                    <div className="text-5xl font-bold tracking-widest text-gray-900 dark:text-white font-mono mb-6 select-all">
+                      {pairingData.code}
                     </div>
                     <button
                       onClick={handleCopyCode}
@@ -217,21 +209,6 @@ export default function DesktopLogin() {
                     </button>
                   </div>
 
-                  {/* QR Code */}
-                  <div className="flex flex-col items-center">
-                    <p className="text-sm font-medium text-gray-600 dark:text-gray-400 mb-4">
-                      Or scan this QR code
-                    </p>
-                    <div className="bg-white p-6 rounded-2xl shadow-lg border border-gray-200">
-                      <QRCodeSVG
-                        value={qrCodeUrl}
-                        size={200}
-                        level="H"
-                        includeMargin={false}
-                      />
-                    </div>
-                  </div>
-
                   {/* Instructions */}
                   <div className="bg-blue-50 dark:bg-blue-900/20 rounded-xl p-6 border border-blue-200 dark:border-blue-800">
                     <h4 className="font-semibold text-blue-900 dark:text-blue-100 mb-3">How to use:</h4>
@@ -242,7 +219,7 @@ export default function DesktopLogin() {
                       </li>
                       <li className="flex gap-3">
                         <span className="font-bold">2.</span>
-                        <span>Paste the pairing code above, or scan the QR code</span>
+                        <span>Enter the 6-character code shown above</span>
                       </li>
                       <li className="flex gap-3">
                         <span className="font-bold">3.</span>

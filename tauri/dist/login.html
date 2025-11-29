@@ -45,7 +45,7 @@
             font-size: 14px;
         }
         .input-group {
-            margin-bottom: 24px;
+            margin-bottom: 20px;
         }
         .input-group label {
             display: block;
@@ -60,7 +60,7 @@
             border-radius: 8px;
             background: #2b2e33;
             color: #fff;
-            font-size: 14px;
+            font-size: 16px;
             transition: border-color 0.2s, box-shadow 0.2s;
         }
         .input-group input:focus {
@@ -70,6 +70,44 @@
         }
         .input-group input::placeholder {
             color: #616061;
+        }
+        .input-group.code-input input {
+            text-align: center;
+            font-size: 28px;
+            font-weight: 600;
+            letter-spacing: 8px;
+            text-transform: uppercase;
+        }
+        .server-row {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .server-row input {
+            flex: 1;
+        }
+        .server-row .edit-btn {
+            width: auto;
+            padding: 14px 16px;
+            background: #3e4147;
+            font-size: 14px;
+        }
+        .server-row .edit-btn:hover {
+            background: #4e5157;
+            transform: none;
+            box-shadow: none;
+        }
+        .server-display {
+            padding: 14px 16px;
+            border: 1px solid #3e4147;
+            border-radius: 8px;
+            background: #2b2e33;
+            color: #8e8e93;
+            font-size: 14px;
+            flex: 1;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
         }
         button {
             width: 100%;
@@ -101,13 +139,6 @@
             font-size: 13px;
             color: #8e8e93;
         }
-        .help-text a {
-            color: #667eea;
-            text-decoration: none;
-        }
-        .help-text a:hover {
-            text-decoration: underline;
-        }
         .error {
             background: rgba(237, 66, 69, 0.1);
             border: 1px solid #ed4245;
@@ -127,58 +158,80 @@
     <div class="container">
         <div class="logo">
             <h1>OpenChat</h1>
-            <p>Paste your pairing code to connect</p>
+            <p>Enter your 6-digit pairing code</p>
         </div>
         <div id="error" class="error"></div>
         <form id="loginForm">
-            <div class="input-group">
+            <div class="input-group" id="serverInputGroup">
+                <label for="serverUrl">Server</label>
+                <div class="server-row" id="serverEditRow" style="display: none;">
+                    <input type="url" id="serverUrl" placeholder="https://your-server.com">
+                    <button type="button" class="edit-btn" id="saveServerBtn">Save</button>
+                </div>
+                <div class="server-row" id="serverDisplayRow">
+                    <div class="server-display" id="serverDisplay">Not configured</div>
+                    <button type="button" class="edit-btn" id="editServerBtn">Edit</button>
+                </div>
+            </div>
+            <div class="input-group code-input">
                 <label for="code">Pairing Code</label>
-                <input type="text" id="code" placeholder="Paste pairing code from web app" autocomplete="off" autofocus>
+                <input type="text" id="code" placeholder="ABC123" maxlength="6" autocomplete="off">
             </div>
             <button type="submit" id="submitBtn">Connect</button>
         </form>
         <p class="help-text">
-            Get your pairing code from your OpenChat web app's Settings page.
+            Get your pairing code from Settings in your OpenChat web app.
         </p>
     </div>
     <script>
         const form = document.getElementById('loginForm');
+        const serverUrlInput = document.getElementById('serverUrl');
+        const serverDisplay = document.getElementById('serverDisplay');
+        const serverEditRow = document.getElementById('serverEditRow');
+        const serverDisplayRow = document.getElementById('serverDisplayRow');
+        const editServerBtn = document.getElementById('editServerBtn');
+        const saveServerBtn = document.getElementById('saveServerBtn');
         const codeInput = document.getElementById('code');
         const submitBtn = document.getElementById('submitBtn');
         const errorDiv = document.getElementById('error');
 
-        // Debug: Check if Tauri is available
-        console.log('Tauri available:', typeof window.__TAURI__);
-        console.log('Tauri object:', window.__TAURI__);
+        const STORAGE_KEY = 'openchat_server_url';
 
         function showError(message) {
-            console.error('Error:', message);
             errorDiv.textContent = message;
             errorDiv.classList.add('show');
         }
 
-        // Parse the full_code (base64 URL-safe encoded JSON with {u: api_url, c: code})
-        function parseFullCode(fullCode) {
-            try {
-                // Handle URL-safe base64 (replace - with + and _ with /)
-                let base64 = fullCode.replace(/-/g, '+').replace(/_/g, '/');
-                // Add padding if needed
-                while (base64.length % 4) {
-                    base64 += '=';
-                }
-                const decoded = atob(base64);
-                const parsed = JSON.parse(decoded);
-                if (!parsed.u || !parsed.c) {
-                    throw new Error('Invalid code format');
-                }
-                return { apiUrl: parsed.u, code: parsed.c };
-            } catch (e) {
-                console.error('Failed to parse full code:', e);
-                return null;
+        function clearError() {
+            errorDiv.classList.remove('show');
+        }
+
+        function getSavedServerUrl() {
+            return localStorage.getItem(STORAGE_KEY) || '';
+        }
+
+        function saveServerUrl(url) {
+            localStorage.setItem(STORAGE_KEY, url);
+        }
+
+        function showServerEdit() {
+            serverEditRow.style.display = 'flex';
+            serverDisplayRow.style.display = 'none';
+            serverUrlInput.focus();
+        }
+
+        function showServerDisplay() {
+            const url = getSavedServerUrl();
+            if (url) {
+                serverDisplay.textContent = url;
+                serverEditRow.style.display = 'none';
+                serverDisplayRow.style.display = 'flex';
+                codeInput.focus();
+            } else {
+                showServerEdit();
             }
         }
 
-        // Wait for Tauri to be ready
         function getTauriInvoke() {
             if (window.__TAURI__ && window.__TAURI__.core && window.__TAURI__.core.invoke) {
                 return window.__TAURI__.core.invoke;
@@ -192,68 +245,83 @@
             return null;
         }
 
+        // Initialize
+        showServerDisplay();
+
+        editServerBtn.addEventListener('click', () => {
+            serverUrlInput.value = getSavedServerUrl();
+            showServerEdit();
+        });
+
+        saveServerBtn.addEventListener('click', () => {
+            const url = serverUrlInput.value.trim().replace(/\/+$/, '');
+            if (!url) {
+                showError('Please enter a server URL');
+                return;
+            }
+            if (!url.startsWith('http://') && !url.startsWith('https://')) {
+                showError('Server URL must start with http:// or https://');
+                return;
+            }
+            clearError();
+            saveServerUrl(url);
+            showServerDisplay();
+        });
+
+        // Auto-uppercase and limit to alphanumeric
+        codeInput.addEventListener('input', (e) => {
+            e.target.value = e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '');
+        });
+
         form.addEventListener('submit', async (e) => {
             e.preventDefault();
+            clearError();
 
             const invoke = getTauriInvoke();
             if (!invoke) {
                 showError('Tauri API not available. Please restart the app.');
-                console.error('Tauri state:', {
-                    __TAURI__: window.__TAURI__,
-                    __TAURI_INVOKE__: window.__TAURI_INVOKE__
-                });
                 return;
             }
 
-            const fullCodeInput = codeInput.value.trim();
+            const apiUrl = getSavedServerUrl();
+            const code = codeInput.value.trim().toUpperCase();
 
-            if (!fullCodeInput) {
-                showError('Please paste a pairing code');
+            if (!apiUrl) {
+                showError('Please configure the server URL first');
+                showServerEdit();
+                return;
+            }
+
+            if (!code) {
+                showError('Please enter a pairing code');
                 codeInput.focus();
                 return;
             }
 
-            // Parse the full code to extract API URL and pairing code
-            const parsed = parseFullCode(fullCodeInput);
-            if (!parsed) {
-                showError('Invalid pairing code. Please copy the code from your web app and try again.');
+            if (code.length < 6) {
+                showError('Pairing code must be 6 characters');
                 codeInput.focus();
-                codeInput.select();
                 return;
             }
-
-            const { apiUrl, code } = parsed;
-            console.log('Parsed code - API URL:', apiUrl, 'Code:', code);
 
             submitBtn.disabled = true;
             submitBtn.textContent = 'Connecting...';
-            errorDiv.classList.remove('show');
 
             try {
-                console.log('Calling verify_pairing_code with apiUrl:', apiUrl, 'code:', code);
                 const response = await invoke('verify_pairing_code', {
                     apiUrl: apiUrl,
                     code: code,
-                    deviceName: 'Windows Desktop (Tauri)'
+                    deviceName: 'Windows Desktop'
                 });
-                console.log('Response:', response);
 
-                // Signal successful login - the api_url comes from the server response
-                console.log('Calling login_success');
                 await invoke('login_success', { apiUrl: response.api_url });
             } catch (err) {
-                console.error('Error during login:', err);
                 showError(err.toString());
                 submitBtn.disabled = false;
                 submitBtn.textContent = 'Connect';
                 codeInput.focus();
                 codeInput.select();
             }
-        });
-
-        // Log when page is ready
-        window.addEventListener('DOMContentLoaded', () => {
-            console.log('Page loaded, Tauri:', window.__TAURI__);
         });
     </script>
 </body>

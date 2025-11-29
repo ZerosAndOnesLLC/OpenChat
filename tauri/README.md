@@ -30,12 +30,11 @@ OpenChat Desktop provides a native desktop experience for OpenChat, leveraging t
 ## Quick Start
 
 1. Launch the OpenChat Desktop app
-2. On first launch, you'll see a login screen
+2. On first launch, enter your **Server URL** (e.g., `https://openchat-api.example.com:9876`) and click Save
 3. In your web app, go to Settings → Desktop App and click "Generate Pairing Code"
-4. Copy the **Pairing Code** shown (it contains both the server URL and authentication code)
-5. Paste the code into the desktop app and click Connect - you're logged in!
+4. Enter the **6-character code** (e.g., `ABC123`) in the desktop app and click Connect
 
-The app remembers your server and credentials, so subsequent launches go straight to chat.
+The app remembers your server URL and credentials, so subsequent launches go straight to chat.
 
 ## Prerequisites
 

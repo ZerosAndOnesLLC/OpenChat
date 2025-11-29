@@ -2,45 +2,17 @@ mod auth;
 mod window_state;
 
 use tauri::{Emitter, Listener, Manager, State, WebviewUrl, WebviewWindowBuilder};
-use url::Url;
 use window_state::{capture_window_state, save_window_state, load_window_state, validate_window_state};
 
-/// Derive the WebUI URL from the API URL.
-/// Assumes the WebUI is hosted at a related domain (e.g., api.example.com -> example.com)
-/// Falls back to using the API URL directly if we can't derive it.
-fn derive_webui_url(api_url: &str) -> String {
-    if let Ok(url) = Url::parse(api_url) {
-        if let Some(host) = url.host_str() {
-            // Check if it's an API subdomain (api.example.com or openchat-api.example.com)
-            if host.starts_with("api.") {
-                // api.example.com -> example.com
-                let webui_host = &host[4..];
-                let scheme = url.scheme();
-                let port = url.port().map(|p| format!(":{}", p)).unwrap_or_default();
-                return format!("{}://{}{}/", scheme, webui_host, port);
-            } else if host.contains("-api.") {
-                // openchat-api.example.com -> openchat.example.com
-                let webui_host = host.replace("-api.", ".");
-                let scheme = url.scheme();
-                let port = url.port().map(|p| format!(":{}", p)).unwrap_or_default();
-                return format!("{}://{}{}/", scheme, webui_host, port);
-            }
-        }
-    }
-    // Fallback: just use the API URL (may not work but better than nothing)
-    format!("{}/", api_url.trim_end_matches('/'))
-}
 
 /// Command to handle successful login - redirects to the web UI
 #[tauri::command]
 async fn login_success(
-    api_url: String,
+    webui_url: String,
     app: tauri::AppHandle,
 ) -> Result<(), String> {
-    log::info!("login_success: redirecting to web UI for api_url: {}", api_url);
+    log::info!("login_success: redirecting to web UI: {}", webui_url);
 
-    let webui_url = derive_webui_url(&api_url);
-    log::info!("login_success: derived webui_url: {}", webui_url);
 
     // Close the login window if it exists
     if let Some(login_win) = app.get_webview_window("login") {
@@ -132,8 +104,7 @@ pub fn run() {
 
             if has_credentials {
                 // User is logged in - get the stored API URL and load web UI
-                if let Some(api_url) = get_stored_api_url(&state) {
-                    let webui_url = derive_webui_url(&api_url);
+                if let Some(webui_url) = get_stored_webui_url(&state) {
                     log::info!("Found stored credentials, loading web UI: {}", webui_url);
 
                     // Load saved window state or use defaults
@@ -252,6 +223,26 @@ fn get_stored_api_url(state: &State<'_, auth::AppState>) -> Option<String> {
     if let Some(creds) = auth::read_stored_credentials_sync() {
         if chrono::Utc::now() < creds.expires_at {
             return Some(creds.api_url);
+        }
+    }
+
+    None
+}
+
+/// Get the stored Web UI URL from credentials
+fn get_stored_webui_url(state: &State<'_, auth::AppState>) -> Option<String> {
+    if let Ok(creds_guard) = state.credentials.lock() {
+        if let Some(ref creds) = *creds_guard {
+            if chrono::Utc::now() < creds.expires_at {
+                return Some(creds.webui_url.clone());
+            }
+        }
+    }
+
+    // Also check file fallback
+    if let Some(creds) = auth::read_stored_credentials_sync() {
+        if chrono::Utc::now() < creds.expires_at {
+            return Some(creds.webui_url);
         }
     }
 

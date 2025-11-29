@@ -59,6 +59,8 @@ pub struct VerifyCodeResponse {
     pub device_id: Uuid,
     /// API base URL for the desktop client to use for future requests
     pub api_url: String,
+    /// Web UI URL for the desktop client to load after login
+    pub webui_url: String,
 }
 
 #[derive(Debug, Serialize)]
@@ -91,6 +93,8 @@ struct DeepLinkPayload {
     created_at: i64,
     /// API base URL for the desktop client to use
     api_url: String,
+    /// Web UI URL for the desktop client to load
+    webui_url: String,
 }
 
 #[derive(Debug, Serialize)]
@@ -228,6 +232,7 @@ pub async fn verify_code(
         },
         device_id: device_session.id,
         api_url: config.api_base_url.clone(),
+        webui_url: config.webui_url.clone(),
     };
 
     let mut response_builder = HttpResponse::Ok();
@@ -301,6 +306,7 @@ pub async fn generate_deep_link(
         org_id: claims.org_id,
         created_at: chrono::Utc::now().timestamp(),
         api_url: config.api_base_url.clone(),
+        webui_url: config.webui_url.clone(),
     };
 
     // Serialize payload

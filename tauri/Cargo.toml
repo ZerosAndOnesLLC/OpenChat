@@ -1,6 +1,6 @@
 [package]
 name = "openchat-desktop"
-version = "0.5.2"
+version = "0.5.3"
 description = "OpenChat Desktop Application"
 authors = ["OpenChat Team"]
 license = "SSPL-1.0"

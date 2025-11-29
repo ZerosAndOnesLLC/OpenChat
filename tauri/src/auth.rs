@@ -89,6 +89,8 @@ pub struct AuthResponse {
     pub device_id: String,
     /// API base URL returned from the server
     pub api_url: String,
+    /// Web UI URL returned from the server
+    pub webui_url: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -107,6 +109,8 @@ pub struct StoredCredentials {
     pub expires_at: DateTime<Utc>,
     /// API base URL for making requests
     pub api_url: String,
+    /// Web UI URL returned from the server
+    pub webui_url: String,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -124,6 +128,9 @@ struct DeepLinkPayload {
     /// API base URL for the desktop client to use
     #[serde(default)]
     api_url: Option<String>,
+    /// Web UI URL for the desktop client
+    #[serde(default)]
+    webui_url: Option<String>,
 }
 
 pub struct AppState {
@@ -141,6 +148,7 @@ impl Default for AppState {
 #[tauri::command]
 pub async fn verify_pairing_code(
     api_url: String,
+    webui_url: String,
     code: String,
     device_name: String,
     state: State<'_, AppState>,
@@ -177,6 +185,8 @@ pub async fn verify_pairing_code(
         auth_response.device_id.clone(),
         auth_response.user.clone(),
         auth_response.api_url.clone(),
+        webui_url.clone(),
+        auth_response.webui_url.clone(),
         state,
     ).await?;
 
@@ -297,6 +307,7 @@ pub async fn store_credentials(
     device_id: String,
     user: User,
     api_url: String,
+    webui_url: String,
     state: State<'_, AppState>,
 ) -> Result<(), String> {
     log::info!("store_credentials: storing credentials for user {} with api_url {}", user.email, api_url);
@@ -306,7 +317,9 @@ pub async fn store_credentials(
         device_id,
         user,
         expires_at: Utc::now() + Duration::days(TOKEN_VALIDITY_DAYS),
+        webui_url,
         api_url,
+        webui_url,
     };
 
     // Serialize to JSON
@@ -553,7 +566,11 @@ pub async fn process_deep_link_payload(
 
     // Get api_url from payload (required for new deep links)
     let api_url = payload.api_url
+    let webui_url = payload.webui_url
+        .ok_or("Deep link missing webui_url - please generate a new link")?;
         .ok_or("Deep link missing api_url - please generate a new link")?;
+    let webui_url = payload.webui_url
+        .ok_or("Deep link missing webui_url - please generate a new link")?;
 
     // Validate the token with backend
     let validation = validate_token(api_url.clone(), payload.token.clone()).await?;
@@ -599,6 +616,7 @@ pub async fn process_deep_link_payload(
         device_id.clone(),
         user.clone(),
         api_url.clone(),
+        webui_url.clone(),
         state,
     ).await?;
 
@@ -607,5 +625,6 @@ pub async fn process_deep_link_payload(
         user,
         device_id,
         api_url,
+        webui_url,
     })
 }

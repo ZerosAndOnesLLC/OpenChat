@@ -314,7 +314,8 @@
                     deviceName: 'Windows Desktop'
                 });
 
-                await invoke('login_success', { apiUrl: response.api_url });
+                // Use the user-entered apiUrl, not the server's configured api_base_url
+                await invoke('login_success', { webuiUrl: response.webui_url });
             } catch (err) {
                 showError(err.toString());
                 submitBtn.disabled = false;

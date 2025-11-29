@@ -18,6 +18,8 @@ pub struct Config {
     pub redis: RedisConfig,
     /// Base URL for the API (used for generating webhook URLs)
     pub api_base_url: String,
+    /// Base URL for the Web UI (used for desktop app redirects)
+    pub webui_url: String,
 }
 
 #[derive(Debug, Clone)]
@@ -92,6 +94,10 @@ impl Config {
         let api_base_url = env::var("API_BASE_URL")
             .unwrap_or_else(|_| format!("http://localhost:{}", port));
 
+        // Web UI URL for desktop app redirects
+        let webui_url = env::var("WEBUI_URL")
+            .unwrap_or_else(|_| "https://openchat.zerosandones.us".to_string());
+
         Ok(Config {
             database_url: env::var("DATABASE_URL")?,
             redis_url: env::var("REDIS_URL")?,
@@ -108,6 +114,7 @@ impl Config {
             websocket,
             redis,
             api_base_url,
+            webui_url,
         })
     }
 }

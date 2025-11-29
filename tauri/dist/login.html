@@ -60,10 +60,7 @@
             border-radius: 8px;
             background: #2b2e33;
             color: #fff;
-            font-size: 18px;
-            text-align: center;
-            letter-spacing: 4px;
-            text-transform: uppercase;
+            font-size: 14px;
             transition: border-color 0.2s, box-shadow 0.2s;
         }
         .input-group input:focus {
@@ -72,8 +69,6 @@
             box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.2);
         }
         .input-group input::placeholder {
-            letter-spacing: normal;
-            text-transform: none;
             color: #616061;
         }
         button {
@@ -132,27 +127,22 @@
     <div class="container">
         <div class="logo">
             <h1>OpenChat</h1>
-            <p>Enter your pairing code to connect</p>
+            <p>Paste your pairing code to connect</p>
         </div>
         <div id="error" class="error"></div>
         <form id="loginForm">
             <div class="input-group">
-                <label for="apiUrl">Server URL</label>
-                <input type="url" id="apiUrl" placeholder="https://your-server.com" autocomplete="off" autofocus>
-            </div>
-            <div class="input-group">
                 <label for="code">Pairing Code</label>
-                <input type="text" id="code" placeholder="Enter code" maxlength="20" autocomplete="off">
+                <input type="text" id="code" placeholder="Paste pairing code from web app" autocomplete="off" autofocus>
             </div>
             <button type="submit" id="submitBtn">Connect</button>
         </form>
         <p class="help-text">
-            Get your server URL and pairing code from your OpenChat web app's Settings page.
+            Get your pairing code from your OpenChat web app's Settings page.
         </p>
     </div>
     <script>
         const form = document.getElementById('loginForm');
-        const apiUrlInput = document.getElementById('apiUrl');
         const codeInput = document.getElementById('code');
         const submitBtn = document.getElementById('submitBtn');
         const errorDiv = document.getElementById('error');
@@ -165,6 +155,27 @@
             console.error('Error:', message);
             errorDiv.textContent = message;
             errorDiv.classList.add('show');
+        }
+
+        // Parse the full_code (base64 URL-safe encoded JSON with {u: api_url, c: code})
+        function parseFullCode(fullCode) {
+            try {
+                // Handle URL-safe base64 (replace - with + and _ with /)
+                let base64 = fullCode.replace(/-/g, '+').replace(/_/g, '/');
+                // Add padding if needed
+                while (base64.length % 4) {
+                    base64 += '=';
+                }
+                const decoded = atob(base64);
+                const parsed = JSON.parse(decoded);
+                if (!parsed.u || !parsed.c) {
+                    throw new Error('Invalid code format');
+                }
+                return { apiUrl: parsed.u, code: parsed.c };
+            } catch (e) {
+                console.error('Failed to parse full code:', e);
+                return null;
+            }
         }
 
         // Wait for Tauri to be ready
@@ -194,20 +205,25 @@
                 return;
             }
 
-            const apiUrl = apiUrlInput.value.trim().replace(/\/+$/, ''); // Remove trailing slashes
-            const code = codeInput.value.trim();
+            const fullCodeInput = codeInput.value.trim();
 
-            if (!apiUrl) {
-                showError('Please enter the server URL');
-                apiUrlInput.focus();
-                return;
-            }
-
-            if (!code) {
-                showError('Please enter a pairing code');
+            if (!fullCodeInput) {
+                showError('Please paste a pairing code');
                 codeInput.focus();
                 return;
             }
+
+            // Parse the full code to extract API URL and pairing code
+            const parsed = parseFullCode(fullCodeInput);
+            if (!parsed) {
+                showError('Invalid pairing code. Please copy the code from your web app and try again.');
+                codeInput.focus();
+                codeInput.select();
+                return;
+            }
+
+            const { apiUrl, code } = parsed;
+            console.log('Parsed code - API URL:', apiUrl, 'Code:', code);
 
             submitBtn.disabled = true;
             submitBtn.textContent = 'Connecting...';
@@ -233,11 +249,6 @@
                 codeInput.focus();
                 codeInput.select();
             }
-        });
-
-        // Auto-uppercase pairing code input
-        codeInput.addEventListener('input', (e) => {
-            e.target.value = e.target.value.toUpperCase();
         });
 
         // Log when page is ready

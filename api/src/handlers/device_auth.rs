@@ -1,4 +1,5 @@
 use actix_web::{web, HttpMessage, HttpRequest, HttpResponse};
+use base64::Engine;
 use redis::aio::MultiplexedConnection;
 use serde::{Deserialize, Serialize};
 use sqlx::PgPool;
@@ -45,6 +46,9 @@ pub struct GenerateCodeResponse {
     pub expires_in: i64, // seconds
     /// API base URL for desktop clients to connect to
     pub api_url: String,
+    /// Combined code containing both API URL and pairing code (base64 encoded)
+    /// This allows desktop clients to only need one value instead of two
+    pub full_code: String,
 }
 
 #[derive(Debug, Deserialize)]
@@ -159,15 +163,27 @@ pub async fn generate_code(
     // Calculate seconds until expiration
     let expires_in = (pairing_code.expires_at - chrono::Utc::now()).num_seconds();
 
+    // Create full_code: base64 encoded JSON with API URL and code
+    // Format: {"u":"https://api.example.com","c":"ABC123"}
+    let full_code_json = serde_json::json!({
+        "u": &config.api_base_url,
+        "c": &pairing_code.code
+    });
+    let full_code = base64::Engine::encode(
+        &base64::engine::general_purpose::URL_SAFE_NO_PAD,
+        full_code_json.to_string(),
+    );
+
     let mut response = HttpResponse::Ok();
     response.insert_header(("X-RateLimit-Limit", "3"));
     response.insert_header(("X-RateLimit-Remaining", remaining.to_string()));
     response.insert_header(("X-RateLimit-Reset", reset_time.to_string()));
 
     Ok(response.json(GenerateCodeResponse {
-        code: pairing_code.code,
+        code: pairing_code.code.clone(),
         expires_in,
         api_url: config.api_base_url.clone(),
+        full_code,
     }))
 }
 

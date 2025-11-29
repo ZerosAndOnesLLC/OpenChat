@@ -3,7 +3,7 @@ mod window_state;
 
 use tauri::{Emitter, Listener, Manager, State, WebviewUrl, WebviewWindowBuilder};
 use url::Url;
-use window_state::{WindowState, capture_window_state, save_window_state, load_window_state, validate_window_state};
+use window_state::{capture_window_state, save_window_state, load_window_state, validate_window_state};
 
 /// Derive the WebUI URL from the API URL.
 /// Assumes the WebUI is hosted at a related domain (e.g., api.example.com -> example.com)

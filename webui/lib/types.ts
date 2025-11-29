@@ -375,8 +375,6 @@ export interface DeviceSession {
 export interface PairingCodeResponse {
   code: string;
   expires_in: number;
-  api_url: string;
-  full_code: string;
 }
 
 export interface VerifyPairingCodeRequest {

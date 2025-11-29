@@ -336,6 +336,50 @@ src/
 }
 ```
 
+### Mattermost Import (v0.61.0)
+- `POST /api/settings/import/mattermost/validate` - Validate Mattermost connection
+- `POST /api/settings/import/mattermost/preview` - Get migration preview (users, channels, messages)
+- `POST /api/settings/import/mattermost/start` - Start migration job
+- `GET /api/settings/import/mattermost/jobs` - List migration jobs
+- `GET /api/settings/import/mattermost/jobs/:id` - Get migration job status
+- `POST /api/settings/import/mattermost/jobs/:id/cancel` - Cancel running migration
+
+**Features**:
+- Import channels, direct messages, and attachments from Mattermost
+- Two connection methods: API (recommended) or direct database access
+- User matching by email - existing users are matched, new users are created in TitaniumVault
+- Real-time progress tracking with WebSocket-like polling
+- Preserves message threading, reactions, and pinned messages
+- Supports both free tier (10k message limit) and database access for full history
+- Batch processing for optimal performance
+- Resume capability for interrupted migrations
+
+**API Connection**:
+- Uses Mattermost REST API v4
+- Requires admin access token with read permissions
+- Pagination with 200 items per page
+- Note: Free tier limited to 10k most recent messages
+
+**Database Connection**:
+- Direct PostgreSQL access for full message history
+- Bypasses Mattermost licensing restrictions
+- Recommended for large migrations with >10k messages
+
+**Migration Options**:
+- Select specific channels to import
+- Include/exclude direct messages
+- Include/exclude group DMs
+- Include/exclude file attachments
+- User action overrides (match, create, skip)
+
+**Admin UI**:
+- Available at `/admin/import`
+- Connection validation with server status
+- Preview of users, channels, and messages before import
+- Real-time progress bar during migration
+- Error/warning log display
+- Previous import history
+
 **Features**:
 - Tracks complete edit history for all messages
 - Stores previous content, editor, and timestamp for each edit
@@ -899,6 +943,18 @@ Infrastructure is managed via Terraform in `~/dev/terraform/prod/us-east-1/openc
 ```
 
 ## Version History
+
+### v0.61.0 (Mattermost Import)
+- Added Mattermost data migration feature for importing channels, DMs, and messages
+- Two connection methods: API (recommended) and direct database access
+- User matching by email with automatic creation in TitaniumVault for new users
+- Background job processing with real-time progress tracking
+- Migration preview showing user mappings, channels, and message counts
+- Admin UI at /admin/import for self-service migration
+- Supports message threading, reactions, pinned messages, and attachments
+- Batch processing for optimal performance with large datasets
+- Database migration for migration_jobs table with progress tracking
+- API endpoints for validation, preview, start, status, and cancellation
 
 ### v0.59.0 (Real-Time Status Updates, Back At Feature)
 - Fixed user status not updating in UI when changing status (e.g., clicking "Away")

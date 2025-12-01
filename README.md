@@ -2,10 +2,12 @@
 
 **Open-source, self-hosted team collaboration platform - Your data, your control**
 
-[![Version](https://img.shields.io/badge/version-0.38.0-blue.svg)](https://github.com/yourusername/openchat)
+[![Version](https://img.shields.io/badge/version-0.38.0-blue.svg)](https://github.com/ZerosAndOnesLLC/OpenChat)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 [![Rust](https://img.shields.io/badge/rust-2024-orange.svg)](https://www.rust-lang.org/)
 [![Next.js](https://img.shields.io/badge/next.js-16-black.svg)](https://nextjs.org/)
+[![API Build](https://github.com/ZerosAndOnesLLC/OpenChat/actions/workflows/api-release.yml/badge.svg)](https://github.com/ZerosAndOnesLLC/OpenChat/actions/workflows/api-release.yml)
+[![Desktop Build](https://github.com/ZerosAndOnesLLC/OpenChat/actions/workflows/tauri-release.yml/badge.svg)](https://github.com/ZerosAndOnesLLC/OpenChat/actions/workflows/tauri-release.yml)
 
 > A modern, fast, and secure team chat application built with Rust and Next.js. Self-host your team communications without compromising on features or performance.
 

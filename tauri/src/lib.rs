@@ -2,8 +2,48 @@ mod auth;
 mod window_state;
 
 use tauri::{Emitter, Listener, Manager, State, WebviewUrl, WebviewWindowBuilder};
+use url::Url;
 use window_state::{capture_window_state, save_window_state, load_window_state, validate_window_state};
 
+/// Returns the effective webui URL - uses localhost:3000 in dev mode, stored URL in release
+fn get_effective_webui_url(stored_url: &str) -> String {
+    if cfg!(debug_assertions) {
+        // Dev mode: always use localhost
+        "http://localhost:3000".to_string()
+    } else {
+        // Release mode: use the stored/server-provided URL
+        stored_url.to_string()
+    }
+}
+
+
+/// Command to show the native login screen (called on logout from web UI)
+#[tauri::command]
+async fn show_login_screen(app: tauri::AppHandle) -> Result<(), String> {
+    log::info!("show_login_screen: closing chat window and showing login");
+
+    // Close the chat window if it exists
+    if let Some(chat_win) = app.get_webview_window("chat") {
+        let _ = chat_win.close();
+    }
+
+    // Create the login window
+    let login_window = WebviewWindowBuilder::new(
+        &app,
+        "login",
+        WebviewUrl::App("login.html".into()),
+    )
+    .title("OpenChat - Connect")
+    .inner_size(480.0, 520.0)
+    .resizable(false)
+    .center()
+    .build()
+    .map_err(|e| format!("Failed to create login window: {}", e))?;
+
+    login_window.show().map_err(|e| format!("Failed to show login window: {}", e))?;
+
+    Ok(())
+}
 
 /// Command to handle successful login - redirects to the web UI
 #[tauri::command]
@@ -11,7 +51,8 @@ async fn login_success(
     webui_url: String,
     app: tauri::AppHandle,
 ) -> Result<(), String> {
-    log::info!("login_success: redirecting to web UI: {}", webui_url);
+    let effective_url = get_effective_webui_url(&webui_url);
+    log::info!("login_success: redirecting to web UI: {} (effective: {})", webui_url, effective_url);
 
 
     // Close the login window if it exists
@@ -27,7 +68,7 @@ async fn login_success(
     let mut builder = WebviewWindowBuilder::new(
         &app,
         "chat",
-        WebviewUrl::External(webui_url.parse().map_err(|e| format!("Invalid URL: {}", e))?),
+        WebviewUrl::External(effective_url.parse().map_err(|e| format!("Invalid URL: {}", e))?),
     )
     .title("OpenChat")
     .min_inner_size(800.0, 600.0);
@@ -83,6 +124,7 @@ pub fn run() {
             auth::validate_token,
             auth::process_deep_link_payload,
             login_success,
+            show_login_screen,
         ])
         .setup(|app| {
             if cfg!(debug_assertions) {
@@ -105,7 +147,8 @@ pub fn run() {
             if has_credentials {
                 // User is logged in - get the stored API URL and load web UI
                 if let Some(webui_url) = get_stored_webui_url(&state) {
-                    log::info!("Found stored credentials, loading web UI: {}", webui_url);
+                    let effective_url = get_effective_webui_url(&webui_url);
+                    log::info!("Found stored credentials, loading web UI: {} (effective: {})", webui_url, effective_url);
 
                     // Load saved window state or use defaults
                     let saved_state = load_window_state();
@@ -114,7 +157,7 @@ pub fn run() {
                     let mut builder = WebviewWindowBuilder::new(
                         app,
                         "chat",
-                        WebviewUrl::External(webui_url.parse().unwrap()),
+                        WebviewUrl::External(effective_url.parse().unwrap()),
                     )
                     .title("OpenChat")
                     .min_inner_size(800.0, 600.0);

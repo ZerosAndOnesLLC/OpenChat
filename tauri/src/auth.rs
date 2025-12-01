@@ -148,7 +148,6 @@ impl Default for AppState {
 #[tauri::command]
 pub async fn verify_pairing_code(
     api_url: String,
-    webui_url: String,
     code: String,
     device_name: String,
     state: State<'_, AppState>,
@@ -185,7 +184,6 @@ pub async fn verify_pairing_code(
         auth_response.device_id.clone(),
         auth_response.user.clone(),
         auth_response.api_url.clone(),
-        webui_url.clone(),
         auth_response.webui_url.clone(),
         state,
     ).await?;
@@ -317,7 +315,6 @@ pub async fn store_credentials(
         device_id,
         user,
         expires_at: Utc::now() + Duration::days(TOKEN_VALIDITY_DAYS),
-        webui_url,
         api_url,
         webui_url,
     };
@@ -566,8 +563,6 @@ pub async fn process_deep_link_payload(
 
     // Get api_url from payload (required for new deep links)
     let api_url = payload.api_url
-    let webui_url = payload.webui_url
-        .ok_or("Deep link missing webui_url - please generate a new link")?;
         .ok_or("Deep link missing api_url - please generate a new link")?;
     let webui_url = payload.webui_url
         .ok_or("Deep link missing webui_url - please generate a new link")?;

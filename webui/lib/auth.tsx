@@ -48,17 +48,20 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
     wsStore.disconnect();
     set({ token: null, user: null, isAuthenticated: false, isLoading: false });
 
-    // If in Tauri desktop app, clear keychain token
+    // If in Tauri desktop app, clear credentials and close window (native login will show)
     if (typeof window !== 'undefined' && (window as any).__TAURI__) {
       try {
         const { invoke } = await import('@tauri-apps/api/core');
-        await invoke('clear_token');
+        await invoke('clear_credentials');
+        // Signal Tauri to show native login screen
+        await invoke('show_login_screen');
+        return; // Don't redirect - Tauri will handle it
       } catch (error) {
-        console.error('Failed to clear desktop token:', error);
+        console.error('Failed to clear desktop credentials:', error);
       }
     }
 
-    // Redirect to home (which will trigger SSO flow or desktop login)
+    // Redirect to home (which will trigger SSO flow)
     if (typeof window !== 'undefined') {
       window.location.href = '/';
     }

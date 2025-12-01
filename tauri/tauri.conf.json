@@ -5,7 +5,8 @@
   "identifier": "com.openchat.desktop",
   "build": {
     "frontendDist": "./dist",
-    "beforeBuildCommand": ""
+    "beforeBuildCommand": "",
+    "beforeDevCommand": "bash /home/mack/OpenChat/tauri/scripts/dev-servers.sh"
   },
   "app": {
     "withGlobalTauri": true,

@@ -1,0 +1,87 @@
+name: API Build & Release
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'api/**'
+      - '.github/workflows/api-release.yml'
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+
+      - name: Cache cargo registry
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            api/target
+          key: ${{ runner.os }}-cargo-api-${{ hashFiles('api/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-api-
+
+      - name: Extract version
+        id: version
+        working-directory: api
+        run: |
+          VERSION=$(grep '^version' Cargo.toml | head -1 | sed 's/version = "\(.*\)"/\1/')
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "API Version: $VERSION"
+
+      - name: Run clippy
+        working-directory: api
+        run: cargo clippy --release -- -D warnings
+
+      - name: Build release binary
+        working-directory: api
+        run: cargo build --release
+
+      - name: Prepare release artifact
+        run: |
+          mkdir -p release
+          cp api/target/release/openchat-api release/
+          chmod +x release/openchat-api
+          cd release && tar -czvf openchat-api-linux-x86_64.tar.gz openchat-api
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: api-v${{ steps.version.outputs.version }}
+          name: OpenChat API v${{ steps.version.outputs.version }}
+          body: |
+            ## OpenChat API v${{ steps.version.outputs.version }}
+
+            ### Installation
+            ```bash
+            tar -xzvf openchat-api-linux-x86_64.tar.gz
+            chmod +x openchat-api
+            ./openchat-api
+            ```
+
+            ### Requirements
+            - PostgreSQL 14+
+            - Redis 6+
+
+            See [documentation](https://github.com/ZerosAndOnesLLC/OpenChat#readme) for configuration details.
+          files: |
+            release/openchat-api-linux-x86_64.tar.gz
+          draft: false
+          prerelease: false
+          generate_release_notes: true

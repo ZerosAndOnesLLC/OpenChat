@@ -420,10 +420,11 @@ export default function MessageInput({ channelId, dmId, replyTo, onClearReply }:
 
   // Handle keyboard events in textarea
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    // Cmd/Ctrl+Enter: Send message
-    if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
+    // Enter: Send message (without shift)
+    // Shift+Enter: Insert newline
+    if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
-      if (message.trim()) {
+      if (message.trim() || selectedFiles.length > 0) {
         handleSubmit(new Event('submit') as any);
       }
     }

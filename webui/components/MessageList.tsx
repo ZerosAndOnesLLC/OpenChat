@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { Message } from '@/lib/types';
 import MessageItem from './MessageItem';
 
@@ -20,47 +20,69 @@ export default function MessageList({ messages, unreadCount = 0, lastReadMessage
   const scrollRef = useRef<HTMLDivElement>(null);
   const unreadMarkerRef = useRef<HTMLDivElement>(null);
   const lastReadMessageRef = useRef<HTMLDivElement>(null);
+  const [hasInitialScrolled, setHasInitialScrolled] = useState(false);
 
-  // Calculate the index of the first unread message based on last read message ID
+  // Calculate the index of the last read message and first unread message
+  let lastReadIndex = -1;
   let firstUnreadIndex = -1;
   if (lastReadMessageId) {
-    const lastReadIndex = messages.findIndex((msg) => msg.id === lastReadMessageId);
+    lastReadIndex = messages.findIndex((msg) => msg.id === lastReadMessageId);
     if (lastReadIndex >= 0 && lastReadIndex < messages.length - 1) {
       firstUnreadIndex = lastReadIndex + 1;
     }
   } else if (unreadCount > 0 && unreadCount < messages.length) {
     // Fallback to unread count if no last read message ID
     firstUnreadIndex = messages.length - unreadCount;
+    lastReadIndex = firstUnreadIndex - 1;
   }
 
+  // Initial scroll - scroll to last read message or bottom
   useEffect(() => {
-    if (scrollRef.current) {
-      // If there's a last read message, scroll to the message after it
-      if (lastReadMessageRef.current && firstUnreadIndex >= 0) {
-        lastReadMessageRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
-      } else if (unreadMarkerRef.current && firstUnreadIndex >= 0) {
-        // Fallback to unread marker if available
-        unreadMarkerRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
-      } else {
-        // Otherwise scroll to bottom
-        scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
-      }
-    }
-  }, []); // Only run on mount
+    if (hasInitialScrolled || !scrollRef.current || messages.length === 0) return;
 
-  // Scroll to bottom when new messages arrive (but not on mount)
+    // If there's a last read message with unread messages after it, scroll to the last read message
+    // This shows the user where they left off, with new messages visible below
+    if (lastReadMessageRef.current && lastReadIndex >= 0 && firstUnreadIndex >= 0) {
+      lastReadMessageRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    } else {
+      // All messages read (or no messages) - scroll to bottom
+      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+    }
+    setHasInitialScrolled(true);
+  }, [messages.length, lastReadIndex, firstUnreadIndex, hasInitialScrolled]);
+
+  // Track if user is near the bottom before new messages arrive
+  const wasNearBottomRef = useRef(true);
+
+  // Update wasNearBottom on scroll
   useEffect(() => {
-    if (scrollRef.current && messages.length > 0) {
-      const scrollElement = scrollRef.current;
-      const isScrolledToBottom =
-        scrollElement.scrollHeight - scrollElement.scrollTop - scrollElement.clientHeight < 100;
+    const scrollElement = scrollRef.current;
+    if (!scrollElement) return;
 
-      // Auto-scroll to bottom only if user is already near the bottom
-      if (isScrolledToBottom) {
-        scrollElement.scrollTop = scrollElement.scrollHeight;
-      }
+    const handleScroll = () => {
+      const isNearBottom =
+        scrollElement.scrollHeight - scrollElement.scrollTop - scrollElement.clientHeight < 150;
+      wasNearBottomRef.current = isNearBottom;
+    };
+
+    scrollElement.addEventListener('scroll', handleScroll);
+    return () => scrollElement.removeEventListener('scroll', handleScroll);
+  }, []);
+
+  // Scroll to bottom when new messages arrive (if user was near bottom)
+  useEffect(() => {
+    if (!scrollRef.current || messages.length === 0 || !hasInitialScrolled) return;
+
+    // Auto-scroll to bottom if user was near the bottom
+    if (wasNearBottomRef.current) {
+      // Use requestAnimationFrame to ensure DOM has updated
+      requestAnimationFrame(() => {
+        if (scrollRef.current) {
+          scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+        }
+      });
     }
-  }, [messages.length]); // Run when message count changes
+  }, [messages.length, hasInitialScrolled]);
 
   if (messages.length === 0) {
     return (
@@ -76,7 +98,7 @@ export default function MessageList({ messages, unreadCount = 0, lastReadMessage
         {messages.map((message, index) => (
           <div
             key={message.id}
-            ref={index === firstUnreadIndex ? lastReadMessageRef : undefined}
+            ref={index === lastReadIndex ? lastReadMessageRef : undefined}
           >
             {/* Show unread marker before the first unread message */}
             {index === firstUnreadIndex && (

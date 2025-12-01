@@ -5,7 +5,7 @@
 
 set -e
 
-API_URL="${API_URL:-http://localhost:8080}"
+API_URL="${API_URL:-http://localhost:9876}"
 TOKEN="${TOKEN:-}"
 CONCURRENT_REQUESTS="${CONCURRENT_REQUESTS:-50}"
 TOTAL_REQUESTS="${TOTAL_REQUESTS:-500}"

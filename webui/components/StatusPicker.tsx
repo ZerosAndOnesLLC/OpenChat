@@ -68,6 +68,7 @@ export default function StatusPicker({
   const [backAt, setBackAt] = useState<string>('');
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [hasChanges, setHasChanges] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const emojiPickerRef = useRef<HTMLDivElement>(null);
 
@@ -75,6 +76,7 @@ export default function StatusPicker({
   const wsStatusDetails = useWebSocketStore((state) =>
     userId ? state.userStatusDetails[userId] : undefined
   );
+  const setUserStatusDetails = useWebSocketStore((state) => state.setUserStatusDetails);
 
   // Update local state when WebSocket status changes
   useEffect(() => {
@@ -91,6 +93,13 @@ export default function StatusPicker({
     setCustomMessage(currentCustomMessage);
     setEmoji(currentEmoji);
   }, [currentStatus, currentCustomMessage, currentEmoji]);
+
+  // Reset hasChanges when dropdown opens
+  useEffect(() => {
+    if (isOpen) {
+      setHasChanges(false);
+    }
+  }, [isOpen]);
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -127,6 +136,11 @@ export default function StatusPicker({
         back_at: backAt || undefined,
       };
       await apiClient.updateMyStatus(data);
+      // Update local store immediately so icon changes
+      if (userId) {
+        setUserStatusDetails(userId, selectedStatus, customMessage || undefined, emoji || undefined);
+      }
+      setHasChanges(false);
       setIsOpen(false);
       // Reset back_at after save
       setBackAt('');
@@ -141,6 +155,7 @@ export default function StatusPicker({
   const handleEmojiClick = (emojiData: { emoji: string }) => {
     setEmoji(emojiData.emoji);
     setShowEmojiPicker(false);
+    setHasChanges(true);
   };
 
   return (
@@ -174,7 +189,7 @@ export default function StatusPicker({
               {STATUS_OPTIONS.map((option) => (
                 <button
                   key={option.value}
-                  onClick={() => setSelectedStatus(option.value)}
+                  onClick={() => { setSelectedStatus(option.value); setHasChanges(true); }}
                   className={`w-full rounded-md px-3 py-2 text-left transition-colors ${
                     selectedStatus === option.value
                       ? 'bg-blue-900 text-white'
@@ -228,7 +243,7 @@ export default function StatusPicker({
                 <input
                   type="text"
                   value={customMessage}
-                  onChange={(e) => setCustomMessage(e.target.value)}
+                  onChange={(e) => { setCustomMessage(e.target.value); setHasChanges(true); }}
                   placeholder="What's your status?"
                   className="flex-1 rounded border border-gray-600 bg-gray-800 px-3 py-2 text-sm text-white placeholder-gray-500 focus:border-blue-500 focus:outline-none"
                   maxLength={80}
@@ -243,7 +258,7 @@ export default function StatusPicker({
               </label>
               <select
                 value={clearAfter === null ? 'null' : clearAfter}
-                onChange={(e) => setClearAfter(e.target.value === 'null' ? null : parseInt(e.target.value))}
+                onChange={(e) => { setClearAfter(e.target.value === 'null' ? null : parseInt(e.target.value)); setHasChanges(true); }}
                 className="w-full rounded border border-gray-600 bg-gray-800 px-3 py-2 text-sm text-white focus:border-blue-500 focus:outline-none"
               >
                 {TIME_OPTIONS.map((option) => (
@@ -263,7 +278,7 @@ export default function StatusPicker({
                 <input
                   type="datetime-local"
                   value={backAt}
-                  onChange={(e) => setBackAt(e.target.value)}
+                  onChange={(e) => { setBackAt(e.target.value); setHasChanges(true); }}
                   min={new Date().toISOString().slice(0, 16)}
                   className="w-full rounded border border-gray-600 bg-gray-800 px-3 py-2 text-sm text-white focus:border-blue-500 focus:outline-none [color-scheme:dark]"
                 />
@@ -282,8 +297,12 @@ export default function StatusPicker({
             <div className="flex gap-2">
               <button
                 onClick={handleSave}
-                disabled={saving}
-                className="flex-1 rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
+                disabled={saving || !hasChanges}
+                className={`flex-1 rounded-md px-4 py-2 text-sm font-medium transition-colors ${
+                  hasChanges
+                    ? 'bg-blue-600 text-white hover:bg-blue-700'
+                    : 'bg-gray-700 text-gray-400 cursor-not-allowed'
+                } disabled:opacity-50`}
               >
                 {saving ? 'Saving...' : 'Save'}
               </button>

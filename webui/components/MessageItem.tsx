@@ -39,6 +39,7 @@ export default function MessageItem({ message, onReply, onOpenThread, onPin, onB
   const [showReadReceiptModal, setShowReadReceiptModal] = useState(false);
   const [showEditHistoryModal, setShowEditHistoryModal] = useState(false);
   const pickerRef = useRef<HTMLDivElement>(null);
+  const hoverTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   // Close picker when clicking outside
   useEffect(() => {
@@ -53,6 +54,29 @@ export default function MessageItem({ message, onReply, onOpenThread, onPin, onB
       return () => document.removeEventListener('mousedown', handleClickOutside);
     }
   }, [showReactionPicker]);
+
+  // Cleanup hover timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (hoverTimeoutRef.current) {
+        clearTimeout(hoverTimeoutRef.current);
+      }
+    };
+  }, []);
+
+  const handleMouseEnter = () => {
+    hoverTimeoutRef.current = setTimeout(() => {
+      setShowActions(true);
+    }, 1000);
+  };
+
+  const handleMouseLeave = () => {
+    if (hoverTimeoutRef.current) {
+      clearTimeout(hoverTimeoutRef.current);
+      hoverTimeoutRef.current = null;
+    }
+    setShowActions(false);
+  };
 
   const isOwnMessage = user?.id === message.user_id;
 
@@ -142,8 +166,8 @@ export default function MessageItem({ message, onReply, onOpenThread, onPin, onB
   return (
     <div
       className="group relative"
-      onMouseEnter={() => setShowActions(true)}
-      onMouseLeave={() => setShowActions(false)}
+      onMouseEnter={handleMouseEnter}
+      onMouseLeave={handleMouseLeave}
     >
       <div className="flex gap-3">
         <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-blue-600 text-sm font-semibold text-white">

@@ -54,6 +54,7 @@ interface WebSocketStore {
   setMessages: (key: string, messages: Message[]) => void;
   clearMessages: (key: string) => void;
   setLastReadMessageId: (key: string, messageId: string | undefined) => void;
+  setUserStatusDetails: (userId: string, status: 'online' | 'offline' | 'away' | 'dnd', customMessage?: string, emoji?: string) => void;
 }
 
 export const useWebSocketStore = create<WebSocketStore>((set, get) => ({
@@ -684,6 +685,23 @@ export const useWebSocketStore = create<WebSocketStore>((set, get) => ({
       lastReadMessageIds: {
         ...state.lastReadMessageIds,
         [key]: messageId,
+      },
+    }));
+  },
+
+  setUserStatusDetails: (userId, status, customMessage, emoji) => {
+    set((state) => ({
+      userStatuses: {
+        ...state.userStatuses,
+        [userId]: status,
+      },
+      userStatusDetails: {
+        ...state.userStatusDetails,
+        [userId]: {
+          status,
+          custom_message: customMessage,
+          emoji,
+        },
       },
     }));
   },

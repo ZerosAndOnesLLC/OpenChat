@@ -439,12 +439,12 @@ export default function MessageInput({ channelId, dmId, replyTo, onClearReply }:
 
       {/* Selected files preview */}
       {selectedFiles.length > 0 && (
-        <div className="mx-6 mt-4 mb-2 flex flex-wrap gap-2">
+        <div className="mx-3 mt-3 mb-2 flex flex-wrap gap-2">
           {selectedFiles.map((selectedFile, index) => (
             <div key={index} className="relative group">
               {selectedFile.preview ? (
                 // Image preview
-                <div className="relative h-24 w-24 rounded-lg overflow-hidden border border-gray-700">
+                <div className="relative h-24 w-24 rounded-lg overflow-hidden border border-gray-700 bg-gray-800">
                   <img
                     src={selectedFile.preview}
                     alt={selectedFile.file.name}
@@ -498,28 +498,18 @@ export default function MessageInput({ channelId, dmId, replyTo, onClearReply }:
       )}
 
       <form onSubmit={handleSubmit} className="flex flex-col">
-        <div className="flex gap-2 px-4 py-3">
-          <input
-            ref={fileInputRef}
-            type="file"
-            multiple
-            onChange={handleFileInputChange}
-            className="hidden"
-            accept="image/*,video/*,audio/*,.pdf,.doc,.docx,.xls,.xlsx,.txt"
-          />
-          <button
-            type="button"
-            onClick={() => fileInputRef.current?.click()}
-            className="flex-shrink-0 rounded-md p-2 text-gray-400 transition-colors hover:bg-gray-800 hover:text-white self-end mb-1"
-            title="Attach files"
-          >
-            <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
-            </svg>
-          </button>
-          <div className="flex-1 flex flex-col">
+        <input
+          ref={fileInputRef}
+          type="file"
+          multiple
+          onChange={handleFileInputChange}
+          className="hidden"
+          accept="image/*,video/*,audio/*,.pdf,.doc,.docx,.xls,.xlsx,.txt"
+        />
+        <div className="relative mx-3 my-2 rounded-lg border border-gray-700 bg-gray-900">
+          <div className="flex flex-col">
             {showPreview ? (
-              <div className="min-h-[48px] max-h-[200px] overflow-y-auto rounded-md border border-gray-600 bg-gray-900 px-3 py-2 text-sm text-white">
+              <div className="min-h-[48px] max-h-[200px] overflow-y-auto pl-12 pr-14 py-3 text-sm text-white">
                 {message.trim() ? (
                   <MarkdownRenderer content={message} />
                 ) : (
@@ -534,7 +524,7 @@ export default function MessageInput({ channelId, dmId, replyTo, onClearReply }:
                 onBlur={handleBlur}
                 onKeyDown={handleKeyDown}
                 placeholder={replyTo ? "Type your reply..." : "Type a message..."}
-                className="flex-1 min-h-[48px] max-h-[200px] rounded-md border border-gray-600 bg-gray-900 px-3 py-2 text-sm text-white placeholder-gray-500 focus:border-blue-500 focus:outline-none resize-none overflow-y-auto leading-relaxed"
+                className="w-full min-h-[48px] max-h-[200px] bg-transparent pl-12 pr-14 py-3 text-sm text-white placeholder-gray-500 focus:outline-none resize-none overflow-y-auto leading-relaxed"
                 rows={2}
               />
             )}
@@ -545,9 +535,19 @@ export default function MessageInput({ channelId, dmId, replyTo, onClearReply }:
             />
           </div>
           <button
+            type="button"
+            onClick={() => fileInputRef.current?.click()}
+            className="absolute left-2 top-2 p-2 text-gray-400 transition-colors hover:text-white z-10"
+            title="Attach files"
+          >
+            <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
+            </svg>
+          </button>
+          <button
             type="submit"
             disabled={!message.trim() && selectedFiles.length === 0}
-            className="flex-shrink-0 rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-700 disabled:bg-gray-700 disabled:text-gray-400 disabled:cursor-not-allowed self-end mb-1"
+            className="absolute right-3 top-3 rounded-md bg-blue-600 p-2 text-white transition-colors hover:bg-blue-700 disabled:bg-gray-700 disabled:text-gray-400 disabled:cursor-not-allowed z-20"
           >
             <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />

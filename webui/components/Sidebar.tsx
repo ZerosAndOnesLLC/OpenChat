@@ -10,6 +10,7 @@ import DirectMessageList from './DirectMessageList';
 import BookmarksList from './BookmarksList';
 import UserProfile from './UserProfile';
 import BrowseChannelsModal from './BrowseChannelsModal';
+import NewDmModal from './NewDmModal';
 import { useState, useMemo } from 'react';
 
 interface SidebarProps {
@@ -28,6 +29,7 @@ export default function Sidebar({
   const { user } = useAuth();
   const [showCreateChannel, setShowCreateChannel] = useState(false);
   const [showBrowseChannels, setShowBrowseChannels] = useState(false);
+  const [showNewDmModal, setShowNewDmModal] = useState(false);
   const [newChannelName, setNewChannelName] = useState('');
   const [newChannelType, setNewChannelType] = useState<'public' | 'private'>('public');
 
@@ -212,8 +214,17 @@ export default function Sidebar({
           </div>
 
           <div className="mb-4">
-            <div className="mb-2 px-2">
+            <div className="mb-2 flex items-center justify-between px-2">
               <h2 className="text-sm font-semibold text-gray-400">Direct Messages</h2>
+              <button
+                onClick={() => setShowNewDmModal(true)}
+                className="rounded p-1 text-gray-400 hover:bg-gray-800 hover:text-white"
+                title="New message"
+              >
+                <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                </svg>
+              </button>
             </div>
             <DirectMessageList
               dms={dmsList}
@@ -240,6 +251,13 @@ export default function Sidebar({
         onClose={() => setShowBrowseChannels(false)}
         onSelectChannel={onSelectChannel}
         currentChannels={channelsList}
+      />
+
+      <NewDmModal
+        isOpen={showNewDmModal}
+        onClose={() => setShowNewDmModal(false)}
+        onSelectDm={onSelectDm}
+        currentDms={dmsList}
       />
     </div>
   );

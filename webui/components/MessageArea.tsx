@@ -353,6 +353,7 @@ export default function MessageArea({ channel, dm, onLeaveChannel }: MessageArea
 
           <div className="flex flex-1 flex-col overflow-hidden">
             <MessageList
+              key={currentKey}
               messages={localMessages}
               unreadCount={unreadCount}
               lastReadMessageId={lastReadMessageIds[currentKey]}

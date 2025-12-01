@@ -31,7 +31,6 @@ export default function MessageInput({ channelId, dmId, replyTo, onClearReply }:
   const [isDragging, setIsDragging] = useState(false);
   const { sendMessage, sendTyping } = useWebSocketStore();
   const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-  const draftTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const currentDraftKey = useRef<string | null>(null);
@@ -126,11 +125,6 @@ export default function MessageInput({ channelId, dmId, replyTo, onClearReply }:
       if (typingTimeoutRef.current) {
         clearTimeout(typingTimeoutRef.current);
         typingTimeoutRef.current = null;
-      }
-
-      if (draftTimeoutRef.current) {
-        clearTimeout(draftTimeoutRef.current);
-        draftTimeoutRef.current = null;
       }
     } catch (error) {
       console.error('Failed to send message:', error);
@@ -263,44 +257,13 @@ export default function MessageInput({ channelId, dmId, replyTo, onClearReply }:
         typingTimeoutRef.current = null;
       }, 3000);
     }
-
-    // Auto-save draft after 5 seconds of inactivity (reduced frequency for better scaling)
-    if (draftTimeoutRef.current) {
-      clearTimeout(draftTimeoutRef.current);
-    }
-
-    const draftKey = channelId || dmId;
-    if (draftKey) {
-      draftTimeoutRef.current = setTimeout(async () => {
-        // Only save if content has changed since last save
-        if (newValue !== lastSavedDraft.current) {
-          try {
-            if (newValue.trim()) {
-              await draftsManager.saveDraft(draftKey, newValue);
-              lastSavedDraft.current = newValue;
-            } else {
-              // Clear draft if message is empty
-              await draftsManager.deleteDraft(draftKey);
-              lastSavedDraft.current = '';
-            }
-          } catch (error) {
-            console.error('Failed to save draft:', error);
-          }
-        }
-      }, 5000);
-    }
+    // Draft saving is handled only on blur (handleBlur) for better performance
   };
 
-  // Save draft when input loses focus (better for scaling)
+  // Save draft when input loses focus
   const handleBlur = async () => {
     const draftKey = channelId || dmId;
     if (!draftKey) return;
-
-    // Cancel pending auto-save
-    if (draftTimeoutRef.current) {
-      clearTimeout(draftTimeoutRef.current);
-      draftTimeoutRef.current = null;
-    }
 
     // Only save if content has changed since last save
     if (message !== lastSavedDraft.current) {
@@ -390,9 +353,6 @@ export default function MessageInput({ channelId, dmId, replyTo, onClearReply }:
     return () => {
       if (typingTimeoutRef.current) {
         clearTimeout(typingTimeoutRef.current);
-      }
-      if (draftTimeoutRef.current) {
-        clearTimeout(draftTimeoutRef.current);
       }
     };
   }, []);

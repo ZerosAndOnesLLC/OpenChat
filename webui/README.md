@@ -248,7 +248,7 @@ npm run build
 
 ## Version
 
-Current version: 0.22.3
+Current version: 0.23.2
 
 Increment version before commits:
 - **Patch** (0.1.x): Bug fixes, small tweaks
@@ -256,6 +256,12 @@ Increment version before commits:
 - **Major** (x.0.0): Breaking changes
 
 ### Recent Changes
+
+**v0.23.2** - Fix unread indicator flashing for active channel
+- Fixed issue where "New messages" indicator briefly flashed when sending or receiving messages in active channel
+- Added active channel/DM tracking to WebSocket store
+- Messages received for the active channel are immediately marked as read (no 1-second delay)
+- Eliminates visual flicker of unread badges and markers for channels being actively viewed
 
 **v0.22.3** - Fix Turbopack build configuration
 - Added turbopack.root to next.config.ts to fix workspace root inference

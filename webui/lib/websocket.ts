@@ -38,6 +38,8 @@ interface WebSocketStore {
   unreadCounts: Record<string, number>; // channelId/dmId -> unread count
   lastReadMessageIds: Record<string, string | undefined>; // channelId/dmId -> last read message ID
   notificationCount: number;
+  activeChannelId: string | null; // Currently active/viewed channel
+  activeDmId: string | null; // Currently active/viewed DM
 
   connect: (token: string) => void;
   disconnect: () => void;
@@ -55,6 +57,7 @@ interface WebSocketStore {
   clearMessages: (key: string) => void;
   setLastReadMessageId: (key: string, messageId: string | undefined) => void;
   setUserStatusDetails: (userId: string, status: 'online' | 'offline' | 'away' | 'dnd', customMessage?: string, emoji?: string) => void;
+  setActiveChannel: (channelId: string | null, dmId: string | null) => void;
 }
 
 export const useWebSocketStore = create<WebSocketStore>((set, get) => ({
@@ -71,6 +74,8 @@ export const useWebSocketStore = create<WebSocketStore>((set, get) => ({
   unreadCounts: {},
   lastReadMessageIds: {},
   notificationCount: 0,
+  activeChannelId: null,
+  activeDmId: null,
 
   connect: (token: string) => {
     const ws = new WebSocket(`${WS_URL}?token=${token}`);
@@ -199,6 +204,25 @@ export const useWebSocketStore = create<WebSocketStore>((set, get) => ({
             };
             const key = newMessage.channel_id || newMessage.dm_id || '';
             get().addMessage(key, newMessage);
+
+            // If this message is for the currently active channel/DM, immediately mark it as read
+            // This prevents the "unread" indicator from briefly flashing
+            const { activeChannelId, activeDmId } = get();
+            const isActiveChannel = activeChannelId && message.channel_id === activeChannelId;
+            const isActiveDm = activeDmId && message.dm_id === activeDmId;
+
+            if (isActiveChannel || isActiveDm) {
+              set((state) => ({
+                lastReadMessageIds: {
+                  ...state.lastReadMessageIds,
+                  [key]: message.id,
+                },
+                unreadCounts: {
+                  ...state.unreadCounts,
+                  [key]: 0,
+                },
+              }));
+            }
             break;
           }
 
@@ -704,5 +728,9 @@ export const useWebSocketStore = create<WebSocketStore>((set, get) => ({
         },
       },
     }));
+  },
+
+  setActiveChannel: (channelId, dmId) => {
+    set({ activeChannelId: channelId, activeDmId: dmId });
   },
 }));

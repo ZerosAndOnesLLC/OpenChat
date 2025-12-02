@@ -87,6 +87,7 @@ impl Mention {
     }
 
     /// Get mentions for a specific message
+    #[allow(dead_code)]
     pub async fn list_by_message(pool: &PgPool, message_id: Uuid) -> ApiResult<Vec<Mention>> {
         let mentions = sqlx::query_as::<_, Mention>(
             r#"

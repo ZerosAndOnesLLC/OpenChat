@@ -1,4 +1,3 @@
-use redis::aio::MultiplexedConnection;
 use redis::Client;
 use sqlx::postgres::{PgPool, PgPoolOptions};
 use uuid::Uuid;
@@ -19,13 +18,6 @@ pub async fn init_pool(database_url: &str) -> ApiResult<PgPool> {
 pub fn init_redis_client(redis_url: &str) -> ApiResult<Client> {
     let client = Client::open(redis_url)?;
     Ok(client)
-}
-
-/// Initialize Redis connection (for backward compatibility)
-pub async fn init_redis(redis_url: &str) -> ApiResult<MultiplexedConnection> {
-    let client = init_redis_client(redis_url)?;
-    let conn = client.get_multiplexed_async_connection().await?;
-    Ok(conn)
 }
 
 /// Set the RLS (Row Level Security) context for the current database connection

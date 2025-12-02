@@ -23,6 +23,7 @@ pub async fn set_notification_count_in_cache(
 }
 
 /// Increment notification count in cache
+#[allow(dead_code)]
 pub async fn increment_notification_count_in_cache(
     con: &mut MultiplexedConnection,
     user_id: &str,
@@ -53,6 +54,7 @@ pub async fn decrement_notification_count_in_cache(
 }
 
 /// Clear notification count from cache
+#[allow(dead_code)]
 pub async fn clear_notification_count_from_cache(
     con: &mut MultiplexedConnection,
     user_id: &str,
@@ -63,6 +65,7 @@ pub async fn clear_notification_count_from_cache(
 }
 
 /// Invalidate notification count cache for a user
+#[allow(dead_code)]
 pub async fn invalidate_notification_count_cache(
     con: &mut MultiplexedConnection,
     user_id: &str,

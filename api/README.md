@@ -945,6 +945,13 @@ Infrastructure is managed via Terraform in `~/dev/terraform/prod/us-east-1/openc
 
 ## Version History
 
+### v0.62.1 (Code Cleanup)
+- Removed duplicate/unused code: cache/pubsub.rs (duplicate of websocket/pubsub.rs), RoleResponse struct, init_redis function
+- Added #[allow(dead_code)] annotations for useful but not-yet-integrated features
+- Prepared cache infrastructure functions for future integration (membership caching, invalidation helpers)
+- Fixed all 99 compiler warnings
+- No functional changes
+
 ### v0.62.0 (Channel & DM Management Enhancements)
 - Channel name editing: Owners can now edit channel name and description from the UI
 - Public channels: Creators can now leave public channels they created

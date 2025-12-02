@@ -50,6 +50,7 @@ pub async fn cache_token_claims(
 }
 
 /// Invalidate a cached token (e.g., on logout)
+#[allow(dead_code)]
 pub async fn invalidate_token_cache(
     redis: &mut MultiplexedConnection,
     token: &str,

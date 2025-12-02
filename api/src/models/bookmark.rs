@@ -51,6 +51,7 @@ impl Bookmark {
     }
 
     /// Check if a message is bookmarked by a user
+    #[allow(dead_code)]
     pub async fn is_bookmarked(
         pool: &PgPool,
         user_id: Uuid,
@@ -84,6 +85,7 @@ impl Bookmark {
     }
 
     /// Get a specific bookmark
+    #[allow(dead_code)]
     pub async fn get(
         pool: &PgPool,
         user_id: Uuid,

@@ -28,6 +28,7 @@ impl RateLimitConfig {
 
 /// Rate limit types
 #[derive(Debug, Clone, Copy)]
+#[allow(dead_code)]
 pub enum RateLimitType {
     /// API requests (20/second)
     ApiRequest,

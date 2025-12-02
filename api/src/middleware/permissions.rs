@@ -182,6 +182,7 @@ async fn check_permission_cached(
 }
 
 /// Helper function to invalidate permission cache when roles or permissions are updated
+#[allow(dead_code)]
 pub async fn invalidate_permission_cache(
     redis: &mut redis::aio::MultiplexedConnection,
 ) -> Result<(), ApiError> {

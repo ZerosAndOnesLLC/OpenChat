@@ -75,6 +75,7 @@ impl DevicePairingCode {
     }
 
     /// Delete expired pairing codes
+    #[allow(dead_code)]
     pub async fn delete_expired(pool: &PgPool) -> ApiResult<u64> {
         let result = sqlx::query(
             r#"
@@ -151,6 +152,7 @@ impl DeviceSession {
     }
 
     /// Get a device session by ID
+    #[allow(dead_code)]
     pub async fn get_by_id(pool: &PgPool, id: Uuid) -> ApiResult<Option<DeviceSession>> {
         let session = sqlx::query_as::<_, DeviceSession>(
             r#"
@@ -166,6 +168,7 @@ impl DeviceSession {
     }
 
     /// Update last active timestamp
+    #[allow(dead_code)]
     pub async fn update_last_active(pool: &PgPool, id: Uuid) -> ApiResult<DeviceSession> {
         let session = sqlx::query_as::<_, DeviceSession>(
             r#"

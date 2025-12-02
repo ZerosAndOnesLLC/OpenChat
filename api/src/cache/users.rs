@@ -62,6 +62,7 @@ pub async fn invalidate_user_cache(
 }
 
 /// Invalidate all user caches for an organization
+#[allow(dead_code)]
 pub async fn invalidate_org_users_cache(
     redis: &mut redis::aio::MultiplexedConnection,
     _org_id: Uuid,

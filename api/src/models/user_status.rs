@@ -7,6 +7,7 @@ use crate::errors::ApiResult;
 
 #[derive(Debug, Clone, Serialize, Deserialize, sqlx::Type, PartialEq)]
 #[sqlx(type_name = "text", rename_all = "lowercase")]
+#[allow(dead_code)]
 pub enum StatusType {
     Online,
     Away,
@@ -99,6 +100,7 @@ impl UserStatus {
     }
 
     /// Get multiple user statuses by user IDs
+    #[allow(dead_code)]
     pub async fn get_by_user_ids(
         pool: &PgPool,
         user_ids: &[Uuid],

@@ -87,6 +87,7 @@ impl WebhookResponse {
 
 /// Mattermost-compatible webhook payload
 #[derive(Debug, Deserialize)]
+#[allow(dead_code)]
 pub struct WebhookPayload {
     /// Message text (required)
     pub text: String,

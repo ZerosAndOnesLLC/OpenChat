@@ -24,6 +24,7 @@ pub struct IncomingWebhook {
 
 /// Response struct that includes the webhook URL
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[allow(dead_code)]
 pub struct IncomingWebhookWithUrl {
     #[serde(flatten)]
     pub webhook: IncomingWebhook,
@@ -114,6 +115,7 @@ impl IncomingWebhook {
     }
 
     /// List webhooks for a specific channel
+    #[allow(dead_code)]
     pub async fn list_by_channel(pool: &PgPool, channel_id: Uuid) -> ApiResult<Vec<IncomingWebhook>> {
         let webhooks = sqlx::query_as::<_, IncomingWebhook>(
             r#"

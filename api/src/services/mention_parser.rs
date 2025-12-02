@@ -8,6 +8,7 @@ use crate::models::user::User;
 
 /// Parsed mention information
 #[derive(Debug, Clone)]
+#[allow(dead_code)]
 pub struct ParsedMention {
     pub mention_type: MentionType,
     pub mentioned_user_id: Option<Uuid>,

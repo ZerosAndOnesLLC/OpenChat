@@ -27,6 +27,7 @@ pub struct Permission {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
+#[allow(dead_code)]
 pub struct RolePermission {
     pub id: Uuid,
     pub role_id: Uuid,
@@ -35,6 +36,7 @@ pub struct RolePermission {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[allow(dead_code)]
 pub struct RoleWithPermissions {
     #[serde(flatten)]
     pub role: Role,
@@ -43,6 +45,7 @@ pub struct RoleWithPermissions {
 
 impl Role {
     /// Get a role by name (for SSO role matching)
+    #[allow(dead_code)]
     pub async fn get_by_name(pool: &PgPool, role_name: &str) -> ApiResult<Option<Role>> {
         let role = sqlx::query_as::<_, Role>(
             r#"
@@ -170,6 +173,7 @@ impl Role {
     }
 
     /// Check if a role has a specific permission
+    #[allow(dead_code)]
     pub async fn has_permission(
         pool: &PgPool,
         role_id: Uuid,
@@ -240,6 +244,7 @@ impl Permission {
     }
 
     /// Get permission by name
+    #[allow(dead_code)]
     pub async fn get_by_name(pool: &PgPool, name: &str) -> ApiResult<Option<Permission>> {
         let permission = sqlx::query_as::<_, Permission>(
             r#"

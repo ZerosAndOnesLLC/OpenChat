@@ -8,6 +8,7 @@ use crate::{errors::ApiResult, models::direct_message::{DirectMessage, DmPartici
 const DM_CACHE_TTL: u64 = 300; // 5 minutes in seconds
 const DM_CACHE_PREFIX: &str = "openchat:dm";
 const DM_PARTICIPANTS_PREFIX: &str = "openchat:dm_participants";
+#[allow(dead_code)]
 const USER_DMS_PREFIX: &str = "openchat:user_dms";
 
 /// Build cache key for a DM
@@ -21,6 +22,7 @@ fn dm_participants_cache_key(dm_id: Uuid) -> String {
 }
 
 /// Build cache key for user's DMs list
+#[allow(dead_code)]
 fn user_dms_cache_key(user_id: Uuid) -> String {
     format!("{}:{}", USER_DMS_PREFIX, user_id)
 }
@@ -62,6 +64,7 @@ pub async fn set_dm_in_cache(
 }
 
 /// Invalidate DM cache
+#[allow(dead_code)]
 pub async fn invalidate_dm_cache(
     redis: &mut redis::aio::MultiplexedConnection,
     dm_id: Uuid,
@@ -73,6 +76,7 @@ pub async fn invalidate_dm_cache(
 }
 
 /// Get DM participants from cache
+#[allow(dead_code)]
 pub async fn get_dm_participants_from_cache(
     redis: &mut redis::aio::MultiplexedConnection,
     dm_id: Uuid,
@@ -110,6 +114,7 @@ pub async fn set_dm_participants_in_cache(
 }
 
 /// Invalidate DM participants cache
+#[allow(dead_code)]
 pub async fn invalidate_dm_participants_cache(
     redis: &mut redis::aio::MultiplexedConnection,
     dm_id: Uuid,
@@ -121,6 +126,7 @@ pub async fn invalidate_dm_participants_cache(
 }
 
 /// Get user's DMs list from cache
+#[allow(dead_code)]
 pub async fn get_user_dms_from_cache(
     redis: &mut redis::aio::MultiplexedConnection,
     user_id: Uuid,
@@ -139,6 +145,7 @@ pub async fn get_user_dms_from_cache(
 }
 
 /// Store user's DMs list in cache
+#[allow(dead_code)]
 pub async fn set_user_dms_in_cache(
     redis: &mut redis::aio::MultiplexedConnection,
     user_id: Uuid,
@@ -154,6 +161,7 @@ pub async fn set_user_dms_in_cache(
 }
 
 /// Invalidate user's DMs list cache
+#[allow(dead_code)]
 pub async fn invalidate_user_dms_cache(
     redis: &mut redis::aio::MultiplexedConnection,
     user_id: Uuid,

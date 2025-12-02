@@ -26,6 +26,7 @@ pub struct EmojiUploadResponse {
 
 // Emoji validation constants
 pub const MAX_EMOJI_SIZE: i64 = 512 * 1024; // 512KB
+#[allow(dead_code)]
 pub const EMOJI_DIMENSIONS: u32 = 128; // 128x128px
 pub const ALLOWED_EMOJI_TYPES: &[&str] = &[
     "image/jpeg",

@@ -51,6 +51,7 @@ pub async fn set_org_in_cache(
 }
 
 /// Invalidate organization cache
+#[allow(dead_code)]
 pub async fn invalidate_org_cache(
     redis: &mut redis::aio::MultiplexedConnection,
     org_id: Uuid,

@@ -113,6 +113,7 @@ pub async fn verify_pairing_code(
 
 /// Cleanup expired pairing codes
 /// This should be run periodically (e.g., every 5 minutes)
+#[allow(dead_code)]
 pub async fn cleanup_expired_codes(pool: &PgPool) -> ApiResult<u64> {
     DevicePairingCode::delete_expired(pool).await
 }

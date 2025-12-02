@@ -55,14 +55,15 @@ async fn warm_active_channels(
     db_pool: &PgPool,
     redis_conn: &mut MultiplexedConnection,
 ) -> ApiResult<usize> {
-    // Query for channels with recent activity (last 7 days)
+    // Query for channels with recent activity (last 7 days), excluding archived
     let active_channels = sqlx::query!(
         r#"
         SELECT DISTINCT c.id, c.org_id, c.name, c.description, c.channel_type,
-               c.created_by, c.created_at, c.updated_at
+               c.created_by, c.created_at, c.updated_at, c.archived
         FROM channels c
         INNER JOIN messages m ON m.channel_id = c.id
         WHERE m.created_at > NOW() - INTERVAL '7 days'
+        AND c.archived = FALSE
         ORDER BY c.created_at DESC
         LIMIT 100
         "#
@@ -82,6 +83,7 @@ async fn warm_active_channels(
             created_by: channel.created_by,
             created_at: channel.created_at,
             updated_at: channel.updated_at,
+            archived: channel.archived,
         };
 
         // Cache the channel
@@ -152,7 +154,7 @@ async fn warm_active_dms(
         let participants = sqlx::query_as!(
             crate::models::direct_message::DmParticipant,
             r#"
-            SELECT id, dm_id, user_id, joined_at
+            SELECT id, dm_id, user_id, joined_at, hidden
             FROM dm_participants
             WHERE dm_id = $1
             "#,

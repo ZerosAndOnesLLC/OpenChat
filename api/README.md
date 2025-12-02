@@ -121,13 +121,13 @@ src/
 - Secure device management
 
 ### Channels (Phase 5+)
-- `GET /api/channels` - List channels where user is a member
-- `GET /api/channels/public` - List all public channels (for browsing/discovery)
+- `GET /api/channels` - List channels where user is a member (excludes archived)
+- `GET /api/channels/public` - List all public channels (for browsing/discovery, excludes archived)
 - `POST /api/channels` - Create channel
 - `POST /api/channels/:id/join` - Join a public channel
-- `POST /api/channels/:id/leave` - Leave a channel (except creators)
+- `POST /api/channels/:id/leave` - Leave a channel (public channels allow creator to leave; private channels auto-archive when creator leaves)
 - `GET /api/channels/:id` - Get channel details
-- `PUT /api/channels/:id` - Update channel
+- `PUT /api/channels/:id` - Update channel (name, description - creator only)
 - `DELETE /api/channels/:id` - Delete channel
 
 ### Messages (Phase 6+)
@@ -209,10 +209,11 @@ src/
 - Metadata stored as JSONB for flexible querying
 
 ### Direct Messages (Phase 7+)
-- `GET /api/dms` - List user's DMs
+- `GET /api/dms` - List user's DMs (excludes hidden DMs)
 - `POST /api/dms` - Create DM (1-on-1 or group)
 - `GET /api/dms/:id` - Get DM details
 - `GET /api/dms/:id/messages` - List DM messages (paginated)
+- `POST /api/dms/:id/hide` - Hide a DM from the user's list (conversation preserved)
 
 ### Unread Message Tracking
 - `POST /api/channels/:id/read` - Mark channel as read
@@ -943,6 +944,17 @@ Infrastructure is managed via Terraform in `~/dev/terraform/prod/us-east-1/openc
 ```
 
 ## Version History
+
+### v0.62.0 (Channel & DM Management Enhancements)
+- Channel name editing: Owners can now edit channel name and description from the UI
+- Public channels: Creators can now leave public channels they created
+- Private channels: Auto-archive when creator leaves (with confirmation dialog)
+- Channel/DM closing: Added X button on hover to leave channels or hide DMs
+- Image display fix: Images now load correctly using authenticated blob URLs
+- Database migrations: Added `archived` column to channels, `hidden` column to dm_participants
+- New API endpoint: POST /api/dms/:id/hide - Hide a DM from the user's list
+- Hidden DMs are excluded from list endpoints but conversation history is preserved
+- Archived channels are excluded from all channel listings
 
 ### v0.61.0 (Mattermost Import)
 - Added Mattermost data migration feature for importing channels, DMs, and messages

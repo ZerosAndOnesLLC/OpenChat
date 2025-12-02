@@ -15,6 +15,8 @@ pub struct Channel {
     pub created_by: Uuid,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
+    #[serde(default)]
+    pub archived: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
@@ -43,13 +45,13 @@ impl Channel {
         Ok(channels)
     }
 
-    /// List channels where the user is a member
+    /// List channels where the user is a member (excludes archived)
     pub async fn list_by_user_membership(pool: &PgPool, org_id: Uuid, user_id: Uuid) -> ApiResult<Vec<Channel>> {
         let channels = sqlx::query_as::<_, Channel>(
             r#"
             SELECT c.* FROM channels c
             INNER JOIN channel_members cm ON c.id = cm.channel_id
-            WHERE c.org_id = $1 AND cm.user_id = $2
+            WHERE c.org_id = $1 AND cm.user_id = $2 AND c.archived = FALSE
             ORDER BY c.created_at DESC
             "#,
         )
@@ -62,13 +64,14 @@ impl Channel {
     }
 
     /// List public channels in an organization (for browsing/discovery)
-    /// Excludes channels the user is already a member of
+    /// Excludes channels the user is already a member of and archived channels
     pub async fn list_public_channels(pool: &PgPool, org_id: Uuid, user_id: Uuid) -> ApiResult<Vec<Channel>> {
         let channels = sqlx::query_as::<_, Channel>(
             r#"
             SELECT c.* FROM channels c
             WHERE c.org_id = $1
             AND c.channel_type = 'public'
+            AND c.archived = FALSE
             AND NOT EXISTS (
                 SELECT 1 FROM channel_members cm
                 WHERE cm.channel_id = c.id AND cm.user_id = $2
@@ -163,6 +166,22 @@ impl Channel {
         Ok(())
     }
 
+    /// Archive a channel
+    pub async fn archive(pool: &PgPool, id: Uuid) -> ApiResult<()> {
+        sqlx::query(
+            r#"
+            UPDATE channels
+            SET archived = TRUE, updated_at = NOW()
+            WHERE id = $1
+            "#,
+        )
+        .bind(id)
+        .execute(pool)
+        .await?;
+
+        Ok(())
+    }
+
     /// Get channel metadata with unread counts for a user (for initial WebSocket state)
     pub async fn get_metadata_for_user(
         pool: &PgPool,
@@ -204,7 +223,7 @@ impl Channel {
                 ) as last_message_at
             FROM channels c
             INNER JOIN channel_members cm ON c.id = cm.channel_id
-            WHERE c.org_id = $1 AND cm.user_id = $2
+            WHERE c.org_id = $1 AND cm.user_id = $2 AND c.archived = FALSE
             ORDER BY c.created_at DESC
             "#,
         )

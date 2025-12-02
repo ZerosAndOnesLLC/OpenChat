@@ -33,6 +33,7 @@ export interface Channel {
   created_by: string;
   created_at: string;
   updated_at: string;
+  archived?: boolean;
 }
 
 export interface ChannelMember {

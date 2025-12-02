@@ -3,6 +3,7 @@
 import { useEffect, useRef, useMemo, useState } from 'react';
 import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query';
 import { apiClient } from '@/lib/api';
+import { useAuth } from '@/lib/auth';
 import { useWebSocketStore } from '@/lib/websocket';
 import type { Channel, DirectMessage, Message } from '@/lib/types';
 import MessageList from './MessageList';
@@ -10,6 +11,7 @@ import MessageInput from './MessageInput';
 import TypingIndicator from './TypingIndicator';
 import ThreadPanel from './ThreadPanel';
 import PinnedMessagesPanel from './PinnedMessagesPanel';
+import EditChannelModal from './EditChannelModal';
 import Toast from './Toast';
 
 interface MessageAreaProps {
@@ -19,6 +21,7 @@ interface MessageAreaProps {
 }
 
 export default function MessageArea({ channel, dm, onLeaveChannel }: MessageAreaProps) {
+  const { user } = useAuth();
   const { messages, channelData, setMessages, subscribeChannel, unsubscribeChannel, typing, setLastReadMessageId, lastReadMessageIds, unreadCounts, setActiveChannel } =
     useWebSocketStore();
   const prevChannelRef = useRef<string | null>(null);
@@ -26,8 +29,12 @@ export default function MessageArea({ channel, dm, onLeaveChannel }: MessageArea
   const [openThread, setOpenThread] = useState<string | null>(null);
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
   const [showChannelMenu, setShowChannelMenu] = useState(false);
+  const [showEditModal, setShowEditModal] = useState(false);
   const queryClient = useQueryClient();
   const channelMenuRef = useRef<HTMLDivElement>(null);
+
+  // Check if current user is the channel creator
+  const isChannelCreator = channel && user?.id === channel.created_by;
 
   // Close menu when clicking outside
   useEffect(() => {
@@ -338,9 +345,26 @@ export default function MessageArea({ channel, dm, onLeaveChannel }: MessageArea
                 </button>
                 {showChannelMenu && (
                   <div className="absolute right-0 top-full z-50 mt-1 w-48 rounded-md bg-gray-800 py-1 shadow-lg ring-1 ring-black ring-opacity-5">
+                    {isChannelCreator && (
+                      <button
+                        onClick={() => {
+                          setShowEditModal(true);
+                          setShowChannelMenu(false);
+                        }}
+                        className="flex w-full items-center px-4 py-2 text-sm text-gray-300 hover:bg-gray-700"
+                      >
+                        <svg className="mr-2 h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                        </svg>
+                        Edit channel
+                      </button>
+                    )}
                     <button
                       onClick={() => {
-                        if (confirm('Are you sure you want to leave this channel?')) {
+                        const message = channel.channel_type === 'private'
+                          ? 'Are you sure you want to leave this private channel? It may be archived if you are the last member.'
+                          : 'Are you sure you want to leave this channel?';
+                        if (confirm(message)) {
                           leaveChannelMutation.mutate(channel.id);
                         }
                         setShowChannelMenu(false);
@@ -402,6 +426,18 @@ export default function MessageArea({ channel, dm, onLeaveChannel }: MessageArea
           message={toast.message}
           type={toast.type}
           onClose={() => setToast(null)}
+        />
+      )}
+
+      {/* Edit Channel Modal */}
+      {channel && (
+        <EditChannelModal
+          channel={channel}
+          isOpen={showEditModal}
+          onClose={() => setShowEditModal(false)}
+          onSuccess={() => {
+            setToast({ message: 'Channel updated successfully', type: 'success' });
+          }}
         />
       )}
     </>

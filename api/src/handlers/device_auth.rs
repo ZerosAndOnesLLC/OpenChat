@@ -123,7 +123,7 @@ impl From<DeviceSession> for DeviceSessionResponse {
 pub async fn generate_code(
     pool: web::Data<PgPool>,
     redis: web::Data<MultiplexedConnection>,
-    config: web::Data<Config>,
+    _config: web::Data<Config>,
     req: HttpRequest,
 ) -> ApiResult<HttpResponse> {
     // Get claims from request extensions (set by auth middleware)

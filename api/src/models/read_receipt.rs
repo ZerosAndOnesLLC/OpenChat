@@ -62,6 +62,7 @@ impl MessageReadReceipt {
     }
 
     /// Get all receipts for a specific message
+    #[allow(dead_code)]
     pub async fn get_by_message(
         pool: &PgPool,
         message_id: Uuid,
@@ -81,6 +82,7 @@ impl MessageReadReceipt {
     }
 
     /// Get all receipts by a specific user
+    #[allow(dead_code)]
     pub async fn get_by_user(pool: &PgPool, user_id: Uuid) -> ApiResult<Vec<MessageReadReceipt>> {
         let receipts = sqlx::query_as::<_, MessageReadReceipt>(
             r#"
@@ -97,6 +99,7 @@ impl MessageReadReceipt {
     }
 
     /// Check if a user has read a specific message
+    #[allow(dead_code)]
     pub async fn has_read(pool: &PgPool, message_id: Uuid, user_id: Uuid) -> ApiResult<bool> {
         let result = sqlx::query_scalar::<_, bool>(
             "SELECT EXISTS(SELECT 1 FROM message_read_receipts WHERE message_id = $1 AND user_id = $2)",
@@ -110,6 +113,7 @@ impl MessageReadReceipt {
     }
 
     /// Get count of how many users have read a message
+    #[allow(dead_code)]
     pub async fn count_by_message(pool: &PgPool, message_id: Uuid) -> ApiResult<i64> {
         let count = sqlx::query_scalar::<_, i64>(
             "SELECT COUNT(*) FROM message_read_receipts WHERE message_id = $1",

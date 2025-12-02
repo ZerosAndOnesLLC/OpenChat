@@ -29,15 +29,6 @@ pub struct AssignPermissionsRequest {
 }
 
 #[derive(Debug, Serialize)]
-pub struct RoleResponse {
-    pub id: Uuid,
-    pub org_id: Option<Uuid>,
-    pub role_name: String,
-    pub is_system_role: bool,
-    pub description: Option<String>,
-}
-
-#[derive(Debug, Serialize)]
 pub struct RoleWithPermissionsResponse {
     pub id: Uuid,
     pub org_id: Option<Uuid>,

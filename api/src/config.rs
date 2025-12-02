@@ -23,6 +23,7 @@ pub struct Config {
 }
 
 #[derive(Debug, Clone)]
+#[allow(dead_code)]
 pub struct RedisConfig {
     /// Enable Redis Cluster mode
     pub enable_cluster: bool,
@@ -41,6 +42,7 @@ pub struct RedisConfig {
 }
 
 #[derive(Debug, Clone)]
+#[allow(dead_code)]
 pub struct WebSocketConfig {
     /// Maximum number of concurrent WebSocket connections
     pub max_connections: usize,

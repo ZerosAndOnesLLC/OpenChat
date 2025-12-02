@@ -3,6 +3,7 @@ use flate2::Compression;
 use std::io::Write;
 
 /// Compress data using gzip
+#[allow(dead_code)]
 pub fn compress(data: &[u8]) -> Result<Vec<u8>, std::io::Error> {
     let mut encoder = GzEncoder::new(Vec::new(), Compression::default());
     encoder.write_all(data)?;
@@ -10,6 +11,7 @@ pub fn compress(data: &[u8]) -> Result<Vec<u8>, std::io::Error> {
 }
 
 /// Decompress gzip data
+#[allow(dead_code)]
 pub fn decompress(data: &[u8]) -> Result<Vec<u8>, std::io::Error> {
     let mut decoder = GzDecoder::new(Vec::new());
     decoder.write_all(data)?;
@@ -18,6 +20,7 @@ pub fn decompress(data: &[u8]) -> Result<Vec<u8>, std::io::Error> {
 
 /// Check if compression would be beneficial
 /// Returns true if the data is larger than the threshold
+#[allow(dead_code)]
 pub fn should_compress(data: &[u8], threshold: usize) -> bool {
     data.len() > threshold
 }

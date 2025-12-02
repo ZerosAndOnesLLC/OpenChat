@@ -210,6 +210,7 @@ impl MmUser {
 }
 
 #[derive(Debug, Clone, Deserialize)]
+#[allow(dead_code)]
 pub struct MmChannel {
     pub id: String,
     pub team_id: String,
@@ -249,6 +250,7 @@ impl MmChannel {
 }
 
 #[derive(Debug, Clone, Deserialize)]
+#[allow(dead_code)]
 pub struct MmChannelMember {
     pub channel_id: String,
     pub user_id: String,
@@ -256,6 +258,7 @@ pub struct MmChannelMember {
 }
 
 #[derive(Debug, Clone, Deserialize)]
+#[allow(dead_code)]
 pub struct MmPost {
     pub id: String,
     pub channel_id: String,
@@ -288,12 +291,14 @@ impl MmPost {
         self.post_type.as_ref().map_or(false, |t| !t.is_empty())
     }
 
+    #[allow(dead_code)]
     pub fn is_reply(&self) -> bool {
         self.root_id.as_ref().map_or(false, |r| !r.is_empty())
     }
 }
 
 #[derive(Debug, Clone, Deserialize)]
+#[allow(dead_code)]
 pub struct MmFileInfo {
     pub id: String,
     pub post_id: String,
@@ -306,6 +311,7 @@ pub struct MmFileInfo {
 }
 
 #[derive(Debug, Clone, Deserialize)]
+#[allow(dead_code)]
 pub struct MmReaction {
     pub user_id: String,
     pub post_id: String,
@@ -322,6 +328,7 @@ pub struct MmPostList {
 }
 
 #[derive(Debug, Deserialize)]
+#[allow(dead_code)]
 pub struct MmChannelMembers(pub Vec<MmChannelMember>);
 
 /// ID mapping for migration tracking

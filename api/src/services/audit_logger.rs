@@ -160,6 +160,7 @@ impl AuditLogger {
     }
 
     /// Log a permission change event
+    #[allow(dead_code)]
     pub async fn log_permission_changed(
         pool: &PgPool,
         user_id: Uuid,
@@ -184,6 +185,7 @@ impl AuditLogger {
     }
 
     /// Log a role assignment event
+    #[allow(dead_code)]
     pub async fn log_role_assigned(
         pool: &PgPool,
         admin_user_id: Uuid,
@@ -209,6 +211,7 @@ impl AuditLogger {
     }
 
     /// Log a role unassignment event
+    #[allow(dead_code)]
     pub async fn log_role_unassigned(
         pool: &PgPool,
         admin_user_id: Uuid,
@@ -260,6 +263,7 @@ impl AuditLogger {
     }
 
     /// Log a user login event
+    #[allow(dead_code)]
     pub async fn log_user_login(
         pool: &PgPool,
         user_id: Uuid,
@@ -281,6 +285,7 @@ impl AuditLogger {
     }
 
     /// Log a user logout event
+    #[allow(dead_code)]
     pub async fn log_user_logout(
         pool: &PgPool,
         user_id: Uuid,
@@ -302,6 +307,7 @@ impl AuditLogger {
     }
 
     /// Log a failed login attempt
+    #[allow(dead_code)]
     pub async fn log_login_failed(
         pool: &PgPool,
         email: &str,

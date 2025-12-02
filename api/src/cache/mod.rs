@@ -5,7 +5,6 @@ pub mod metrics;
 pub mod notifications;
 pub mod organizations;
 pub mod pins;
-pub mod pubsub;
 pub mod rate_limit;
 pub mod read_status;
 pub mod search;

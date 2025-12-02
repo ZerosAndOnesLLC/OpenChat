@@ -28,6 +28,7 @@ impl EncryptedPayload {
     }
 
     /// Decode from base64 URL-safe string
+    #[allow(dead_code)]
     pub fn decode(encoded: &str) -> ApiResult<Self> {
         let json_bytes = URL_SAFE_NO_PAD
             .decode(encoded)
@@ -60,6 +61,7 @@ pub fn encrypt(plaintext: &[u8], key: &[u8; 32]) -> ApiResult<EncryptedPayload> 
 }
 
 /// Decrypt data using AES-256-GCM
+#[allow(dead_code)]
 pub fn decrypt(payload: &EncryptedPayload, key: &[u8; 32]) -> ApiResult<Vec<u8>> {
     let cipher = Aes256Gcm::new(key.into());
 

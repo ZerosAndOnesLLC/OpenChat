@@ -79,6 +79,7 @@ impl CacheMetrics {
 
 /// Cache type for metrics tracking
 #[derive(Debug, Clone, Copy)]
+#[allow(dead_code)]
 pub enum CacheType {
     Channels,
     ChannelMembers,

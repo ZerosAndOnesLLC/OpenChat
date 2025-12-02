@@ -54,6 +54,7 @@ impl PinnedMessage {
     }
 
     /// Check if a message is pinned in a channel
+    #[allow(dead_code)]
     pub async fn is_pinned(
         pool: &PgPool,
         channel_id: Uuid,
@@ -87,6 +88,7 @@ impl PinnedMessage {
     }
 
     /// Get pin details for a specific message
+    #[allow(dead_code)]
     pub async fn get_by_message(
         pool: &PgPool,
         channel_id: Uuid,

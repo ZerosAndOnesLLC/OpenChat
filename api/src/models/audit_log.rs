@@ -195,6 +195,7 @@ impl AuditLog {
 }
 
 // Common audit action constants
+#[allow(dead_code)]
 pub mod actions {
     // Message actions
     pub const MESSAGE_CREATED: &str = "message.created";
@@ -228,6 +229,7 @@ pub mod actions {
 }
 
 // Resource type constants
+#[allow(dead_code)]
 pub mod resource_types {
     pub const MESSAGE: &str = "message";
     pub const CHANNEL: &str = "channel";

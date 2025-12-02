@@ -58,6 +58,7 @@ impl Notification {
     }
 
     /// Create multiple notifications in a batch
+    #[allow(dead_code)]
     pub async fn create_batch(pool: &PgPool, notifications: Vec<CreateNotification>) -> ApiResult<Vec<Notification>> {
         let mut created_notifications = Vec::new();
 
@@ -159,6 +160,7 @@ impl Notification {
     }
 
     /// Delete old read notifications (cleanup job)
+    #[allow(dead_code)]
     pub async fn delete_old_read(pool: &PgPool, days: i64) -> ApiResult<i64> {
         let result = sqlx::query(
             r#"

@@ -697,6 +697,7 @@ impl Handler<BroadcastStatus> for WsServer {
 /// Message: Broadcast message to a specific user (all their sessions)
 #[derive(ActixMessage)]
 #[rtype(result = "()")]
+#[allow(dead_code)]
 pub struct BroadcastToUser {
     pub org_id: Uuid,
     pub user_id: Uuid,

@@ -62,6 +62,7 @@ pub async fn invalidate_pins_cache(
 }
 
 /// Add a single pin to cache (optimistic update)
+#[allow(dead_code)]
 pub async fn add_pin_to_cache(
     redis: &mut redis::aio::MultiplexedConnection,
     channel_id: Uuid,
@@ -82,6 +83,7 @@ pub async fn add_pin_to_cache(
 }
 
 /// Remove a single pin from cache (optimistic update)
+#[allow(dead_code)]
 pub async fn remove_pin_from_cache(
     redis: &mut redis::aio::MultiplexedConnection,
     channel_id: Uuid,

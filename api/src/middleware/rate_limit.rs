@@ -34,6 +34,7 @@ impl RateLimitMiddleware {
     }
 
     /// Create a new rate limit middleware for messages
+    #[allow(dead_code)]
     pub fn message(enabled: bool) -> Self {
         Self {
             limit_type: RateLimitType::Message,
@@ -42,6 +43,7 @@ impl RateLimitMiddleware {
     }
 
     /// Create a new rate limit middleware for WebSocket messages
+    #[allow(dead_code)]
     pub fn websocket(enabled: bool) -> Self {
         Self {
             limit_type: RateLimitType::WebSocket,

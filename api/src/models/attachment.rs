@@ -17,6 +17,7 @@ pub struct Attachment {
 }
 
 #[derive(Debug, Serialize, Deserialize)]
+#[allow(dead_code)]
 pub struct CreateAttachment {
     pub message_id: Uuid,
     pub file_name: String,

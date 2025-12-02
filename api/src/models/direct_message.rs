@@ -225,6 +225,7 @@ impl DmParticipant {
     }
 
     /// Unhide a DM for a user (called when a new message is received)
+    #[allow(dead_code)]
     pub async fn unhide_dm(pool: &PgPool, dm_id: Uuid, user_id: Uuid) -> ApiResult<()> {
         sqlx::query(
             r#"

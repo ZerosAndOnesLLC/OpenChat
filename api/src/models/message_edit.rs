@@ -16,6 +16,7 @@ pub struct MessageEdit {
 
 impl MessageEdit {
     /// Create a new message edit record
+    #[allow(dead_code)]
     pub async fn create(
         pool: &PgPool,
         message_id: Uuid,

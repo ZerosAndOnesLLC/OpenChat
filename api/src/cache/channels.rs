@@ -115,6 +115,7 @@ pub async fn invalidate_channel_members_cache(
 }
 
 /// Check if a user is a member of a channel (cached)
+#[allow(dead_code)]
 pub async fn is_channel_member_cached(
     redis: &mut redis::aio::MultiplexedConnection,
     channel_id: Uuid,
@@ -137,6 +138,7 @@ pub async fn is_channel_member_cached(
 }
 
 /// Store channel membership check result in cache
+#[allow(dead_code)]
 pub async fn set_channel_membership_cached(
     redis: &mut redis::aio::MultiplexedConnection,
     channel_id: Uuid,
@@ -152,6 +154,7 @@ pub async fn set_channel_membership_cached(
 }
 
 /// Invalidate all membership checks for a channel
+#[allow(dead_code)]
 pub async fn invalidate_channel_membership_cache(
     redis: &mut redis::aio::MultiplexedConnection,
     channel_id: Uuid,

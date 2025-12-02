@@ -30,6 +30,7 @@ pub struct ChannelMember {
 
 impl Channel {
     /// List all channels for an organization
+    #[allow(dead_code)]
     pub async fn list_by_org(pool: &PgPool, org_id: Uuid) -> ApiResult<Vec<Channel>> {
         let channels = sqlx::query_as::<_, Channel>(
             r#"

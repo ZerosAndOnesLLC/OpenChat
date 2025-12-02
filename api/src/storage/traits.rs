@@ -28,6 +28,7 @@ impl StorageType {
 }
 
 #[derive(Debug, Clone)]
+#[allow(dead_code)]
 pub struct UploadedFile {
     pub storage_type: StorageType,
     pub storage_path: String,
@@ -53,6 +54,7 @@ pub trait FileStorage: Send + Sync {
     async fn delete(&self, storage_path: &str) -> Result<(), ApiError>;
 
     /// Get the storage type
+    #[allow(dead_code)]
     fn storage_type(&self) -> StorageType;
 
     /// Generate a unique file path for storage

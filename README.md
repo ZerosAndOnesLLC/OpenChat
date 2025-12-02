@@ -13,6 +13,16 @@
 
 ---
 
+## Screenshots
+
+<!-- Add your screenshots here -->
+<!-- Example: ![Dashboard](docs/screenshots/dashboard.png) -->
+<!-- Example: ![Chat View](docs/screenshots/chat-view.png) -->
+
+*Screenshots coming soon*
+
+---
+
 ## Why OpenChat?
 
 **Privacy-First** • **Lightning Fast** • **Enterprise-Ready** • **100% Open Source**

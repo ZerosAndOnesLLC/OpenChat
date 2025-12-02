@@ -511,3 +511,41 @@ pub async fn list_dm_messages(
 
     Ok(HttpResponse::Ok().json(response))
 }
+
+/// POST /api/dms/:id/hide - Hide a DM from the user's list
+pub async fn hide_dm(
+    pool: web::Data<PgPool>,
+    dm_id: web::Path<Uuid>,
+    req: HttpRequest,
+) -> ApiResult<HttpResponse> {
+    let claims = req
+        .extensions()
+        .get::<TokenClaims>()
+        .cloned()
+        .ok_or_else(|| ApiError::Authentication("Missing authentication".to_string()))?;
+
+    // Get current user
+    let current_user = User::get_by_tv_user_id(pool.get_ref(), claims.user_id)
+        .await?
+        .ok_or_else(|| ApiError::NotFound("Current user not found".to_string()))?;
+
+    // Verify DM exists
+    DirectMessage::get_by_id(pool.get_ref(), *dm_id)
+        .await?
+        .ok_or_else(|| ApiError::NotFound("DM not found".to_string()))?;
+
+    // Verify user is a participant
+    let is_participant = DirectMessage::is_participant(pool.get_ref(), *dm_id, current_user.id).await?;
+    if !is_participant {
+        return Err(ApiError::Authorization(
+            "You are not a participant in this DM".to_string(),
+        ));
+    }
+
+    // Hide the DM for this user
+    DmParticipant::hide_dm(pool.get_ref(), *dm_id, current_user.id).await?;
+
+    Ok(HttpResponse::Ok().json(serde_json::json!({
+        "message": "DM hidden successfully"
+    })))
+}

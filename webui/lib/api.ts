@@ -268,6 +268,12 @@ class ApiClient {
     return this.request<UnreadCountResponse>(`/api/dms/${dmId}/unread`);
   }
 
+  async hideDm(dmId: string): Promise<void> {
+    return this.request<void>(`/api/dms/${dmId}/hide`, {
+      method: 'POST',
+    });
+  }
+
   // Message endpoints
   async sendMessage(data: SendMessageRequest): Promise<Message> {
     return this.request<Message>('/api/messages', {

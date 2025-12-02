@@ -306,6 +306,7 @@ async fn main() -> std::io::Result<()> {
                     .route("/{id}/messages", web::get().to(dm_handlers::list_dm_messages))
                     .route("/{id}/read", web::post().to(read_status_handlers::mark_dm_as_read))
                     .route("/{id}/unread", web::get().to(read_status_handlers::get_dm_unread_count))
+                    .route("/{id}/hide", web::post().to(dm_handlers::hide_dm))
             )
             // Search routes - require "openchat" role
             .service(

@@ -45,6 +45,7 @@ pub struct ChannelResponse {
     pub created_by: Uuid,
     pub created_at: String,
     pub updated_at: String,
+    pub archived: bool,
 }
 
 impl From<Channel> for ChannelResponse {
@@ -58,6 +59,7 @@ impl From<Channel> for ChannelResponse {
             created_by: channel.created_by,
             created_at: channel.created_at.to_rfc3339(),
             updated_at: channel.updated_at.to_rfc3339(),
+            archived: channel.archived,
         }
     }
 }
@@ -624,15 +626,33 @@ pub async fn leave_channel(
         ));
     }
 
-    // Cannot leave if you're the channel creator (owner)
+    // Get current member count
+    let members = ChannelMember::list_by_channel(pool.get_ref(), *channel_id).await?;
+    let member_count = members.len();
+
+    // Handle creator leaving based on channel type
     if channel.created_by == current_user.id {
-        return Err(ApiError::BadRequest(
-            "Channel creators cannot leave their own channel. Transfer ownership or delete the channel instead.".to_string(),
-        ));
+        if channel.channel_type == "private" {
+            // For private channels, archive if creator leaves (they're usually the last member)
+            // If there are other members, the channel will be archived
+            if member_count > 1 {
+                // Archive the channel when creator leaves a private channel
+                Channel::archive(pool.get_ref(), *channel_id).await?;
+            } else {
+                // Creator is the only member, archive the channel
+                Channel::archive(pool.get_ref(), *channel_id).await?;
+            }
+        }
+        // For public channels, creator can leave freely
     }
 
     // Remove user from channel
     ChannelMember::remove(pool.get_ref(), *channel_id, current_user.id).await?;
+
+    // For private channels, archive if this was the last member
+    if channel.channel_type == "private" && member_count == 1 {
+        Channel::archive(pool.get_ref(), *channel_id).await?;
+    }
 
     // Log channel leave in audit log
     if let Err(e) = AuditLogger::log_channel_member_removed(

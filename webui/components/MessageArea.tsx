@@ -19,7 +19,7 @@ interface MessageAreaProps {
 }
 
 export default function MessageArea({ channel, dm, onLeaveChannel }: MessageAreaProps) {
-  const { messages, channelData, setMessages, subscribeChannel, unsubscribeChannel, typing, setLastReadMessageId, lastReadMessageIds, unreadCounts } =
+  const { messages, channelData, setMessages, subscribeChannel, unsubscribeChannel, typing, setLastReadMessageId, lastReadMessageIds, unreadCounts, setActiveChannel } =
     useWebSocketStore();
   const prevChannelRef = useRef<string | null>(null);
   const [replyTo, setReplyTo] = useState<Message | undefined>(undefined);
@@ -107,6 +107,16 @@ export default function MessageArea({ channel, dm, onLeaveChannel }: MessageArea
   if (isError) {
     console.error('Error fetching messages:', error);
   }
+
+  // Track active channel/DM for immediate read status updates
+  useEffect(() => {
+    setActiveChannel(channel?.id || null, dm?.id || null);
+
+    return () => {
+      // Clear active channel on unmount
+      setActiveChannel(null, null);
+    };
+  }, [channel?.id, dm?.id, setActiveChannel]);
 
   // Subscribe/unsubscribe to channel when it changes
   useEffect(() => {

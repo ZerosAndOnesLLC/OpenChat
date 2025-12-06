@@ -1,12 +1,10 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQueryClient } from '@tanstack/react-query';
 import { apiClient } from '@/lib/api';
 import { useWebSocketStore } from '@/lib/websocket';
 import type { DirectMessage } from '@/lib/types';
-
-const useRemoveDm = () => useWebSocketStore((state) => state.removeDm);
 
 interface DirectMessageListProps {
   dms: DirectMessage[];
@@ -28,26 +26,14 @@ function DirectMessageItem({
 }) {
   const [initiallyLoaded, setInitiallyLoaded] = useState(false);
   const [isHovered, setIsHovered] = useState(false);
+  const [isHiding, setIsHiding] = useState(false);
   const queryClient = useQueryClient();
-  const removeDm = useRemoveDm();
+  const removeDm = useWebSocketStore((state) => state.removeDm);
 
   // Get unread count and initial state status from WebSocket store
   const wsUnreadCount = useWebSocketStore((state) => state.unreadCounts[dm.id]);
   const initialStateLoaded = useWebSocketStore((state) => state.initialStateLoaded);
   const unreadCount = wsUnreadCount ?? 0;
-
-  const hideMutation = useMutation({
-    mutationFn: () => apiClient.hideDm(dm.id),
-    onSuccess: () => {
-      // Remove from WebSocket store so it disappears immediately
-      removeDm(dm.id);
-      queryClient.invalidateQueries({ queryKey: ['dms'] });
-      onHide?.();
-    },
-    onError: (error: Error) => {
-      alert(error.message || 'Failed to close conversation');
-    },
-  });
 
   // Load initial unread count only if WebSocket initial state hasn't loaded
   useEffect(() => {
@@ -77,9 +63,22 @@ function DirectMessageItem({
     return dm.participants.map((p) => p.display_name || p.email || 'Unknown').join(', ');
   };
 
-  const handleHideClick = (e: React.MouseEvent) => {
+  const handleHideClick = async (e: React.MouseEvent) => {
     e.stopPropagation();
-    hideMutation.mutate();
+    setIsHiding(true);
+    try {
+      await apiClient.hideDm(dm.id);
+      // Remove from WebSocket store immediately
+      removeDm(dm.id);
+      // Invalidate queries
+      queryClient.invalidateQueries({ queryKey: ['dms'] });
+      onHide?.();
+    } catch (error) {
+      console.error('Failed to hide DM:', error);
+      alert((error as Error).message || 'Failed to close conversation');
+    } finally {
+      setIsHiding(false);
+    }
   };
 
   return (
@@ -119,7 +118,7 @@ function DirectMessageItem({
               : 'text-gray-500 hover:bg-gray-700 hover:text-red-400'
           }`}
           title="Close conversation"
-          disabled={hideMutation.isPending}
+          disabled={isHiding}
         >
           <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />

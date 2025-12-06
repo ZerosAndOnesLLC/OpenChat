@@ -248,7 +248,7 @@ npm run build
 
 ## Version
 
-Current version: 0.24.4
+Current version: 0.24.5
 
 Increment version before commits:
 - **Patch** (0.1.x): Bug fixes, small tweaks
@@ -256,6 +256,11 @@ Increment version before commits:
 - **Major** (x.0.0): Breaking changes
 
 ### Recent Changes
+
+**v0.24.5** - Refactor leave/hide to use direct async handlers
+- Replaced react-query mutations with direct async/await handlers for channel leave and DM hide
+- This ensures removeChannel/removeDm is called synchronously after API success
+- Both ChannelList and DirectMessageList now use the same reliable pattern
 
 **v0.24.4** - Fix channel leave not updating sidebar
 - Fixed leaving a public channel not removing it from sidebar immediately

@@ -1,12 +1,10 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQueryClient } from '@tanstack/react-query';
 import { apiClient } from '@/lib/api';
 import { useWebSocketStore } from '@/lib/websocket';
 import type { Channel } from '@/lib/types';
-
-const useRemoveChannel = () => useWebSocketStore((state) => state.removeChannel);
 
 interface ChannelListProps {
   channels: Channel[];
@@ -29,31 +27,14 @@ function ChannelItem({
   const [initiallyLoaded, setInitiallyLoaded] = useState(false);
   const [isHovered, setIsHovered] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
+  const [isLeaving, setIsLeaving] = useState(false);
   const queryClient = useQueryClient();
-  const removeChannel = useRemoveChannel();
+  const removeChannel = useWebSocketStore((state) => state.removeChannel);
 
   // Get unread count and initial state status from WebSocket store
   const wsUnreadCount = useWebSocketStore((state) => state.unreadCounts[channel.id]);
   const initialStateLoaded = useWebSocketStore((state) => state.initialStateLoaded);
   const unreadCount = wsUnreadCount ?? 0;
-
-  const leaveMutation = useMutation({
-    mutationFn: async () => {
-      await apiClient.leaveChannel(channel.id);
-      // Remove from WebSocket store so it disappears immediately
-      // Doing this inside mutationFn ensures it runs even if onSuccess has issues
-      removeChannel(channel.id);
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['channels'] });
-      queryClient.invalidateQueries({ queryKey: ['public-channels'] });
-      onLeave?.();
-    },
-    onError: (error: Error) => {
-      console.error('Failed to leave channel:', error);
-      alert(error.message || 'Failed to leave channel');
-    },
-  });
 
   // Load initial unread count only if WebSocket initial state hasn't loaded
   useEffect(() => {
@@ -76,19 +57,37 @@ function ChannelItem({
 
   const hasUnread = unreadCount > 0;
 
+  const doLeaveChannel = async () => {
+    setIsLeaving(true);
+    try {
+      await apiClient.leaveChannel(channel.id);
+      // Remove from WebSocket store immediately
+      removeChannel(channel.id);
+      // Invalidate queries
+      queryClient.invalidateQueries({ queryKey: ['channels'] });
+      queryClient.invalidateQueries({ queryKey: ['public-channels'] });
+      onLeave?.();
+    } catch (error) {
+      console.error('Failed to leave channel:', error);
+      alert((error as Error).message || 'Failed to leave channel');
+    } finally {
+      setIsLeaving(false);
+    }
+  };
+
   const handleLeaveClick = (e: React.MouseEvent) => {
     e.stopPropagation();
     if (channel.channel_type === 'private') {
       setShowConfirm(true);
     } else {
-      leaveMutation.mutate();
+      doLeaveChannel();
     }
   };
 
   const handleConfirmLeave = (e: React.MouseEvent) => {
     e.stopPropagation();
     setShowConfirm(false);
-    leaveMutation.mutate();
+    doLeaveChannel();
   };
 
   const handleCancelLeave = (e: React.MouseEvent) => {
@@ -106,9 +105,9 @@ function ChannelItem({
           <button
             onClick={handleConfirmLeave}
             className="flex-1 rounded bg-red-600 px-2 py-1 text-white hover:bg-red-700"
-            disabled={leaveMutation.isPending}
+            disabled={isLeaving}
           >
-            {leaveMutation.isPending ? 'Leaving...' : 'Leave'}
+            {isLeaving ? 'Leaving...' : 'Leave'}
           </button>
           <button
             onClick={handleCancelLeave}
@@ -160,7 +159,7 @@ function ChannelItem({
               : 'text-gray-500 hover:bg-gray-700 hover:text-red-400'
           }`}
           title="Leave channel"
-          disabled={leaveMutation.isPending}
+          disabled={isLeaving}
         >
           <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />

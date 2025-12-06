@@ -38,14 +38,19 @@ function ChannelItem({
   const unreadCount = wsUnreadCount ?? 0;
 
   const leaveMutation = useMutation({
-    mutationFn: () => apiClient.leaveChannel(channel.id),
-    onSuccess: () => {
+    mutationFn: async () => {
+      await apiClient.leaveChannel(channel.id);
       // Remove from WebSocket store so it disappears immediately
+      // Doing this inside mutationFn ensures it runs even if onSuccess has issues
       removeChannel(channel.id);
+    },
+    onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['channels'] });
+      queryClient.invalidateQueries({ queryKey: ['public-channels'] });
       onLeave?.();
     },
     onError: (error: Error) => {
+      console.error('Failed to leave channel:', error);
       alert(error.message || 'Failed to leave channel');
     },
   });

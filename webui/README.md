@@ -248,7 +248,7 @@ npm run build
 
 ## Version
 
-Current version: 0.24.3
+Current version: 0.24.4
 
 Increment version before commits:
 - **Patch** (0.1.x): Bug fixes, small tweaks
@@ -256,6 +256,11 @@ Increment version before commits:
 - **Major** (x.0.0): Breaking changes
 
 ### Recent Changes
+
+**v0.24.4** - Fix channel leave not updating sidebar
+- Fixed leaving a public channel not removing it from sidebar immediately
+- Moved removeChannel call inside mutationFn to ensure it runs reliably
+- Added public-channels query invalidation on leave
 
 **v0.24.3** - Fix channel rejoin not showing in sidebar
 - Fixed channels not appearing in sidebar after leaving and rejoining

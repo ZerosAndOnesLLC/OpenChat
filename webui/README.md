@@ -248,7 +248,7 @@ npm run build
 
 ## Version
 
-Current version: 0.24.2
+Current version: 0.24.3
 
 Increment version before commits:
 - **Patch** (0.1.x): Bug fixes, small tweaks
@@ -256,6 +256,10 @@ Increment version before commits:
 - **Major** (x.0.0): Breaking changes
 
 ### Recent Changes
+
+**v0.24.3** - Fix channel rejoin not showing in sidebar
+- Fixed channels not appearing in sidebar after leaving and rejoining
+- BrowseChannelsModal now adds channel to WebSocket store immediately when joining
 
 **v0.24.2** - Fix sidebar real-time updates for channels and DMs
 - Fixed new DMs not appearing in sidebar (condition now always uses WebSocket store when loaded)

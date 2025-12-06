@@ -945,6 +945,11 @@ Infrastructure is managed via Terraform in `~/dev/terraform/prod/us-east-1/openc
 
 ## Version History
 
+### v0.62.2 (Fix Hidden DM Reopening)
+- Fixed hidden DMs not being unhidden when reopening
+- When creating a DM with a user you previously had a hidden DM with, the DM is now automatically unhidden
+- DM now properly appears in sidebar after reopening
+
 ### v0.62.1 (Code Cleanup)
 - Removed duplicate/unused code: cache/pubsub.rs (duplicate of websocket/pubsub.rs), RoleResponse struct, init_redis function
 - Added #[allow(dead_code)] annotations for useful but not-yet-integrated features

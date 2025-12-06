@@ -1,10 +1,11 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiClient } from '@/lib/api';
-import type { Channel } from '@/lib/types';
+import type { Channel, ChannelMetadata } from '@/lib/types';
 import { useAuth } from '@/lib/auth';
+import { useWebSocketStore } from '@/lib/websocket';
 
 interface BrowseChannelsModalProps {
   isOpen: boolean;
@@ -22,6 +23,7 @@ export default function BrowseChannelsModal({
   const { user } = useAuth();
   const [searchQuery, setSearchQuery] = useState('');
   const queryClient = useQueryClient();
+  const addChannel = useWebSocketStore((state) => state.addChannel);
 
   const { data: publicChannels, isLoading } = useQuery({
     queryKey: ['public-channels'],
@@ -30,10 +32,20 @@ export default function BrowseChannelsModal({
   });
 
   const joinChannelMutation = useMutation({
-    mutationFn: async (channelId: string) => {
-      await apiClient.joinChannel(channelId);
+    mutationFn: async (channel: Channel) => {
+      await apiClient.joinChannel(channel.id);
+      return channel;
     },
-    onSuccess: () => {
+    onSuccess: (channel) => {
+      // Add to WebSocket store so it shows in sidebar immediately
+      const channelMetadata: ChannelMetadata = {
+        id: channel.id,
+        name: channel.name,
+        description: channel.description,
+        channel_type: channel.channel_type,
+        unread_count: 0,
+      };
+      addChannel(channelMetadata);
       queryClient.invalidateQueries({ queryKey: ['channels'] });
       queryClient.invalidateQueries({ queryKey: ['public-channels'] });
     },
@@ -41,7 +53,7 @@ export default function BrowseChannelsModal({
 
   const handleJoinChannel = async (channel: Channel) => {
     try {
-      await joinChannelMutation.mutateAsync(channel.id);
+      await joinChannelMutation.mutateAsync(channel);
       onSelectChannel(channel);
       onClose();
     } catch (error) {

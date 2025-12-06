@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { useWebSocketStore } from '@/lib/websocket';
 import { draftsManager } from '@/lib/drafts';
 import { keyboardShortcutsManager, SHORTCUT_CATEGORIES } from '@/lib/keyboard-shortcuts';
@@ -30,6 +31,7 @@ export default function MessageInput({ channelId, dmId, replyTo, onClearReply }:
   const [selectedFiles, setSelectedFiles] = useState<SelectedFile[]>([]);
   const [isDragging, setIsDragging] = useState(false);
   const { sendMessage, sendTyping } = useWebSocketStore();
+  const queryClient = useQueryClient();
   const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -98,6 +100,12 @@ export default function MessageInput({ channelId, dmId, replyTo, onClearReply }:
               prev.map((f, idx) => (idx === i ? { ...f, error: 'Upload failed' } : f))
             );
           }
+        }
+
+        // Invalidate messages query to refetch with attachments
+        const messageKey = channelId || dmId;
+        if (messageKey) {
+          queryClient.invalidateQueries({ queryKey: ['messages', messageKey] });
         }
       } else {
         // No files, send via WebSocket as usual

@@ -248,7 +248,7 @@ npm run build
 
 ## Version
 
-Current version: 0.23.2
+Current version: 0.24.5
 
 Increment version before commits:
 - **Patch** (0.1.x): Bug fixes, small tweaks
@@ -256,6 +256,35 @@ Increment version before commits:
 - **Major** (x.0.0): Breaking changes
 
 ### Recent Changes
+
+**v0.24.5** - Refactor leave/hide to use direct async handlers
+- Replaced react-query mutations with direct async/await handlers for channel leave and DM hide
+- This ensures removeChannel/removeDm is called synchronously after API success
+- Both ChannelList and DirectMessageList now use the same reliable pattern
+
+**v0.24.4** - Fix channel leave not updating sidebar
+- Fixed leaving a public channel not removing it from sidebar immediately
+- Moved removeChannel call inside mutationFn to ensure it runs reliably
+- Added public-channels query invalidation on leave
+
+**v0.24.3** - Fix channel rejoin not showing in sidebar
+- Fixed channels not appearing in sidebar after leaving and rejoining
+- BrowseChannelsModal now adds channel to WebSocket store immediately when joining
+
+**v0.24.2** - Fix sidebar real-time updates for channels and DMs
+- Fixed new DMs not appearing in sidebar (condition now always uses WebSocket store when loaded)
+- Fixed new channels not appearing in sidebar after creation
+- Added `addChannel`, `removeChannel`, `updateChannel` methods to WebSocket store
+- Channel rename now updates sidebar immediately via WebSocket store
+- Channel leave now removes from sidebar immediately via WebSocket store
+- Sidebar now properly syncs with WebSocket store for all channel/DM operations
+
+**v0.24.1** - Fix DM and attachment display issues
+- Fixed file attachments not displaying until app reload (now refreshes messages after upload)
+- Fixed users showing as "Unknown" in DM list when they have no display name (falls back to email)
+- Fixed new DMs not appearing in sidebar without closing window (updates WebSocket store)
+- Fixed close DM button not working (removes DM from WebSocket store immediately)
+- Added `addDm` and `removeDm` methods to WebSocket store for real-time DM list updates
 
 **v0.23.2** - Fix unread indicator flashing for active channel
 - Fixed issue where "New messages" indicator briefly flashed when sending or receiving messages in active channel

@@ -260,6 +260,9 @@ pub async fn create_dm(
 
     // Check if a DM with these exact participants already exists
     if let Some(existing_dm) = DirectMessage::find_by_participants(pool.get_ref(), &all_participants).await? {
+        // Unhide the DM for the current user (in case it was previously hidden)
+        DmParticipant::unhide_dm(pool.get_ref(), existing_dm.id, current_user.id).await?;
+
         // Return the existing DM
         let participants = DmParticipant::list_by_dm(pool.get_ref(), existing_dm.id).await?;
         let participant_ids: Vec<Uuid> = participants.into_iter().map(|p| p.user_id).collect();

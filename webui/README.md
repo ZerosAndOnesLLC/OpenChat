@@ -45,6 +45,7 @@ Modern real-time team chat application built with Next.js 16.
   - ✅ Pagination and search functionality
   - ✅ Detailed metadata inspection per log entry
 - ✅ TitaniumVault SSO integration
+- ✅ Resizable sidebar (drag to resize, persists to localStorage)
 - ✅ Beautiful, responsive UI
 
 ## Project Structure
@@ -248,7 +249,7 @@ npm run build
 
 ## Version
 
-Current version: 0.24.5
+Current version: 0.25.0
 
 Increment version before commits:
 - **Patch** (0.1.x): Bug fixes, small tweaks
@@ -256,6 +257,12 @@ Increment version before commits:
 - **Major** (x.0.0): Breaking changes
 
 ### Recent Changes
+
+**v0.25.0** - Resizable sidebar
+- Added draggable resize handle between sidebar and main content area
+- Sidebar width persists to localStorage across sessions
+- Min width 180px, max width 400px, default 256px
+- Visual feedback with blue highlight when resizing
 
 **v0.24.5** - Refactor leave/hide to use direct async handlers
 - Replaced react-query mutations with direct async/await handlers for channel leave and DM hide

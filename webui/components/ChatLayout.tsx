@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import Sidebar from './Sidebar';
 import MessageArea from './MessageArea';
@@ -9,12 +9,20 @@ import QuickSwitcher from './QuickSwitcher';
 import { keyboardShortcutsManager, SHORTCUT_CATEGORIES } from '@/lib/keyboard-shortcuts';
 import type { Channel, DirectMessage } from '@/lib/types';
 
+const SIDEBAR_MIN_WIDTH = 180;
+const SIDEBAR_MAX_WIDTH = 400;
+const SIDEBAR_DEFAULT_WIDTH = 256;
+const SIDEBAR_WIDTH_KEY = 'openchat-sidebar-width';
+
 export default function ChatLayout() {
   const router = useRouter();
   const [activeChannel, setActiveChannel] = useState<Channel | null>(null);
   const [activeDm, setActiveDm] = useState<DirectMessage | null>(null);
   const [showShortcutsHelp, setShowShortcutsHelp] = useState(false);
   const [showQuickSwitcher, setShowQuickSwitcher] = useState(false);
+  const [sidebarWidth, setSidebarWidth] = useState(SIDEBAR_DEFAULT_WIDTH);
+  const [isResizing, setIsResizing] = useState(false);
+  const resizeRef = useRef<{ startX: number; startWidth: number } | null>(null);
 
   const handleSelectChannel = (channel: Channel) => {
     setActiveChannel(channel);
@@ -31,6 +39,53 @@ export default function ChatLayout() {
   const handleLeaveChannel = () => {
     setActiveChannel(null);
   };
+
+  // Load sidebar width from localStorage
+  useEffect(() => {
+    const savedWidth = localStorage.getItem(SIDEBAR_WIDTH_KEY);
+    if (savedWidth) {
+      const width = parseInt(savedWidth, 10);
+      if (width >= SIDEBAR_MIN_WIDTH && width <= SIDEBAR_MAX_WIDTH) {
+        setSidebarWidth(width);
+      }
+    }
+  }, []);
+
+  // Handle resize start
+  const handleResizeStart = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    setIsResizing(true);
+    resizeRef.current = { startX: e.clientX, startWidth: sidebarWidth };
+  }, [sidebarWidth]);
+
+  // Handle resize move and end
+  useEffect(() => {
+    if (!isResizing) return;
+
+    const handleMouseMove = (e: MouseEvent) => {
+      if (!resizeRef.current) return;
+      const delta = e.clientX - resizeRef.current.startX;
+      const newWidth = Math.min(
+        SIDEBAR_MAX_WIDTH,
+        Math.max(SIDEBAR_MIN_WIDTH, resizeRef.current.startWidth + delta)
+      );
+      setSidebarWidth(newWidth);
+    };
+
+    const handleMouseUp = () => {
+      setIsResizing(false);
+      localStorage.setItem(SIDEBAR_WIDTH_KEY, sidebarWidth.toString());
+      resizeRef.current = null;
+    };
+
+    document.addEventListener('mousemove', handleMouseMove);
+    document.addEventListener('mouseup', handleMouseUp);
+
+    return () => {
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+    };
+  }, [isResizing, sidebarWidth]);
 
   // Register global keyboard shortcuts
   useEffect(() => {
@@ -92,12 +147,20 @@ export default function ChatLayout() {
   }, [router]);
 
   return (
-    <div className="flex h-screen bg-gray-100">
+    <div className={`flex h-screen bg-gray-100 ${isResizing ? 'select-none' : ''}`}>
       <Sidebar
         activeChannel={activeChannel}
         activeDm={activeDm}
         onSelectChannel={handleSelectChannel}
         onSelectDm={handleSelectDm}
+        width={sidebarWidth}
+      />
+      {/* Resize handle */}
+      <div
+        className={`w-1 cursor-col-resize bg-gray-700 hover:bg-blue-500 transition-colors ${
+          isResizing ? 'bg-blue-500' : ''
+        }`}
+        onMouseDown={handleResizeStart}
       />
       <MessageArea
         channel={activeChannel}

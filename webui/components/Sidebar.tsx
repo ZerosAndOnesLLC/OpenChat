@@ -18,6 +18,7 @@ interface SidebarProps {
   activeDm: DirectMessage | null;
   onSelectChannel: (channel: Channel) => void;
   onSelectDm: (dm: DirectMessage) => void;
+  width?: number;
 }
 
 export default function Sidebar({
@@ -25,6 +26,7 @@ export default function Sidebar({
   activeDm,
   onSelectChannel,
   onSelectDm,
+  width = 256,
 }: SidebarProps) {
   const { user } = useAuth();
   const [showCreateChannel, setShowCreateChannel] = useState(false);
@@ -135,7 +137,7 @@ export default function Sidebar({
   };
 
   return (
-    <div className="flex w-64 flex-col bg-gray-900 text-white">
+    <div className="flex flex-col bg-gray-900 text-white" style={{ width }}>
       <div className="flex h-14 items-center border-b border-gray-700 px-4">
         <h1 className="text-xl font-bold">OpenChat</h1>
       </div>

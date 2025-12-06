@@ -58,6 +58,8 @@ interface WebSocketStore {
   setLastReadMessageId: (key: string, messageId: string | undefined) => void;
   setUserStatusDetails: (userId: string, status: 'online' | 'offline' | 'away' | 'dnd', customMessage?: string, emoji?: string) => void;
   setActiveChannel: (channelId: string | null, dmId: string | null) => void;
+  addDm: (dm: DmMetadata) => void;
+  removeDm: (dmId: string) => void;
 }
 
 export const useWebSocketStore = create<WebSocketStore>((set, get) => ({
@@ -732,5 +734,28 @@ export const useWebSocketStore = create<WebSocketStore>((set, get) => ({
 
   setActiveChannel: (channelId, dmId) => {
     set({ activeChannelId: channelId, activeDmId: dmId });
+  },
+
+  addDm: (dm) => {
+    set((state) => {
+      // Check if DM already exists
+      const exists = state.dms.some((d) => d.id === dm.id);
+      if (exists) {
+        return state;
+      }
+      return {
+        dms: [...state.dms, dm],
+        unreadCounts: {
+          ...state.unreadCounts,
+          [dm.id]: dm.unread_count,
+        },
+      };
+    });
+  },
+
+  removeDm: (dmId) => {
+    set((state) => ({
+      dms: state.dms.filter((dm) => dm.id !== dmId),
+    }));
   },
 }));

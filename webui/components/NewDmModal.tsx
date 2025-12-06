@@ -4,7 +4,9 @@ import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiClient } from '@/lib/api';
 import type { DirectMessage, User } from '@/lib/types';
+import type { DmMetadata } from '@/lib/types';
 import { useAuth } from '@/lib/auth';
+import { useWebSocketStore } from '@/lib/websocket';
 
 interface NewDmModalProps {
   isOpen: boolean;
@@ -22,6 +24,7 @@ export default function NewDmModal({
   const { user: currentUser } = useAuth();
   const [searchQuery, setSearchQuery] = useState('');
   const queryClient = useQueryClient();
+  const addDm = useWebSocketStore((state) => state.addDm);
 
   const { data: users, isLoading } = useQuery({
     queryKey: ['users'],
@@ -30,10 +33,19 @@ export default function NewDmModal({
   });
 
   const createDmMutation = useMutation({
-    mutationFn: async (userId: string) => {
-      return apiClient.createDm({ participant_ids: [userId] });
+    mutationFn: async ({ userId, user }: { userId: string; user: User }) => {
+      const dm = await apiClient.createDm({ participant_ids: [userId] });
+      return { dm, user };
     },
-    onSuccess: () => {
+    onSuccess: ({ dm, user }) => {
+      // Add to WebSocket store so it shows immediately
+      const dmMetadata: DmMetadata = {
+        id: dm.id,
+        other_user_id: user.id,
+        other_user_name: user.display_name || user.email,
+        unread_count: 0,
+      };
+      addDm(dmMetadata);
       queryClient.invalidateQueries({ queryKey: ['dms'] });
     },
   });
@@ -52,7 +64,7 @@ export default function NewDmModal({
     }
 
     try {
-      const newDm = await createDmMutation.mutateAsync(user.id);
+      const { dm: newDm } = await createDmMutation.mutateAsync({ userId: user.id, user });
       onSelectDm(newDm);
       onClose();
     } catch (error) {

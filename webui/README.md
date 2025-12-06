@@ -248,7 +248,7 @@ npm run build
 
 ## Version
 
-Current version: 0.23.2
+Current version: 0.24.1
 
 Increment version before commits:
 - **Patch** (0.1.x): Bug fixes, small tweaks
@@ -256,6 +256,13 @@ Increment version before commits:
 - **Major** (x.0.0): Breaking changes
 
 ### Recent Changes
+
+**v0.24.1** - Fix DM and attachment display issues
+- Fixed file attachments not displaying until app reload (now refreshes messages after upload)
+- Fixed users showing as "Unknown" in DM list when they have no display name (falls back to email)
+- Fixed new DMs not appearing in sidebar without closing window (updates WebSocket store)
+- Fixed close DM button not working (removes DM from WebSocket store immediately)
+- Added `addDm` and `removeDm` methods to WebSocket store for real-time DM list updates
 
 **v0.23.2** - Fix unread indicator flashing for active channel
 - Fixed issue where "New messages" indicator briefly flashed when sending or receiving messages in active channel

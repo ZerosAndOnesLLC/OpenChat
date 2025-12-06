@@ -6,6 +6,8 @@ import { apiClient } from '@/lib/api';
 import { useWebSocketStore } from '@/lib/websocket';
 import type { DirectMessage } from '@/lib/types';
 
+const useRemoveDm = () => useWebSocketStore((state) => state.removeDm);
+
 interface DirectMessageListProps {
   dms: DirectMessage[];
   activeDm: DirectMessage | null;
@@ -27,6 +29,7 @@ function DirectMessageItem({
   const [initiallyLoaded, setInitiallyLoaded] = useState(false);
   const [isHovered, setIsHovered] = useState(false);
   const queryClient = useQueryClient();
+  const removeDm = useRemoveDm();
 
   // Get unread count and initial state status from WebSocket store
   const wsUnreadCount = useWebSocketStore((state) => state.unreadCounts[dm.id]);
@@ -36,6 +39,8 @@ function DirectMessageItem({
   const hideMutation = useMutation({
     mutationFn: () => apiClient.hideDm(dm.id),
     onSuccess: () => {
+      // Remove from WebSocket store so it disappears immediately
+      removeDm(dm.id);
       queryClient.invalidateQueries({ queryKey: ['dms'] });
       onHide?.();
     },
@@ -69,7 +74,7 @@ function DirectMessageItem({
     if (!dm.participants || dm.participants.length === 0) {
       return 'Unknown';
     }
-    return dm.participants.map((p) => p.display_name).join(', ');
+    return dm.participants.map((p) => p.display_name || p.email || 'Unknown').join(', ');
   };
 
   const handleHideClick = (e: React.MouseEvent) => {

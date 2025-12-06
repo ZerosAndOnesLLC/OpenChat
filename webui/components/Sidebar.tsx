@@ -3,7 +3,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { apiClient } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
-import type { Channel, DirectMessage } from '@/lib/types';
+import type { Channel, DirectMessage, ChannelMetadata } from '@/lib/types';
 import { useWebSocketStore } from '@/lib/websocket';
 import ChannelList from './ChannelList';
 import DirectMessageList from './DirectMessageList';
@@ -36,6 +36,7 @@ export default function Sidebar({
   const wsChannels = useWebSocketStore((state) => state.channels);
   const wsDms = useWebSocketStore((state) => state.dms);
   const initialStateLoaded = useWebSocketStore((state) => state.initialStateLoaded);
+  const addChannel = useWebSocketStore((state) => state.addChannel);
 
   // Fallback to HTTP if WebSocket initial state hasn't loaded yet
   const { data: httpChannels, refetch: refetchChannels } = useQuery({
@@ -51,9 +52,10 @@ export default function Sidebar({
   });
 
   // Convert WebSocket metadata to Channel objects and sort alphabetically
+  // Always use WebSocket store when initialStateLoaded, even if empty
   const channelsList = useMemo(() => {
     let channels: Channel[];
-    if (initialStateLoaded && wsChannels.length > 0) {
+    if (initialStateLoaded) {
       channels = wsChannels.map(ch => ({
         id: ch.id,
         name: ch.name,
@@ -72,9 +74,10 @@ export default function Sidebar({
   }, [initialStateLoaded, wsChannels, httpChannels]);
 
   // Convert WebSocket DM metadata to DirectMessage objects and sort alphabetically
+  // Always use WebSocket store when initialStateLoaded, even if empty
   const dmsList = useMemo(() => {
     let dms: DirectMessage[];
-    if (initialStateLoaded && wsDms.length > 0) {
+    if (initialStateLoaded) {
       dms = wsDms.map(dm => ({
         id: dm.id,
         org_id: '',
@@ -111,6 +114,17 @@ export default function Sidebar({
         name: newChannelName,
         channel_type: newChannelType,
       });
+
+      // Add to WebSocket store so it shows immediately
+      const channelMetadata: ChannelMetadata = {
+        id: channel.id,
+        name: channel.name,
+        description: channel.description,
+        channel_type: channel.channel_type,
+        unread_count: 0,
+      };
+      addChannel(channelMetadata);
+
       setNewChannelName('');
       setShowCreateChannel(false);
       refetchChannels();

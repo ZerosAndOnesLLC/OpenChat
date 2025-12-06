@@ -248,7 +248,7 @@ npm run build
 
 ## Version
 
-Current version: 0.24.1
+Current version: 0.24.2
 
 Increment version before commits:
 - **Patch** (0.1.x): Bug fixes, small tweaks
@@ -256,6 +256,14 @@ Increment version before commits:
 - **Major** (x.0.0): Breaking changes
 
 ### Recent Changes
+
+**v0.24.2** - Fix sidebar real-time updates for channels and DMs
+- Fixed new DMs not appearing in sidebar (condition now always uses WebSocket store when loaded)
+- Fixed new channels not appearing in sidebar after creation
+- Added `addChannel`, `removeChannel`, `updateChannel` methods to WebSocket store
+- Channel rename now updates sidebar immediately via WebSocket store
+- Channel leave now removes from sidebar immediately via WebSocket store
+- Sidebar now properly syncs with WebSocket store for all channel/DM operations
 
 **v0.24.1** - Fix DM and attachment display issues
 - Fixed file attachments not displaying until app reload (now refreshes messages after upload)

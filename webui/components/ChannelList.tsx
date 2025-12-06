@@ -6,6 +6,8 @@ import { apiClient } from '@/lib/api';
 import { useWebSocketStore } from '@/lib/websocket';
 import type { Channel } from '@/lib/types';
 
+const useRemoveChannel = () => useWebSocketStore((state) => state.removeChannel);
+
 interface ChannelListProps {
   channels: Channel[];
   activeChannel: Channel | null;
@@ -28,6 +30,7 @@ function ChannelItem({
   const [isHovered, setIsHovered] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
   const queryClient = useQueryClient();
+  const removeChannel = useRemoveChannel();
 
   // Get unread count and initial state status from WebSocket store
   const wsUnreadCount = useWebSocketStore((state) => state.unreadCounts[channel.id]);
@@ -37,6 +40,8 @@ function ChannelItem({
   const leaveMutation = useMutation({
     mutationFn: () => apiClient.leaveChannel(channel.id),
     onSuccess: () => {
+      // Remove from WebSocket store so it disappears immediately
+      removeChannel(channel.id);
       queryClient.invalidateQueries({ queryKey: ['channels'] });
       onLeave?.();
     },

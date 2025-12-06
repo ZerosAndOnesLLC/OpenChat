@@ -60,6 +60,9 @@ interface WebSocketStore {
   setActiveChannel: (channelId: string | null, dmId: string | null) => void;
   addDm: (dm: DmMetadata) => void;
   removeDm: (dmId: string) => void;
+  addChannel: (channel: ChannelMetadata) => void;
+  removeChannel: (channelId: string) => void;
+  updateChannel: (channelId: string, updates: Partial<ChannelMetadata>) => void;
 }
 
 export const useWebSocketStore = create<WebSocketStore>((set, get) => ({
@@ -756,6 +759,37 @@ export const useWebSocketStore = create<WebSocketStore>((set, get) => ({
   removeDm: (dmId) => {
     set((state) => ({
       dms: state.dms.filter((dm) => dm.id !== dmId),
+    }));
+  },
+
+  addChannel: (channel) => {
+    set((state) => {
+      // Check if channel already exists
+      const exists = state.channels.some((c) => c.id === channel.id);
+      if (exists) {
+        return state;
+      }
+      return {
+        channels: [...state.channels, channel],
+        unreadCounts: {
+          ...state.unreadCounts,
+          [channel.id]: channel.unread_count,
+        },
+      };
+    });
+  },
+
+  removeChannel: (channelId) => {
+    set((state) => ({
+      channels: state.channels.filter((ch) => ch.id !== channelId),
+    }));
+  },
+
+  updateChannel: (channelId, updates) => {
+    set((state) => ({
+      channels: state.channels.map((ch) =>
+        ch.id === channelId ? { ...ch, ...updates } : ch
+      ),
     }));
   },
 }));

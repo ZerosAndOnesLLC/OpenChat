@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiClient } from '@/lib/api';
+import { useWebSocketStore } from '@/lib/websocket';
 import type { Channel } from '@/lib/types';
 
 interface EditChannelModalProps {
@@ -22,6 +23,7 @@ export default function EditChannelModal({
   const [description, setDescription] = useState(channel.description || '');
   const [error, setError] = useState<string | null>(null);
   const queryClient = useQueryClient();
+  const updateChannelInStore = useWebSocketStore((state) => state.updateChannel);
 
   useEffect(() => {
     if (isOpen) {
@@ -38,6 +40,11 @@ export default function EditChannelModal({
         description: description.trim() || undefined,
       }),
     onSuccess: () => {
+      // Update WebSocket store so sidebar updates immediately
+      updateChannelInStore(channel.id, {
+        name: name.trim(),
+        description: description.trim() || undefined,
+      });
       queryClient.invalidateQueries({ queryKey: ['channels'] });
       onSuccess?.();
       onClose();

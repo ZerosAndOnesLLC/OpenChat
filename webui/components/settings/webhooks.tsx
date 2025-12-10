@@ -1,10 +1,10 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiClient } from '@/lib/api';
 import { IncomingWebhook, Channel } from '@/lib/types';
-import { Webhook, Plus, Trash2, AlertCircle, CheckCircle, RefreshCw, Copy, Eye, EyeOff, Edit2, ToggleLeft, ToggleRight } from 'lucide-react';
+import { Webhook, Plus, Trash2, AlertCircle, CheckCircle, RefreshCw, Copy, Eye, EyeOff, Edit2, ToggleLeft, ToggleRight, Lock } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 
 export default function WebhookManagement() {
@@ -17,9 +17,21 @@ export default function WebhookManagement() {
   const queryClient = useQueryClient();
 
   // Fetch webhooks
-  const { data: webhooks = [], isLoading, error, refetch } = useQuery({
+  const { data: webhooks = [], isLoading, error } = useQuery({
     queryKey: ['webhooks'],
     queryFn: () => apiClient.listIncomingWebhooks(),
+    retry: (failureCount, error) => {
+      // Don't retry on permission errors
+      const errorMessage = error instanceof Error ? error.message.toLowerCase() : '';
+      if (errorMessage.includes('permission') ||
+          errorMessage.includes('forbidden') ||
+          errorMessage.includes('403') ||
+          errorMessage.includes('unauthorized')) {
+        return false;
+      }
+      // Default retry behavior for other errors (max 3 retries)
+      return failureCount < 3;
+    },
   });
 
   // Fetch channels for the dropdown
@@ -102,109 +114,142 @@ export default function WebhookManagement() {
   if (isLoading) {
     return (
       <div className="flex items-center justify-center py-12">
-        <RefreshCw className="w-8 h-8 text-blue-600 dark:text-blue-400 animate-spin" />
+        <RefreshCw className="w-6 h-6 text-blue-400 animate-spin" />
       </div>
     );
   }
 
+  // Check if there's a permission error
+  const hasPermissionError = error && (() => {
+    const errorMessage = error instanceof Error ? error.message.toLowerCase() : '';
+    return errorMessage.includes('permission') ||
+           errorMessage.includes('forbidden') ||
+           errorMessage.includes('403') ||
+           errorMessage.includes('unauthorized') ||
+           errorMessage.includes('access denied');
+  })();
+
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Incoming Webhooks</h3>
-          <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
-            Allow external services to post messages to your channels
-          </p>
-        </div>
-        <button
-          onClick={() => setShowCreateModal(true)}
-          className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors"
-        >
-          <Plus className="w-4 h-4" />
-          Create Webhook
-        </button>
+      {/* Description and Create Button */}
+      <div className="flex items-start justify-between gap-4">
+        <p className="text-sm text-gray-400">
+          Allow external services to post messages to your channels via webhook URLs.
+        </p>
+        {!hasPermissionError && (
+          <button
+            onClick={() => setShowCreateModal(true)}
+            className="flex-shrink-0 inline-flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors"
+          >
+            <Plus className="w-4 h-4" />
+            Create
+          </button>
+        )}
       </div>
 
       {/* Success Message */}
       {successMessage && (
-        <div className="p-4 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg flex items-start gap-3">
-          <CheckCircle className="w-5 h-5 text-green-600 dark:text-green-400 flex-shrink-0 mt-0.5" />
-          <p className="text-sm text-green-800 dark:text-green-200">{successMessage}</p>
+        <div className="p-4 bg-green-500/10 border border-green-500/20 rounded-lg flex items-start gap-3">
+          <CheckCircle className="w-5 h-5 text-green-400 flex-shrink-0 mt-0.5" />
+          <p className="text-sm text-green-400">{successMessage}</p>
         </div>
       )}
 
       {/* Error Message */}
       {error && (
-        <div className="p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg flex items-start gap-3">
-          <AlertCircle className="w-5 h-5 text-red-600 dark:text-red-400 flex-shrink-0 mt-0.5" />
-          <p className="text-sm text-red-800 dark:text-red-200">{error instanceof Error ? error.message : 'Failed to load webhooks'}</p>
-        </div>
+        (() => {
+          const errorMessage = error instanceof Error ? error.message : 'Failed to load webhooks';
+          const errorLower = errorMessage.toLowerCase();
+          const isPermissionError = errorLower.includes('permission') ||
+                                    errorLower.includes('forbidden') ||
+                                    errorLower.includes('403') ||
+                                    errorLower.includes('unauthorized') ||
+                                    errorLower.includes('access denied');
+
+          if (isPermissionError) {
+            return (
+              <div className="text-center py-12 bg-gray-900 rounded-xl border border-gray-800">
+                <Lock className="w-12 h-12 text-gray-600 mx-auto mb-4" />
+                <p className="text-gray-400 font-medium">Permission Required</p>
+                <p className="text-sm text-gray-500 mt-1 max-w-md mx-auto">
+                  You don&apos;t have permission to manage webhooks. Contact your administrator to request access.
+                </p>
+              </div>
+            );
+          }
+
+          return (
+            <div className="p-4 bg-red-500/10 border border-red-500/20 rounded-lg flex items-start gap-3">
+              <AlertCircle className="w-5 h-5 text-red-400 flex-shrink-0 mt-0.5" />
+              <p className="text-sm text-red-400">{errorMessage}</p>
+            </div>
+          );
+        })()
       )}
 
       {/* Webhook List */}
-      {webhooks.length === 0 ? (
-        <div className="text-center py-12 bg-gray-50 dark:bg-gray-900/50 rounded-xl border border-gray-200 dark:border-gray-700">
-          <Webhook className="w-12 h-12 text-gray-400 dark:text-gray-600 mx-auto mb-4" />
-          <p className="text-gray-600 dark:text-gray-400 font-medium">No webhooks configured</p>
-          <p className="text-sm text-gray-500 dark:text-gray-500 mt-1">
+      {!hasPermissionError && webhooks.length === 0 && !error ? (
+        <div className="text-center py-12 bg-gray-900 rounded-xl border border-gray-800">
+          <Webhook className="w-12 h-12 text-gray-600 mx-auto mb-4" />
+          <p className="text-gray-400 font-medium">No webhooks configured</p>
+          <p className="text-sm text-gray-500 mt-1">
             Create a webhook to allow external services to post messages
           </p>
         </div>
-      ) : (
-        <div className="space-y-4">
+      ) : !hasPermissionError && webhooks.length > 0 ? (
+        <div className="space-y-3">
           {webhooks.map((webhook) => (
             <div
               key={webhook.id}
-              className={`bg-white dark:bg-gray-800 border rounded-xl p-5 ${
-                webhook.enabled ? 'border-gray-200 dark:border-gray-700' : 'border-orange-200 dark:border-orange-800 bg-orange-50/50 dark:bg-orange-900/10'
+              className={`bg-gray-900 border rounded-xl p-4 ${
+                webhook.enabled ? 'border-gray-800' : 'border-orange-500/30 bg-orange-500/5'
               }`}
             >
-              <div className="flex items-start justify-between mb-4">
-                <div className="flex items-start gap-4 flex-1">
-                  <div className={`p-3 rounded-xl ${webhook.enabled ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400' : 'bg-gray-100 dark:bg-gray-700 text-gray-400'}`}>
+              <div className="flex items-start justify-between gap-4 mb-3">
+                <div className="flex items-start gap-3 flex-1 min-w-0">
+                  <div className={`p-2.5 rounded-lg flex-shrink-0 ${webhook.enabled ? 'bg-blue-500/10 text-blue-400' : 'bg-gray-800 text-gray-500'}`}>
                     <Webhook className="w-5 h-5" />
                   </div>
                   <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-3 mb-1">
-                      <h4 className="font-semibold text-gray-900 dark:text-white">
+                    <div className="flex items-center gap-2 flex-wrap mb-1">
+                      <h4 className="font-medium text-white">
                         {webhook.display_name}
                       </h4>
                       {!webhook.enabled && (
-                        <span className="px-2 py-0.5 text-xs font-medium bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-400 rounded">
+                        <span className="px-2 py-0.5 text-xs font-medium bg-orange-500/20 text-orange-400 rounded">
                           Disabled
                         </span>
                       )}
                     </div>
-                    <p className="text-sm text-gray-600 dark:text-gray-400 mb-2">
-                      Posts to <span className="font-medium">#{getChannelName(webhook.channel_id)}</span>
+                    <p className="text-sm text-gray-400">
+                      Posts to <span className="text-gray-300">#{getChannelName(webhook.channel_id)}</span>
                     </p>
                     {webhook.description && (
-                      <p className="text-sm text-gray-500 dark:text-gray-500">{webhook.description}</p>
+                      <p className="text-sm text-gray-500 mt-1">{webhook.description}</p>
                     )}
-                    <p className="text-xs text-gray-400 dark:text-gray-600 mt-2">
+                    <p className="text-xs text-gray-600 mt-2">
                       Created {formatDistanceToNow(new Date(webhook.created_at), { addSuffix: true })}
                     </p>
                   </div>
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-1 flex-shrink-0">
                   <button
                     onClick={() => updateMutation.mutate({ id: webhook.id, data: { enabled: !webhook.enabled } })}
-                    className="p-2 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
+                    className="p-2 text-gray-500 hover:text-gray-300 transition-colors"
                     title={webhook.enabled ? 'Disable webhook' : 'Enable webhook'}
                   >
-                    {webhook.enabled ? <ToggleRight className="w-5 h-5 text-green-500" /> : <ToggleLeft className="w-5 h-5" />}
+                    {webhook.enabled ? <ToggleRight className="w-5 h-5 text-green-400" /> : <ToggleLeft className="w-5 h-5" />}
                   </button>
                   <button
                     onClick={() => setEditingWebhook(webhook)}
-                    className="p-2 text-gray-500 hover:text-blue-600 dark:text-gray-400 dark:hover:text-blue-400"
+                    className="p-2 text-gray-500 hover:text-blue-400 transition-colors"
                     title="Edit webhook"
                   >
                     <Edit2 className="w-4 h-4" />
                   </button>
                   <button
                     onClick={() => setShowDeleteConfirm(webhook.id)}
-                    className="p-2 text-gray-500 hover:text-red-600 dark:text-gray-400 dark:hover:text-red-400"
+                    className="p-2 text-gray-500 hover:text-red-400 transition-colors"
                     title="Delete webhook"
                   >
                     <Trash2 className="w-4 h-4" />
@@ -214,27 +259,27 @@ export default function WebhookManagement() {
 
               {/* Webhook URL */}
               {webhook.url && (
-                <div className="bg-gray-50 dark:bg-gray-900/50 rounded-lg p-3 mt-3">
+                <div className="bg-gray-950 rounded-lg p-3">
                   <div className="flex items-center justify-between mb-1">
-                    <span className="text-xs font-medium text-gray-500 dark:text-gray-400">Webhook URL</span>
+                    <span className="text-xs font-medium text-gray-500">Webhook URL</span>
                     <div className="flex items-center gap-1">
                       <button
                         onClick={() => toggleTokenVisibility(webhook.id)}
-                        className="p-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+                        className="p-1 text-gray-500 hover:text-gray-300 transition-colors"
                         title={revealedTokens.has(webhook.id) ? 'Hide URL' : 'Show URL'}
                       >
                         {revealedTokens.has(webhook.id) ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                       </button>
                       <button
                         onClick={() => copyToClipboard(webhook.url!, webhook.id)}
-                        className="p-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+                        className="p-1 text-gray-500 hover:text-gray-300 transition-colors"
                         title="Copy URL"
                       >
-                        {copiedId === webhook.id ? <CheckCircle className="w-4 h-4 text-green-500" /> : <Copy className="w-4 h-4" />}
+                        {copiedId === webhook.id ? <CheckCircle className="w-4 h-4 text-green-400" /> : <Copy className="w-4 h-4" />}
                       </button>
                     </div>
                   </div>
-                  <code className="text-xs font-mono text-gray-700 dark:text-gray-300 break-all">
+                  <code className="text-xs font-mono text-gray-400 break-all block">
                     {revealedTokens.has(webhook.id) ? webhook.url : '••••••••••••••••••••••••••••••••'}
                   </code>
                   <button
@@ -243,7 +288,7 @@ export default function WebhookManagement() {
                         regenerateMutation.mutate(webhook.id);
                       }
                     }}
-                    className="mt-2 text-xs text-blue-600 dark:text-blue-400 hover:underline"
+                    className="mt-2 text-xs text-blue-400 hover:text-blue-300 transition-colors"
                   >
                     Regenerate token
                   </button>
@@ -252,7 +297,7 @@ export default function WebhookManagement() {
             </div>
           ))}
         </div>
-      )}
+      ) : null}
 
       {/* Create Webhook Modal */}
       {showCreateModal && (
@@ -277,17 +322,17 @@ export default function WebhookManagement() {
 
       {/* Delete Confirmation */}
       {showDeleteConfirm && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl max-w-md w-full p-6">
+        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
+          <div className="bg-gray-900 border border-gray-800 rounded-2xl shadow-2xl max-w-md w-full p-6">
             <div className="flex items-start gap-4 mb-6">
-              <div className="p-3 bg-red-100 dark:bg-red-900/30 rounded-full">
-                <AlertCircle className="w-6 h-6 text-red-600 dark:text-red-400" />
+              <div className="p-3 bg-red-500/10 rounded-full">
+                <AlertCircle className="w-6 h-6 text-red-400" />
               </div>
               <div>
-                <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
+                <h3 className="text-lg font-semibold text-white mb-2">
                   Delete Webhook?
                 </h3>
-                <p className="text-sm text-gray-600 dark:text-gray-400">
+                <p className="text-sm text-gray-400">
                   This webhook will be permanently deleted. Any integrations using this URL will stop working.
                 </p>
               </div>
@@ -295,7 +340,7 @@ export default function WebhookManagement() {
             <div className="flex gap-3">
               <button
                 onClick={() => setShowDeleteConfirm(null)}
-                className="flex-1 px-4 py-2.5 text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-600 transition-colors"
+                className="flex-1 px-4 py-2.5 text-sm font-medium text-gray-300 bg-gray-800 border border-gray-700 rounded-lg hover:bg-gray-700 transition-colors"
               >
                 Cancel
               </button>
@@ -312,20 +357,22 @@ export default function WebhookManagement() {
       )}
 
       {/* Info Box */}
-      <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-xl p-4">
-        <h4 className="text-sm font-semibold text-blue-900 dark:text-blue-100 mb-2">
-          How to use webhooks
-        </h4>
-        <p className="text-sm text-blue-800 dark:text-blue-200 mb-2">
-          Send a POST request to the webhook URL with a JSON body:
-        </p>
-        <code className="block text-xs bg-blue-100 dark:bg-blue-900/40 p-3 rounded font-mono text-blue-900 dark:text-blue-100">
-          {`{"text": "Hello from my integration!"}`}
-        </code>
-        <p className="text-xs text-blue-700 dark:text-blue-300 mt-2">
-          Optional: Add <code className="bg-blue-100 dark:bg-blue-900/40 px-1 rounded">username</code> and <code className="bg-blue-100 dark:bg-blue-900/40 px-1 rounded">icon_url</code> to override defaults.
-        </p>
-      </div>
+      {!hasPermissionError && (
+        <div className="bg-blue-500/10 border border-blue-500/20 rounded-xl p-4">
+          <h4 className="text-sm font-semibold text-blue-400 mb-2">
+            How to use webhooks
+          </h4>
+          <p className="text-sm text-blue-300/80 mb-2">
+            Send a POST request to the webhook URL with a JSON body:
+          </p>
+          <code className="block text-xs bg-gray-950 p-3 rounded font-mono text-blue-300">
+            {`{"text": "Hello from my integration!"}`}
+          </code>
+          <p className="text-xs text-blue-300/60 mt-2">
+            Optional: Add <code className="bg-gray-950 px-1 rounded">username</code> and <code className="bg-gray-950 px-1 rounded">icon_url</code> to override defaults.
+          </p>
+        </div>
+      )}
     </div>
   );
 }
@@ -357,22 +404,22 @@ function WebhookFormModal({ channels, webhook, onClose, onSubmit, isLoading }: W
   };
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl max-w-lg w-full p-6">
-        <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-6">
+    <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
+      <div className="bg-gray-900 border border-gray-800 rounded-2xl shadow-2xl max-w-lg w-full p-6">
+        <h3 className="text-lg font-semibold text-white mb-6">
           {webhook ? 'Edit Webhook' : 'Create Incoming Webhook'}
         </h3>
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+            <label className="block text-sm font-medium text-gray-300 mb-1">
               Channel *
             </label>
             <select
               value={formData.channel_id}
               onChange={(e) => setFormData({ ...formData, channel_id: e.target.value })}
               required
-              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500"
+              className="w-full px-3 py-2 border border-gray-700 rounded-lg bg-gray-800 text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
             >
               <option value="">Select a channel</option>
               {channels.map((channel) => (
@@ -384,7 +431,7 @@ function WebhookFormModal({ channels, webhook, onClose, onSubmit, isLoading }: W
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+            <label className="block text-sm font-medium text-gray-300 mb-1">
               Display Name *
             </label>
             <input
@@ -394,15 +441,15 @@ function WebhookFormModal({ channels, webhook, onClose, onSubmit, isLoading }: W
               required
               maxLength={100}
               placeholder="e.g., GitHub Notifications"
-              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500"
+              className="w-full px-3 py-2 border border-gray-700 rounded-lg bg-gray-800 text-white placeholder-gray-500 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
             />
-            <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+            <p className="text-xs text-gray-500 mt-1">
               This name will be shown as the sender of webhook messages
             </p>
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+            <label className="block text-sm font-medium text-gray-300 mb-1">
               Description
             </label>
             <textarea
@@ -410,12 +457,12 @@ function WebhookFormModal({ channels, webhook, onClose, onSubmit, isLoading }: W
               onChange={(e) => setFormData({ ...formData, description: e.target.value })}
               rows={2}
               placeholder="What is this webhook for?"
-              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500"
+              className="w-full px-3 py-2 border border-gray-700 rounded-lg bg-gray-800 text-white placeholder-gray-500 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
             />
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+            <label className="block text-sm font-medium text-gray-300 mb-1">
               Username Override
             </label>
             <input
@@ -424,7 +471,7 @@ function WebhookFormModal({ channels, webhook, onClose, onSubmit, isLoading }: W
               onChange={(e) => setFormData({ ...formData, username: e.target.value })}
               maxLength={100}
               placeholder="Optional: Override display name for messages"
-              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500"
+              className="w-full px-3 py-2 border border-gray-700 rounded-lg bg-gray-800 text-white placeholder-gray-500 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
             />
           </div>
 
@@ -432,7 +479,7 @@ function WebhookFormModal({ channels, webhook, onClose, onSubmit, isLoading }: W
             <button
               type="button"
               onClick={onClose}
-              className="flex-1 px-4 py-2.5 text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-600 transition-colors"
+              className="flex-1 px-4 py-2.5 text-sm font-medium text-gray-300 bg-gray-800 border border-gray-700 rounded-lg hover:bg-gray-700 transition-colors"
             >
               Cancel
             </button>

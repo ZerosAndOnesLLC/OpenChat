@@ -18,7 +18,7 @@ export default function UserProfile({ user }: UserProfileProps) {
 
   if (!user) return null;
 
-  const isAdmin = user.roles?.includes('openchat-admin') || false;
+  const isAdmin = user.roles?.some(role => role.toLowerCase() === 'openchat-admin') || false;
 
   return (
     <div className="relative border-t border-gray-800 p-4">

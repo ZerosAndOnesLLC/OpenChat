@@ -20,9 +20,11 @@ use crate::{
 const PERMISSION_CACHE_TTL: u64 = 300; // 5 minutes in seconds
 const PERMISSION_CACHE_PREFIX: &str = "openchat:perm";
 
-/// Build cache key for permission check
+/// Build cache key for permission check (case-insensitive)
 fn permission_cache_key(roles: &[String], permission: &str) -> String {
-    let roles_hash = format!("{:?}", roles); // Simple hash for cache key
+    // Normalize roles to lowercase for consistent cache keys
+    let lowercase_roles: Vec<String> = roles.iter().map(|r| r.to_lowercase()).collect();
+    let roles_hash = format!("{:?}", lowercase_roles);
     format!("{}:{}:{}", PERMISSION_CACHE_PREFIX, roles_hash, permission)
 }
 

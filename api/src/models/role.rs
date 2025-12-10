@@ -270,6 +270,9 @@ pub async fn user_has_permission(
         return Ok(false);
     }
 
+    // Normalize role names to lowercase for case-insensitive comparison
+    let lowercase_roles: Vec<String> = role_names.iter().map(|r| r.to_lowercase()).collect();
+
     let result = sqlx::query_scalar::<_, bool>(
         r#"
         SELECT EXISTS(
@@ -277,13 +280,13 @@ pub async fn user_has_permission(
             FROM roles r
             JOIN role_permissions rp ON rp.role_id = r.id
             JOIN permissions p ON p.id = rp.permission_id
-            WHERE r.role_name = ANY($1)
+            WHERE LOWER(r.role_name) = ANY($1)
             AND p.permission_name = $2
             AND r.is_system_role = true
         )
         "#,
     )
-    .bind(role_names)
+    .bind(&lowercase_roles)
     .bind(permission_name)
     .fetch_one(pool)
     .await?;

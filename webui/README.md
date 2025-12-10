@@ -249,7 +249,7 @@ npm run build
 
 ## Version
 
-Current version: 0.25.0
+Current version: 0.26.0
 
 Increment version before commits:
 - **Patch** (0.1.x): Bug fixes, small tweaks
@@ -257,6 +257,18 @@ Increment version before commits:
 - **Major** (x.0.0): Breaking changes
 
 ### Recent Changes
+
+**v0.26.0** - Redesigned Settings with Tree Navigation
+- Complete redesign of the settings page with a modern tree-structure navigation
+- Left sidebar with collapsible categories: Account, Devices, Integrations
+- Right panel displays detailed settings content for selected item
+- Categories: Profile, Privacy, Active Sessions, Desktop App, Webhooks, About
+- Responsive design: side-by-side on desktop, full-screen navigation on mobile
+- URL state management for direct linking to specific settings sections
+- Auto-save for toggle settings (no save button needed)
+- Consistent dark theme styling across all settings panels
+- New components: SettingsLayout, ProfileSettings, PrivacySettings, AboutSettings, DesktopAppSettings
+- Refactored DeviceManagement and WebhookManagement with improved styling
 
 **v0.25.0** - Resizable sidebar
 - Added draggable resize handle between sidebar and main content area

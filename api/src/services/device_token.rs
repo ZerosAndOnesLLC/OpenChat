@@ -18,6 +18,8 @@ pub struct DeviceTokenClaims {
     pub device_id: Uuid,
     /// Device type
     pub device_type: String,
+    /// User's roles from TitaniumVault
+    pub roles: Vec<String>,
     /// Issued at (Unix timestamp)
     pub iat: i64,
     /// Expiration (Unix timestamp) - 30 days for desktop devices
@@ -34,6 +36,7 @@ impl DeviceTokenClaims {
         org_id: Uuid,
         device_id: Uuid,
         device_type: String,
+        roles: Vec<String>,
     ) -> Self {
         let now = Utc::now();
         let exp = now + Duration::days(365); // 365 days expiration for device sessions (like Slack/Mattermost)
@@ -44,6 +47,7 @@ impl DeviceTokenClaims {
             org_id,
             device_id,
             device_type,
+            roles,
             iat: now.timestamp(),
             exp: exp.timestamp(),
             iss: "openchat-api".to_string(),
@@ -58,9 +62,10 @@ pub fn generate_device_token(
     org_id: Uuid,
     device_id: Uuid,
     device_type: String,
+    roles: Vec<String>,
     jwt_secret: &str,
 ) -> ApiResult<String> {
-    let claims = DeviceTokenClaims::new(tv_user_id, user_id, org_id, device_id, device_type);
+    let claims = DeviceTokenClaims::new(tv_user_id, user_id, org_id, device_id, device_type, roles);
 
     let token = encode(
         &Header::default(),
@@ -98,6 +103,7 @@ mod tests {
         let org_id = Uuid::new_v4();
         let device_id = Uuid::new_v4();
         let device_type = "desktop".to_string();
+        let roles = vec!["openchat".to_string(), "openchat-admin".to_string()];
 
         // Generate token
         let token = generate_device_token(
@@ -106,6 +112,7 @@ mod tests {
             org_id,
             device_id,
             device_type.clone(),
+            roles.clone(),
             secret,
         )
         .unwrap();
@@ -118,6 +125,7 @@ mod tests {
         assert_eq!(claims.org_id, org_id);
         assert_eq!(claims.device_id, device_id);
         assert_eq!(claims.device_type, device_type);
+        assert_eq!(claims.roles, roles);
         assert_eq!(claims.iss, "openchat-api");
     }
 
@@ -136,6 +144,7 @@ mod tests {
             org_id,
             device_id,
             "desktop".to_string(),
+            vec!["openchat".to_string()],
             secret,
         )
         .unwrap();
@@ -152,6 +161,7 @@ mod tests {
             Uuid::new_v4(),
             Uuid::new_v4(),
             "desktop".to_string(),
+            vec!["openchat".to_string()],
         );
 
         // Expiration should be 365 days from now

@@ -32,6 +32,7 @@ pub async fn generate_pairing_code(
     pool: &PgPool,
     user_id: Uuid,
     org_id: Uuid,
+    roles: Vec<String>,
 ) -> ApiResult<DevicePairingCode> {
     let expires_at = Utc::now() + Duration::minutes(CODE_EXPIRY_MINUTES);
 
@@ -49,7 +50,7 @@ pub async fn generate_pairing_code(
 
         // Create the pairing code
         let pairing_code =
-            DevicePairingCode::create(pool, code, user_id, org_id, expires_at).await?;
+            DevicePairingCode::create(pool, code, user_id, org_id, expires_at, roles.clone()).await?;
 
         return Ok(pairing_code);
     }
@@ -60,14 +61,14 @@ pub async fn generate_pairing_code(
 }
 
 /// Verify a pairing code and create a device session
-/// Returns the user info and a new device session
+/// Returns the user info, device session, and roles from the pairing code
 pub async fn verify_pairing_code(
     pool: &PgPool,
     _tv_api_client: &TvApiClient,
     code: &str,
     device_name: Option<String>,
     device_fingerprint: Option<String>,
-) -> ApiResult<(User, DeviceSession)> {
+) -> ApiResult<(User, DeviceSession, Vec<String>)> {
     // Normalize code to uppercase
     let code = code.to_uppercase();
 
@@ -108,7 +109,7 @@ pub async fn verify_pairing_code(
     )
     .await?;
 
-    Ok((user, device_session))
+    Ok((user, device_session, pairing_code.roles))
 }
 
 /// Cleanup expired pairing codes

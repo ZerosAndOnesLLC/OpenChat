@@ -945,6 +945,14 @@ Infrastructure is managed via Terraform in `~/dev/terraform/prod/us-east-1/openc
 
 ## Version History
 
+### v0.62.4 (Fix Device Token Roles)
+- Fixed device tokens not including user roles from TitaniumVault
+- Device tokens now properly include all user roles (e.g., openchat-admin)
+- Users with device tokens can now access webhook management and other admin features
+- Added roles column to device_pairing_codes table
+- Updated DeviceTokenClaims to include roles field
+- Roles flow from TV token → pairing code → device token → auth middleware
+
 ### v0.62.2 (Fix Hidden DM Reopening)
 - Fixed hidden DMs not being unhidden when reopening
 - When creating a DM with a user you previously had a hidden DM with, the DM is now automatically unhidden

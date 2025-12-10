@@ -201,7 +201,7 @@ where
                                 email: user.email,
                                 display_name: user.display_name,
                                 org_name: format!("org-{}", device_claims.org_id),
-                                roles: vec!["openchat".to_string()], // Device tokens implicitly have openchat role
+                                roles: device_claims.roles,
                                 is_device_token: true,
                             }
                         }

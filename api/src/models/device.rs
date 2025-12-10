@@ -14,6 +14,7 @@ pub struct DevicePairingCode {
     pub expires_at: DateTime<Utc>,
     pub used: bool,
     pub created_at: DateTime<Utc>,
+    pub roles: Vec<String>,
 }
 
 impl DevicePairingCode {
@@ -24,11 +25,12 @@ impl DevicePairingCode {
         user_id: Uuid,
         org_id: Uuid,
         expires_at: DateTime<Utc>,
+        roles: Vec<String>,
     ) -> ApiResult<DevicePairingCode> {
         let pairing_code = sqlx::query_as::<_, DevicePairingCode>(
             r#"
-            INSERT INTO device_pairing_codes (code, user_id, org_id, expires_at)
-            VALUES ($1, $2, $3, $4)
+            INSERT INTO device_pairing_codes (code, user_id, org_id, expires_at, roles)
+            VALUES ($1, $2, $3, $4, $5)
             RETURNING *
             "#,
         )
@@ -36,6 +38,7 @@ impl DevicePairingCode {
         .bind(user_id)
         .bind(org_id)
         .bind(expires_at)
+        .bind(&roles)
         .fetch_one(pool)
         .await?;
 

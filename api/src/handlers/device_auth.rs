@@ -154,9 +154,9 @@ pub async fn generate_code(
         .await?
         .ok_or_else(|| ApiError::NotFound("User not found".to_string()))?;
 
-    // Generate pairing code
+    // Generate pairing code with user's roles from TV token
     let pairing_code =
-        device_pairing::generate_pairing_code(pool.get_ref(), user.id, claims.org_id).await?;
+        device_pairing::generate_pairing_code(pool.get_ref(), user.id, claims.org_id, claims.roles.clone()).await?;
 
     // Calculate seconds until expiration
     let expires_in = (pairing_code.expires_at - chrono::Utc::now()).num_seconds();
@@ -201,7 +201,7 @@ pub async fn verify_code(
     }
 
     // Verify the pairing code and create device session
-    let (user, device_session) = device_pairing::verify_pairing_code(
+    let (user, device_session, roles) = device_pairing::verify_pairing_code(
         pool.get_ref(),
         tv_api_client.get_ref(),
         &body.code,
@@ -211,13 +211,14 @@ pub async fn verify_code(
     .await?;
 
     // Generate a JWT token for the device session
-    // This token includes device-specific claims and has a 30-day expiration
+    // This token includes device-specific claims and user roles
     let access_token = generate_device_token(
         user.tv_user_id,
         user.id,
         user.org_id,
         device_session.id,
         device_session.device_type.clone(),
+        roles,
         &config.jwt_secret,
     )?;
 

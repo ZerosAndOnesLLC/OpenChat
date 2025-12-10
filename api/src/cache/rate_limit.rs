@@ -185,7 +185,6 @@ mod tests {
         let mut conn = client.get_multiplexed_async_connection().await.unwrap();
 
         let user_id = Uuid::new_v4();
-        let limit_type = RateLimitType::Message; // 5/second
 
         // Reset before test
         reset_rate_limit(&mut conn, user_id, RateLimitType::Message)

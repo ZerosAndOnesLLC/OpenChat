@@ -130,7 +130,9 @@ The built application will be in `src-tauri/target/release/bundle/`:
 src-tauri/
 ├── src/
 │   ├── main.rs          # Application entry point
-│   └── lib.rs           # Core application logic and plugin initialization
+│   ├── lib.rs           # Core application logic and plugin initialization
+│   ├── auth.rs          # Authentication and credential management
+│   └── window_state.rs  # Window position/size persistence
 ├── icons/               # Application icons for different platforms
 ├── capabilities/        # Tauri security capabilities configuration
 ├── Cargo.toml          # Rust dependencies and metadata

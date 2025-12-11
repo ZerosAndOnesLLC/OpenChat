@@ -223,17 +223,18 @@ async fn main() -> std::io::Result<()> {
                 web::scope("/api/users")
                     .wrap(api_rate_limit.clone())
                     .wrap(openchat_auth.clone())
-                    .route("", web::get().to(user_handlers::list_users))
-                    .route("/{id}", web::get().to(user_handlers::get_user))
-                    .route("/{id}", web::put().to(user_handlers::update_user))
-                    .route("/{id}/status", web::put().to(user_handlers::update_user_status))
-                    // Advanced status endpoints
+                    // Static routes must come before parameterized routes
+                    .route("/status/active", web::get().to(user_status_handlers::get_active_users))
                     .route("/me/status", web::put().to(user_status_handlers::update_my_status))
                     .route("/me/status/online", web::post().to(user_status_handlers::set_online))
                     .route("/me/status/away", web::post().to(user_status_handlers::set_away))
                     .route("/me/status/offline", web::post().to(user_status_handlers::set_offline))
+                    // Parameterized routes after static routes
+                    .route("", web::get().to(user_handlers::list_users))
+                    .route("/{id}", web::get().to(user_handlers::get_user))
+                    .route("/{id}", web::put().to(user_handlers::update_user))
                     .route("/{id}/status", web::get().to(user_status_handlers::get_user_status))
-                    .route("/status/active", web::get().to(user_status_handlers::get_active_users))
+                    .route("/{id}/status", web::put().to(user_handlers::update_user_status))
             )
             // Channel routes - require "openchat" role
             .service(

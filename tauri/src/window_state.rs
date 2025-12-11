@@ -1,6 +1,7 @@
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::PathBuf;
+use std::sync::Mutex;
 use tauri::WebviewWindow;
 
 const WINDOW_STATE_FILE: &str = "window_state.json";
@@ -31,6 +32,11 @@ impl Default for WindowState {
         }
     }
 }
+
+/// Tracks the normal (non-maximized) window state
+/// This is updated on resize/move events so we always have the correct
+/// position/size to restore to, even if the window is currently maximized
+static NORMAL_STATE: Mutex<Option<WindowState>> = Mutex::new(None);
 
 /// Gets the path to the window state file
 fn get_state_path() -> Option<PathBuf> {
@@ -74,21 +80,87 @@ pub fn load_window_state() -> Option<WindowState> {
     Some(state)
 }
 
-/// Captures the current window state
+/// Updates the tracked normal (non-maximized) window state
+/// Call this on resize/move events when the window is not maximized
+pub fn update_normal_state(window: &WebviewWindow) {
+    if window.is_maximized().unwrap_or(false) {
+        return;
+    }
+
+    let position = match window.outer_position() {
+        Ok(p) => p,
+        Err(_) => return,
+    };
+    let size = match window.inner_size() {
+        Ok(s) => s,
+        Err(_) => return,
+    };
+
+    let state = WindowState {
+        x: position.x,
+        y: position.y,
+        width: size.width,
+        height: size.height,
+        maximized: false,
+    };
+
+    if let Ok(mut guard) = NORMAL_STATE.lock() {
+        *guard = Some(state);
+    }
+}
+
+/// Initializes the normal state tracker with the current window state
+pub fn init_normal_state(window: &WebviewWindow) {
+    if let Ok(mut guard) = NORMAL_STATE.lock() {
+        if guard.is_none() {
+            if let (Ok(position), Ok(size)) = (window.outer_position(), window.inner_size()) {
+                *guard = Some(WindowState {
+                    x: position.x,
+                    y: position.y,
+                    width: size.width,
+                    height: size.height,
+                    maximized: false,
+                });
+            }
+        }
+    }
+}
+
+/// Captures the current window state for saving
+/// Uses the tracked normal state for position/size to handle maximized windows correctly
 pub fn capture_window_state(window: &WebviewWindow) -> Option<WindowState> {
     let is_maximized = window.is_maximized().ok()?;
 
-    // If maximized, we need to get the state before maximization
-    // For now, we'll save the current position/size and the maximized flag
+    if is_maximized {
+        // When maximized, use the tracked normal state for position/size
+        if let Ok(guard) = NORMAL_STATE.lock() {
+            if let Some(ref normal) = *guard {
+                return Some(WindowState {
+                    x: normal.x,
+                    y: normal.y,
+                    width: normal.width,
+                    height: normal.height,
+                    maximized: true,
+                });
+            }
+        }
+        // Fallback: no tracked state, return default with maximized flag
+        return Some(WindowState {
+            maximized: true,
+            ..WindowState::default()
+        });
+    }
+
+    // Not maximized - capture current state directly
     let position = window.outer_position().ok()?;
-    let size = window.outer_size().ok()?;
+    let size = window.inner_size().ok()?;
 
     Some(WindowState {
         x: position.x,
         y: position.y,
         width: size.width,
         height: size.height,
-        maximized: is_maximized,
+        maximized: false,
     })
 }
 

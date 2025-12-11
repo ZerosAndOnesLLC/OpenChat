@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, useCallback } from 'react';
 import type { Message } from '@/lib/types';
 import MessageItem from './MessageItem';
 
@@ -54,20 +54,48 @@ export default function MessageList({ messages, unreadCount = 0, lastReadMessage
   // Track if user is near the bottom before new messages arrive
   const wasNearBottomRef = useRef(true);
 
+  // Helper to check if scrolled to bottom
+  const isAtBottom = useCallback(() => {
+    const scrollElement = scrollRef.current;
+    if (!scrollElement) return true;
+    return scrollElement.scrollHeight - scrollElement.scrollTop - scrollElement.clientHeight < 150;
+  }, []);
+
+  // Helper to scroll to bottom
+  const scrollToBottom = useCallback(() => {
+    if (scrollRef.current) {
+      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+    }
+  }, []);
+
   // Update wasNearBottom on scroll
   useEffect(() => {
     const scrollElement = scrollRef.current;
     if (!scrollElement) return;
 
     const handleScroll = () => {
-      const isNearBottom =
-        scrollElement.scrollHeight - scrollElement.scrollTop - scrollElement.clientHeight < 150;
-      wasNearBottomRef.current = isNearBottom;
+      wasNearBottomRef.current = isAtBottom();
     };
 
     scrollElement.addEventListener('scroll', handleScroll);
     return () => scrollElement.removeEventListener('scroll', handleScroll);
-  }, []);
+  }, [isAtBottom]);
+
+  // Maintain scroll position at bottom during resize
+  useEffect(() => {
+    const scrollElement = scrollRef.current;
+    if (!scrollElement || !hasInitialScrolled) return;
+
+    const resizeObserver = new ResizeObserver(() => {
+      // If user was at bottom before resize, keep them at bottom
+      if (wasNearBottomRef.current) {
+        requestAnimationFrame(scrollToBottom);
+      }
+    });
+
+    resizeObserver.observe(scrollElement);
+    return () => resizeObserver.disconnect();
+  }, [hasInitialScrolled, scrollToBottom]);
 
   // Scroll to bottom when new messages arrive (if user was near bottom)
   useEffect(() => {
@@ -76,13 +104,9 @@ export default function MessageList({ messages, unreadCount = 0, lastReadMessage
     // Auto-scroll to bottom if user was near the bottom
     if (wasNearBottomRef.current) {
       // Use requestAnimationFrame to ensure DOM has updated
-      requestAnimationFrame(() => {
-        if (scrollRef.current) {
-          scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
-        }
-      });
+      requestAnimationFrame(scrollToBottom);
     }
-  }, [messages.length, hasInitialScrolled]);
+  }, [messages.length, hasInitialScrolled, scrollToBottom]);
 
   if (messages.length === 0) {
     return (

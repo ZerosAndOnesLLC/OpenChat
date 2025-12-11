@@ -3,7 +3,7 @@ mod window_state;
 
 use tauri::{Emitter, Listener, Manager, State, WebviewUrl, WebviewWindowBuilder};
 use url::Url;
-use window_state::{capture_window_state, save_window_state, load_window_state, validate_window_state};
+use window_state::{capture_window_state, save_window_state, load_window_state, validate_window_state, update_normal_state, init_normal_state};
 
 /// Returns the effective webui URL - uses localhost:3000 in dev mode, stored URL in release
 fn get_effective_webui_url(stored_url: &str) -> String {
@@ -309,19 +309,29 @@ fn show_login_window(app: &tauri::App) -> Result<(), Box<dyn std::error::Error>>
     Ok(())
 }
 
-/// Sets up a handler to save window state when the window is about to close
+/// Sets up handlers to track window state changes and save on close
 fn setup_window_close_handler(window: &tauri::WebviewWindow) {
+    // Initialize normal state tracking
+    init_normal_state(window);
+
     let window_clone = window.clone();
     window.on_window_event(move |event| {
-        if let tauri::WindowEvent::CloseRequested { .. } = event {
-            // Capture and save window state before closing
-            if let Some(state) = capture_window_state(&window_clone) {
-                log::info!("Saving window state: {}x{} at ({}, {}), maximized: {}",
-                    state.width, state.height, state.x, state.y, state.maximized);
-                if let Err(e) = save_window_state(&state) {
-                    log::error!("Failed to save window state: {}", e);
+        match event {
+            tauri::WindowEvent::CloseRequested { .. } => {
+                // Capture and save window state before closing
+                if let Some(state) = capture_window_state(&window_clone) {
+                    log::info!("Saving window state: {}x{} at ({}, {}), maximized: {}",
+                        state.width, state.height, state.x, state.y, state.maximized);
+                    if let Err(e) = save_window_state(&state) {
+                        log::error!("Failed to save window state: {}", e);
+                    }
                 }
             }
+            tauri::WindowEvent::Resized(_) | tauri::WindowEvent::Moved(_) => {
+                // Track normal (non-maximized) state on resize/move
+                update_normal_state(&window_clone);
+            }
+            _ => {}
         }
     });
 }

@@ -108,11 +108,21 @@ async fn main() -> std::io::Result<()> {
     dotenvy::dotenv().ok();
 
     // Initialize logging
-    tracing_subscriber::fmt()
+    // Disable timestamps in production (CloudWatch adds its own)
+    let show_timestamps = std::env::var("LOG_TIMESTAMPS")
+        .map(|v| v != "false")
+        .unwrap_or(true);
+
+    let subscriber = tracing_subscriber::fmt()
         .with_env_filter(
             EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("info"))
-        )
-        .init();
+        );
+
+    if show_timestamps {
+        subscriber.init();
+    } else {
+        subscriber.without_time().init();
+    }
 
     // Load configuration
     let config = Config::from_env().expect("Failed to load configuration");

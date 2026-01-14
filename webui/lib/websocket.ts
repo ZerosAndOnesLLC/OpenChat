@@ -71,6 +71,18 @@ interface WebSocketStore {
   addChannel: (channel: ChannelMetadata) => void;
   removeChannel: (channelId: string) => void;
   updateChannel: (channelId: string, updates: Partial<ChannelMetadata>) => void;
+  // New WebSocket-based operations (replacing HTTP calls)
+  markAsRead: (channelId: string | undefined, dmId: string | undefined, lastMessageId?: string) => void;
+  wsAddReaction: (messageId: string, emoji: string) => void;
+  wsRemoveReaction: (messageId: string, emoji: string) => void;
+  pinMessage: (messageId: string) => void;
+  unpinMessage: (messageId: string) => void;
+  addBookmark: (messageId: string) => void;
+  removeBookmark: (messageId: string) => void;
+  wsEditMessage: (messageId: string, content: string) => void;
+  wsDeleteMessage: (messageId: string) => void;
+  subscribeThread: (messageId: string) => void;
+  unsubscribeThread: (messageId: string) => void;
 }
 
 export const useWebSocketStore = create<WebSocketStore>((set, get) => ({
@@ -873,5 +885,132 @@ export const useWebSocketStore = create<WebSocketStore>((set, get) => ({
         ch.id === channelId ? { ...ch, ...updates } : ch
       ),
     }));
+  },
+
+  // New WebSocket-based operations (replacing HTTP calls)
+  markAsRead: (channelId, dmId, lastMessageId) => {
+    const { ws } = get();
+    if (ws && ws.readyState === WebSocket.OPEN) {
+      const message: WSClientMessage = {
+        type: 'mark_as_read',
+        ...(channelId ? { channel_id: channelId } : {}),
+        ...(dmId ? { dm_id: dmId } : {}),
+        ...(lastMessageId ? { last_message_id: lastMessageId } : {}),
+      };
+      ws.send(JSON.stringify(message));
+    }
+  },
+
+  wsAddReaction: (messageId, emoji) => {
+    const { ws } = get();
+    if (ws && ws.readyState === WebSocket.OPEN) {
+      const message: WSClientMessage = {
+        type: 'add_reaction',
+        message_id: messageId,
+        emoji,
+      };
+      ws.send(JSON.stringify(message));
+    }
+  },
+
+  wsRemoveReaction: (messageId, emoji) => {
+    const { ws } = get();
+    if (ws && ws.readyState === WebSocket.OPEN) {
+      const message: WSClientMessage = {
+        type: 'remove_reaction',
+        message_id: messageId,
+        emoji,
+      };
+      ws.send(JSON.stringify(message));
+    }
+  },
+
+  pinMessage: (messageId) => {
+    const { ws } = get();
+    if (ws && ws.readyState === WebSocket.OPEN) {
+      const message: WSClientMessage = {
+        type: 'pin_message',
+        message_id: messageId,
+      };
+      ws.send(JSON.stringify(message));
+    }
+  },
+
+  unpinMessage: (messageId) => {
+    const { ws } = get();
+    if (ws && ws.readyState === WebSocket.OPEN) {
+      const message: WSClientMessage = {
+        type: 'unpin_message',
+        message_id: messageId,
+      };
+      ws.send(JSON.stringify(message));
+    }
+  },
+
+  addBookmark: (messageId) => {
+    const { ws } = get();
+    if (ws && ws.readyState === WebSocket.OPEN) {
+      const message: WSClientMessage = {
+        type: 'add_bookmark',
+        message_id: messageId,
+      };
+      ws.send(JSON.stringify(message));
+    }
+  },
+
+  removeBookmark: (messageId) => {
+    const { ws } = get();
+    if (ws && ws.readyState === WebSocket.OPEN) {
+      const message: WSClientMessage = {
+        type: 'remove_bookmark',
+        message_id: messageId,
+      };
+      ws.send(JSON.stringify(message));
+    }
+  },
+
+  wsEditMessage: (messageId, content) => {
+    const { ws } = get();
+    if (ws && ws.readyState === WebSocket.OPEN) {
+      const message: WSClientMessage = {
+        type: 'edit_message',
+        message_id: messageId,
+        content,
+      };
+      ws.send(JSON.stringify(message));
+    }
+  },
+
+  wsDeleteMessage: (messageId) => {
+    const { ws } = get();
+    if (ws && ws.readyState === WebSocket.OPEN) {
+      const message: WSClientMessage = {
+        type: 'delete_message',
+        message_id: messageId,
+      };
+      ws.send(JSON.stringify(message));
+    }
+  },
+
+  subscribeThread: (messageId) => {
+    const { ws } = get();
+    if (ws && ws.readyState === WebSocket.OPEN) {
+      const message: WSClientMessage = {
+        type: 'subscribe_thread',
+        message_id: messageId,
+      };
+      ws.send(JSON.stringify(message));
+    }
+  },
+
+  unsubscribeThread: (messageId) => {
+    const { ws } = get();
+    if (ws && ws.readyState === WebSocket.OPEN) {
+      const message: WSClientMessage = {
+        type: 'unsubscribe_thread',
+        message_id: messageId,
+      };
+      ws.send(JSON.stringify(message));
+    }
   },
 }));

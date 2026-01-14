@@ -40,6 +40,55 @@ pub enum ClientMessage {
     },
     /// Ping to keep connection alive
     Ping,
+    /// Mark a channel or DM as read
+    MarkAsRead {
+        channel_id: Option<Uuid>,
+        dm_id: Option<Uuid>,
+        last_message_id: Option<Uuid>,
+    },
+    /// Add a reaction to a message
+    AddReaction {
+        message_id: Uuid,
+        emoji: String,
+    },
+    /// Remove a reaction from a message
+    RemoveReaction {
+        message_id: Uuid,
+        emoji: String,
+    },
+    /// Pin a message in a channel
+    PinMessage {
+        message_id: Uuid,
+    },
+    /// Unpin a message from a channel
+    UnpinMessage {
+        message_id: Uuid,
+    },
+    /// Add a bookmark to a message
+    AddBookmark {
+        message_id: Uuid,
+    },
+    /// Remove a bookmark from a message
+    RemoveBookmark {
+        message_id: Uuid,
+    },
+    /// Edit a message
+    EditMessage {
+        message_id: Uuid,
+        content: String,
+    },
+    /// Delete a message
+    DeleteMessage {
+        message_id: Uuid,
+    },
+    /// Subscribe to a thread for real-time updates
+    SubscribeThread {
+        message_id: Uuid,
+    },
+    /// Unsubscribe from a thread
+    UnsubscribeThread {
+        message_id: Uuid,
+    },
 }
 
 /// Channel metadata for initial state

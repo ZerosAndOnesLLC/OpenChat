@@ -73,6 +73,8 @@ pub struct WsServer {
     channel_subscriptions: HashMap<Uuid, HashSet<Uuid>>,
     /// Map of dm_id -> set of session_ids (subscriptions)
     dm_subscriptions: HashMap<Uuid, HashSet<Uuid>>,
+    /// Map of thread (parent_message_id) -> set of session_ids (subscriptions)
+    thread_subscriptions: HashMap<Uuid, HashSet<Uuid>>,
     /// Message batches per session (for batching optimization)
     message_batches: HashMap<Uuid, MessageBatch>,
     /// Total connection count
@@ -90,6 +92,7 @@ impl WsServer {
             org_sessions: HashMap::new(),
             channel_subscriptions: HashMap::new(),
             dm_subscriptions: HashMap::new(),
+            thread_subscriptions: HashMap::new(),
             message_batches: HashMap::new(),
             total_connections: 0,
         }
@@ -337,6 +340,11 @@ impl Handler<Disconnect> for WsServer {
 
         // Remove from all DM subscriptions
         for (_, subscribers) in self.dm_subscriptions.iter_mut() {
+            subscribers.remove(&msg.session_id);
+        }
+
+        // Remove from all thread subscriptions
+        for (_, subscribers) in self.thread_subscriptions.iter_mut() {
             subscribers.remove(&msg.session_id);
         }
     }
@@ -844,5 +852,718 @@ impl Handler<FlushBatches> for WsServer {
 
     fn handle(&mut self, _msg: FlushBatches, _: &mut Context<Self>) {
         self.flush_all_batches();
+    }
+}
+
+/// Message: Mark channel or DM as read
+#[derive(ActixMessage)]
+#[rtype(result = "()")]
+pub struct MarkAsRead {
+    pub user_id: Uuid,
+    pub org_id: Uuid,
+    pub channel_id: Option<Uuid>,
+    pub dm_id: Option<Uuid>,
+    pub last_message_id: Option<Uuid>,
+}
+
+impl Handler<MarkAsRead> for WsServer {
+    type Result = ();
+
+    fn handle(&mut self, msg: MarkAsRead, ctx: &mut Context<Self>) {
+        let db_pool = self.db_pool.clone();
+        let redis_client = self.redis_client.clone();
+        let channel_id = msg.channel_id;
+        let dm_id = msg.dm_id;
+        let user_id = msg.user_id;
+        let org_id = msg.org_id;
+        let last_message_id = msg.last_message_id;
+
+        let fut = async move {
+            use crate::cache::read_status::{invalidate_channel_unread_cache, invalidate_dm_unread_cache};
+            use crate::models::read_status::{ChannelReadStatus, DmReadStatus};
+
+            let mut redis_conn = match redis_client.get_multiplexed_async_connection().await {
+                Ok(conn) => conn,
+                Err(e) => {
+                    tracing::error!("Failed to get Redis connection for mark_as_read: {}", e);
+                    return None;
+                }
+            };
+
+            if let Some(cid) = channel_id {
+                // Mark channel as read
+                if let Err(e) = ChannelReadStatus::mark_as_read(&db_pool, user_id, cid, last_message_id).await {
+                    tracing::error!("Failed to mark channel as read: {}", e);
+                    return None;
+                }
+
+                // Invalidate cache
+                if let Err(e) = invalidate_channel_unread_cache(&mut redis_conn, user_id, cid).await {
+                    tracing::warn!("Failed to invalidate channel unread cache: {}", e);
+                }
+
+                // Get updated counts
+                let unread_count = ChannelReadStatus::get_unread_count(&db_pool, user_id, cid).await.unwrap_or(0);
+                let last_read_message_id = ChannelReadStatus::get_last_read_message_id(&db_pool, user_id, cid).await.unwrap_or(None);
+
+                Some((
+                    ServerMessage::UnreadCountUpdated {
+                        channel_id: Some(cid),
+                        dm_id: None,
+                        unread_count,
+                        last_read_message_id,
+                    },
+                    user_id,
+                    org_id,
+                ))
+            } else if let Some(did) = dm_id {
+                // Mark DM as read
+                if let Err(e) = DmReadStatus::mark_as_read(&db_pool, user_id, did, last_message_id).await {
+                    tracing::error!("Failed to mark DM as read: {}", e);
+                    return None;
+                }
+
+                // Invalidate cache
+                if let Err(e) = invalidate_dm_unread_cache(&mut redis_conn, user_id, did).await {
+                    tracing::warn!("Failed to invalidate DM unread cache: {}", e);
+                }
+
+                // Get updated counts
+                let unread_count = DmReadStatus::get_unread_count(&db_pool, user_id, did).await.unwrap_or(0);
+                let last_read_message_id = DmReadStatus::get_last_read_message_id(&db_pool, user_id, did).await.unwrap_or(None);
+
+                Some((
+                    ServerMessage::UnreadCountUpdated {
+                        channel_id: None,
+                        dm_id: Some(did),
+                        unread_count,
+                        last_read_message_id,
+                    },
+                    user_id,
+                    org_id,
+                ))
+            } else {
+                tracing::error!("MarkAsRead: Neither channel_id nor dm_id provided");
+                None
+            }
+        }
+        .into_actor(self)
+        .map(move |result, actor, _ctx| {
+            if let Some((message, user_id, _org_id)) = result {
+                // Send to all sessions of this user
+                actor.send_to_user(&user_id, message);
+            }
+        });
+
+        ctx.spawn(fut);
+    }
+}
+
+/// Message: Add reaction to a message
+#[derive(ActixMessage)]
+#[rtype(result = "()")]
+pub struct AddReaction {
+    pub user_id: Uuid,
+    pub org_id: Uuid,
+    pub message_id: Uuid,
+    pub emoji: String,
+}
+
+impl Handler<AddReaction> for WsServer {
+    type Result = ();
+
+    fn handle(&mut self, msg: AddReaction, ctx: &mut Context<Self>) {
+        let db_pool = self.db_pool.clone();
+        let message_id = msg.message_id;
+        let user_id = msg.user_id;
+        let org_id = msg.org_id;
+        let emoji = msg.emoji.clone();
+
+        let fut = async move {
+            use crate::models::message::Message as DbMessage;
+            use crate::models::reaction::Reaction;
+
+            // Get the message to find channel_id or dm_id
+            let message = match DbMessage::get_by_id(&db_pool, message_id).await {
+                Ok(Some(m)) => m,
+                Ok(None) => {
+                    tracing::error!("Message not found for reaction: {}", message_id);
+                    return None;
+                }
+                Err(e) => {
+                    tracing::error!("Failed to get message for reaction: {}", e);
+                    return None;
+                }
+            };
+
+            // Add the reaction
+            if let Err(e) = Reaction::add(&db_pool, message_id, user_id, &emoji).await {
+                tracing::error!("Failed to add reaction: {}", e);
+                return None;
+            }
+
+            Some((
+                ServerMessage::ReactionAdded {
+                    message_id,
+                    user_id,
+                    emoji,
+                },
+                message.channel_id,
+                message.dm_id,
+                org_id,
+            ))
+        }
+        .into_actor(self)
+        .map(move |result, actor, _ctx| {
+            if let Some((message, channel_id, dm_id, org_id)) = result {
+                if let Some(cid) = channel_id {
+                    actor.send_to_channel(&cid, message);
+                } else if dm_id.is_some() {
+                    actor.send_to_org(&org_id, message, None);
+                }
+            }
+        });
+
+        ctx.spawn(fut);
+    }
+}
+
+/// Message: Remove reaction from a message
+#[derive(ActixMessage)]
+#[rtype(result = "()")]
+pub struct RemoveReaction {
+    pub user_id: Uuid,
+    pub org_id: Uuid,
+    pub message_id: Uuid,
+    pub emoji: String,
+}
+
+impl Handler<RemoveReaction> for WsServer {
+    type Result = ();
+
+    fn handle(&mut self, msg: RemoveReaction, ctx: &mut Context<Self>) {
+        let db_pool = self.db_pool.clone();
+        let message_id = msg.message_id;
+        let user_id = msg.user_id;
+        let org_id = msg.org_id;
+        let emoji = msg.emoji.clone();
+
+        let fut = async move {
+            use crate::models::message::Message as DbMessage;
+            use crate::models::reaction::Reaction;
+
+            // Get the message to find channel_id or dm_id
+            let message = match DbMessage::get_by_id(&db_pool, message_id).await {
+                Ok(Some(m)) => m,
+                Ok(None) => {
+                    tracing::error!("Message not found for reaction removal: {}", message_id);
+                    return None;
+                }
+                Err(e) => {
+                    tracing::error!("Failed to get message for reaction removal: {}", e);
+                    return None;
+                }
+            };
+
+            // Remove the reaction
+            if let Err(e) = Reaction::remove(&db_pool, message_id, user_id, &emoji).await {
+                tracing::error!("Failed to remove reaction: {}", e);
+                return None;
+            }
+
+            Some((
+                ServerMessage::ReactionRemoved {
+                    message_id,
+                    user_id,
+                    emoji,
+                },
+                message.channel_id,
+                message.dm_id,
+                org_id,
+            ))
+        }
+        .into_actor(self)
+        .map(move |result, actor, _ctx| {
+            if let Some((message, channel_id, dm_id, org_id)) = result {
+                if let Some(cid) = channel_id {
+                    actor.send_to_channel(&cid, message);
+                } else if dm_id.is_some() {
+                    actor.send_to_org(&org_id, message, None);
+                }
+            }
+        });
+
+        ctx.spawn(fut);
+    }
+}
+
+/// Message: Pin a message
+#[derive(ActixMessage)]
+#[rtype(result = "()")]
+pub struct PinMessage {
+    pub user_id: Uuid,
+    pub user_name: String,
+    pub message_id: Uuid,
+}
+
+impl Handler<PinMessage> for WsServer {
+    type Result = ();
+
+    fn handle(&mut self, msg: PinMessage, ctx: &mut Context<Self>) {
+        let db_pool = self.db_pool.clone();
+        let redis_client = self.redis_client.clone();
+        let message_id = msg.message_id;
+        let user_id = msg.user_id;
+        let user_name = msg.user_name.clone();
+
+        let fut = async move {
+            use crate::cache::pins::invalidate_pins_cache;
+            use crate::models::message::Message as DbMessage;
+            use crate::models::pin::PinnedMessage;
+
+            // Get the message to find channel_id
+            let message = match DbMessage::get_by_id(&db_pool, message_id).await {
+                Ok(Some(m)) => m,
+                Ok(None) => {
+                    tracing::error!("Message not found for pin: {}", message_id);
+                    return None;
+                }
+                Err(e) => {
+                    tracing::error!("Failed to get message for pin: {}", e);
+                    return None;
+                }
+            };
+
+            let channel_id = match message.channel_id {
+                Some(cid) => cid,
+                None => {
+                    tracing::error!("Cannot pin DM messages");
+                    return None;
+                }
+            };
+
+            // Pin the message
+            let pin = match PinnedMessage::pin(&db_pool, channel_id, message_id, user_id).await {
+                Ok(p) => p,
+                Err(e) => {
+                    tracing::error!("Failed to pin message: {}", e);
+                    return None;
+                }
+            };
+
+            // Invalidate cache
+            if let Ok(mut redis_conn) = redis_client.get_multiplexed_async_connection().await {
+                if let Err(e) = invalidate_pins_cache(&mut redis_conn, channel_id).await {
+                    tracing::warn!("Failed to invalidate pins cache: {}", e);
+                }
+            }
+
+            Some((
+                ServerMessage::MessagePinned {
+                    channel_id,
+                    message_id,
+                    pinned_by: user_id,
+                    pinned_by_name: user_name,
+                    pinned_at: pin.pinned_at.to_rfc3339(),
+                },
+                channel_id,
+            ))
+        }
+        .into_actor(self)
+        .map(move |result, actor, _ctx| {
+            if let Some((message, channel_id)) = result {
+                actor.send_to_channel(&channel_id, message);
+            }
+        });
+
+        ctx.spawn(fut);
+    }
+}
+
+/// Message: Unpin a message
+#[derive(ActixMessage)]
+#[rtype(result = "()")]
+pub struct UnpinMessage {
+    pub user_id: Uuid,
+    pub user_name: String,
+    pub message_id: Uuid,
+}
+
+impl Handler<UnpinMessage> for WsServer {
+    type Result = ();
+
+    fn handle(&mut self, msg: UnpinMessage, ctx: &mut Context<Self>) {
+        let db_pool = self.db_pool.clone();
+        let redis_client = self.redis_client.clone();
+        let message_id = msg.message_id;
+        let user_id = msg.user_id;
+        let user_name = msg.user_name.clone();
+
+        let fut = async move {
+            use crate::cache::pins::invalidate_pins_cache;
+            use crate::models::message::Message as DbMessage;
+            use crate::models::pin::PinnedMessage;
+
+            // Get the message to find channel_id
+            let message = match DbMessage::get_by_id(&db_pool, message_id).await {
+                Ok(Some(m)) => m,
+                Ok(None) => {
+                    tracing::error!("Message not found for unpin: {}", message_id);
+                    return None;
+                }
+                Err(e) => {
+                    tracing::error!("Failed to get message for unpin: {}", e);
+                    return None;
+                }
+            };
+
+            let channel_id = match message.channel_id {
+                Some(cid) => cid,
+                None => {
+                    tracing::error!("Cannot unpin DM messages");
+                    return None;
+                }
+            };
+
+            // Unpin the message
+            if let Err(e) = PinnedMessage::unpin(&db_pool, channel_id, message_id).await {
+                tracing::error!("Failed to unpin message: {}", e);
+                return None;
+            }
+
+            // Invalidate cache
+            if let Ok(mut redis_conn) = redis_client.get_multiplexed_async_connection().await {
+                if let Err(e) = invalidate_pins_cache(&mut redis_conn, channel_id).await {
+                    tracing::warn!("Failed to invalidate pins cache: {}", e);
+                }
+            }
+
+            Some((
+                ServerMessage::MessageUnpinned {
+                    channel_id,
+                    message_id,
+                    unpinned_by: user_id,
+                    unpinned_by_name: user_name,
+                },
+                channel_id,
+            ))
+        }
+        .into_actor(self)
+        .map(move |result, actor, _ctx| {
+            if let Some((message, channel_id)) = result {
+                actor.send_to_channel(&channel_id, message);
+            }
+        });
+
+        ctx.spawn(fut);
+    }
+}
+
+/// Message: Add bookmark to a message
+#[derive(ActixMessage)]
+#[rtype(result = "()")]
+pub struct AddBookmark {
+    pub user_id: Uuid,
+    pub message_id: Uuid,
+}
+
+impl Handler<AddBookmark> for WsServer {
+    type Result = ();
+
+    fn handle(&mut self, msg: AddBookmark, ctx: &mut Context<Self>) {
+        let db_pool = self.db_pool.clone();
+        let message_id = msg.message_id;
+        let user_id = msg.user_id;
+
+        let fut = async move {
+            use crate::models::bookmark::Bookmark;
+
+            // Create the bookmark
+            let bookmark = match Bookmark::create(&db_pool, user_id, message_id).await {
+                Ok(b) => b,
+                Err(e) => {
+                    tracing::error!("Failed to create bookmark: {}", e);
+                    return None;
+                }
+            };
+
+            Some((
+                ServerMessage::BookmarkAdded {
+                    message_id,
+                    bookmarked_at: bookmark.bookmarked_at.to_rfc3339(),
+                },
+                user_id,
+            ))
+        }
+        .into_actor(self)
+        .map(move |result, actor, _ctx| {
+            if let Some((message, user_id)) = result {
+                // Bookmarks are user-specific, only send to the user
+                actor.send_to_user(&user_id, message);
+            }
+        });
+
+        ctx.spawn(fut);
+    }
+}
+
+/// Message: Remove bookmark from a message
+#[derive(ActixMessage)]
+#[rtype(result = "()")]
+pub struct RemoveBookmark {
+    pub user_id: Uuid,
+    pub message_id: Uuid,
+}
+
+impl Handler<RemoveBookmark> for WsServer {
+    type Result = ();
+
+    fn handle(&mut self, msg: RemoveBookmark, ctx: &mut Context<Self>) {
+        let db_pool = self.db_pool.clone();
+        let message_id = msg.message_id;
+        let user_id = msg.user_id;
+
+        let fut = async move {
+            use crate::models::bookmark::Bookmark;
+
+            // Delete the bookmark
+            if let Err(e) = Bookmark::delete(&db_pool, user_id, message_id).await {
+                tracing::error!("Failed to delete bookmark: {}", e);
+                return None;
+            }
+
+            Some((
+                ServerMessage::BookmarkRemoved { message_id },
+                user_id,
+            ))
+        }
+        .into_actor(self)
+        .map(move |result, actor, _ctx| {
+            if let Some((message, user_id)) = result {
+                // Bookmarks are user-specific, only send to the user
+                actor.send_to_user(&user_id, message);
+            }
+        });
+
+        ctx.spawn(fut);
+    }
+}
+
+/// Message: Edit a message
+#[derive(ActixMessage)]
+#[rtype(result = "()")]
+pub struct EditMessage {
+    pub user_id: Uuid,
+    pub org_id: Uuid,
+    pub message_id: Uuid,
+    pub content: String,
+}
+
+impl Handler<EditMessage> for WsServer {
+    type Result = ();
+
+    fn handle(&mut self, msg: EditMessage, ctx: &mut Context<Self>) {
+        let db_pool = self.db_pool.clone();
+        let message_id = msg.message_id;
+        let user_id = msg.user_id;
+        let org_id = msg.org_id;
+        let content = msg.content.clone();
+
+        let fut = async move {
+            use crate::models::message::Message as DbMessage;
+
+            // Get the message to verify ownership and get channel/dm info
+            let message = match DbMessage::get_by_id(&db_pool, message_id).await {
+                Ok(Some(m)) => m,
+                Ok(None) => {
+                    tracing::error!("Message not found for edit: {}", message_id);
+                    return None;
+                }
+                Err(e) => {
+                    tracing::error!("Failed to get message for edit: {}", e);
+                    return None;
+                }
+            };
+
+            // Verify the user owns this message
+            if message.user_id != user_id {
+                tracing::error!("User {} attempted to edit message {} owned by {}", user_id, message_id, message.user_id);
+                return None;
+            }
+
+            // Update the message
+            let updated = match DbMessage::update(&db_pool, message_id, &content, user_id).await {
+                Ok(m) => m,
+                Err(e) => {
+                    tracing::error!("Failed to update message: {}", e);
+                    return None;
+                }
+            };
+
+            let edited_at = updated.edited_at.map(|dt| dt.to_rfc3339()).unwrap_or_default();
+
+            Some((
+                ServerMessage::MessageEdited {
+                    message_id,
+                    content,
+                    edited_at,
+                },
+                message.channel_id,
+                message.dm_id,
+                org_id,
+            ))
+        }
+        .into_actor(self)
+        .map(move |result, actor, _ctx| {
+            if let Some((message, channel_id, dm_id, org_id)) = result {
+                if let Some(cid) = channel_id {
+                    actor.send_to_channel(&cid, message);
+                } else if dm_id.is_some() {
+                    actor.send_to_org(&org_id, message, None);
+                }
+            }
+        });
+
+        ctx.spawn(fut);
+    }
+}
+
+/// Message: Delete a message
+#[derive(ActixMessage)]
+#[rtype(result = "()")]
+pub struct DeleteMessage {
+    pub user_id: Uuid,
+    pub org_id: Uuid,
+    pub message_id: Uuid,
+}
+
+impl Handler<DeleteMessage> for WsServer {
+    type Result = ();
+
+    fn handle(&mut self, msg: DeleteMessage, ctx: &mut Context<Self>) {
+        let db_pool = self.db_pool.clone();
+        let message_id = msg.message_id;
+        let user_id = msg.user_id;
+        let org_id = msg.org_id;
+
+        let fut = async move {
+            use crate::models::message::Message as DbMessage;
+
+            // Get the message to verify ownership and get channel/dm info
+            let message = match DbMessage::get_by_id(&db_pool, message_id).await {
+                Ok(Some(m)) => m,
+                Ok(None) => {
+                    tracing::error!("Message not found for delete: {}", message_id);
+                    return None;
+                }
+                Err(e) => {
+                    tracing::error!("Failed to get message for delete: {}", e);
+                    return None;
+                }
+            };
+
+            // Verify the user owns this message
+            if message.user_id != user_id {
+                tracing::error!("User {} attempted to delete message {} owned by {}", user_id, message_id, message.user_id);
+                return None;
+            }
+
+            // Soft delete the message
+            if let Err(e) = DbMessage::soft_delete(&db_pool, message_id).await {
+                tracing::error!("Failed to delete message: {}", e);
+                return None;
+            }
+
+            Some((
+                ServerMessage::MessageDeleted { message_id },
+                message.channel_id,
+                message.dm_id,
+                org_id,
+            ))
+        }
+        .into_actor(self)
+        .map(move |result, actor, _ctx| {
+            if let Some((message, channel_id, dm_id, org_id)) = result {
+                if let Some(cid) = channel_id {
+                    actor.send_to_channel(&cid, message);
+                } else if dm_id.is_some() {
+                    actor.send_to_org(&org_id, message, None);
+                }
+            }
+        });
+
+        ctx.spawn(fut);
+    }
+}
+
+/// Message: Subscribe to a thread
+#[derive(ActixMessage)]
+#[rtype(result = "()")]
+pub struct SubscribeThread {
+    pub session_id: Uuid,
+    pub message_id: Uuid, // The parent message ID (thread root)
+}
+
+impl Handler<SubscribeThread> for WsServer {
+    type Result = ();
+
+    fn handle(&mut self, msg: SubscribeThread, _: &mut Context<Self>) {
+        tracing::debug!(
+            "WebSocket: Session {} subscribed to thread {}",
+            msg.session_id, msg.message_id
+        );
+
+        // Register thread subscription
+        self.thread_subscriptions
+            .entry(msg.message_id)
+            .or_insert_with(HashSet::new)
+            .insert(msg.session_id);
+    }
+}
+
+/// Message: Unsubscribe from a thread
+#[derive(ActixMessage)]
+#[rtype(result = "()")]
+pub struct UnsubscribeThread {
+    pub session_id: Uuid,
+    pub message_id: Uuid, // The parent message ID (thread root)
+}
+
+impl Handler<UnsubscribeThread> for WsServer {
+    type Result = ();
+
+    fn handle(&mut self, msg: UnsubscribeThread, _: &mut Context<Self>) {
+        tracing::debug!(
+            "WebSocket: Session {} unsubscribed from thread {}",
+            msg.session_id, msg.message_id
+        );
+
+        if let Some(subscribers) = self.thread_subscriptions.get_mut(&msg.message_id) {
+            subscribers.remove(&msg.session_id);
+            if subscribers.is_empty() {
+                self.thread_subscriptions.remove(&msg.message_id);
+            }
+        }
+    }
+}
+
+/// Message: Broadcast to thread subscribers
+#[derive(ActixMessage)]
+#[rtype(result = "()")]
+pub struct BroadcastToThread {
+    pub parent_message_id: Uuid,
+    pub message: ServerMessage,
+}
+
+impl Handler<BroadcastToThread> for WsServer {
+    type Result = ();
+
+    fn handle(&mut self, msg: BroadcastToThread, _: &mut Context<Self>) {
+        if let Some(session_ids) = self.thread_subscriptions.get(&msg.parent_message_id) {
+            let session_ids: Vec<Uuid> = session_ids.iter().copied().collect();
+            for session_id in session_ids {
+                self.send_message(&session_id, msg.message.clone());
+            }
+        }
     }
 }

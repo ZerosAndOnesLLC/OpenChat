@@ -112,6 +112,88 @@ impl WsSessionData {
                 let pong = ServerMessage::Pong;
                 let _ = tx.send(pong);
             }
+            ClientMessage::MarkAsRead {
+                channel_id,
+                dm_id,
+                last_message_id,
+            } => {
+                self.server.do_send(server::MarkAsRead {
+                    user_id: self.user_id,
+                    org_id: self.org_id,
+                    channel_id,
+                    dm_id,
+                    last_message_id,
+                });
+            }
+            ClientMessage::AddReaction { message_id, emoji } => {
+                self.server.do_send(server::AddReaction {
+                    user_id: self.user_id,
+                    org_id: self.org_id,
+                    message_id,
+                    emoji,
+                });
+            }
+            ClientMessage::RemoveReaction { message_id, emoji } => {
+                self.server.do_send(server::RemoveReaction {
+                    user_id: self.user_id,
+                    org_id: self.org_id,
+                    message_id,
+                    emoji,
+                });
+            }
+            ClientMessage::PinMessage { message_id } => {
+                self.server.do_send(server::PinMessage {
+                    user_id: self.user_id,
+                    user_name: self.user_name.clone(),
+                    message_id,
+                });
+            }
+            ClientMessage::UnpinMessage { message_id } => {
+                self.server.do_send(server::UnpinMessage {
+                    user_id: self.user_id,
+                    user_name: self.user_name.clone(),
+                    message_id,
+                });
+            }
+            ClientMessage::AddBookmark { message_id } => {
+                self.server.do_send(server::AddBookmark {
+                    user_id: self.user_id,
+                    message_id,
+                });
+            }
+            ClientMessage::RemoveBookmark { message_id } => {
+                self.server.do_send(server::RemoveBookmark {
+                    user_id: self.user_id,
+                    message_id,
+                });
+            }
+            ClientMessage::EditMessage { message_id, content } => {
+                self.server.do_send(server::EditMessage {
+                    user_id: self.user_id,
+                    org_id: self.org_id,
+                    message_id,
+                    content,
+                });
+            }
+            ClientMessage::DeleteMessage { message_id } => {
+                self.server.do_send(server::DeleteMessage {
+                    user_id: self.user_id,
+                    org_id: self.org_id,
+                    message_id,
+                });
+            }
+            ClientMessage::SubscribeThread { message_id } => {
+                self.server.do_send(server::SubscribeThread {
+                    session_id: self.id,
+                    message_id,
+                });
+            }
+            ClientMessage::UnsubscribeThread { message_id } => {
+                self.server.do_send(server::UnsubscribeThread {
+                    session_id: self.id,
+                    message_id,
+                });
+            }
         }
     }
 }

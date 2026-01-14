@@ -945,6 +945,13 @@ Infrastructure is managed via Terraform in `~/dev/terraform/prod/us-east-1/openc
 
 ## Version History
 
+### v0.62.8 (Fix Redis Cache Error Handling)
+- Fixed 500 errors caused by Redis connection issues (broken pipe) in channel endpoints
+- Cache read functions now gracefully handle Redis errors by returning cache miss instead of propagating errors
+- Affected functions: get_channel_from_cache, get_channel_members_from_cache, is_channel_member_cached
+- Requests now fall back to database when Redis is unavailable, matching auth middleware behavior
+- Improved system resilience during Redis connection interruptions
+
 ### v0.62.4 (Fix Device Token Roles)
 - Fixed device tokens not including user roles from TitaniumVault
 - Device tokens now properly include all user roles (e.g., openchat-admin)

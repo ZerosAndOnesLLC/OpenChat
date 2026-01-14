@@ -12,6 +12,7 @@ import TypingIndicator from './TypingIndicator';
 import ThreadPanel from './ThreadPanel';
 import PinnedMessagesPanel from './PinnedMessagesPanel';
 import EditChannelModal from './EditChannelModal';
+import AddMembersModal from './AddMembersModal';
 import Toast from './Toast';
 
 interface MessageAreaProps {
@@ -30,6 +31,7 @@ export default function MessageArea({ channel, dm, onLeaveChannel }: MessageArea
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
   const [showChannelMenu, setShowChannelMenu] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
+  const [showAddMembersModal, setShowAddMembersModal] = useState(false);
   const queryClient = useQueryClient();
   const channelMenuRef = useRef<HTMLDivElement>(null);
 
@@ -359,6 +361,20 @@ export default function MessageArea({ channel, dm, onLeaveChannel }: MessageArea
                         Edit channel
                       </button>
                     )}
+                    {channel.channel_type === 'private' && (
+                      <button
+                        onClick={() => {
+                          setShowAddMembersModal(true);
+                          setShowChannelMenu(false);
+                        }}
+                        className="flex w-full items-center px-4 py-2 text-sm text-gray-300 hover:bg-gray-700"
+                      >
+                        <svg className="mr-2 h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" />
+                        </svg>
+                        Add members
+                      </button>
+                    )}
                     <button
                       onClick={() => {
                         const message = channel.channel_type === 'private'
@@ -437,6 +453,18 @@ export default function MessageArea({ channel, dm, onLeaveChannel }: MessageArea
           onClose={() => setShowEditModal(false)}
           onSuccess={() => {
             setToast({ message: 'Channel updated successfully', type: 'success' });
+          }}
+        />
+      )}
+
+      {/* Add Members Modal */}
+      {channel && channel.channel_type === 'private' && (
+        <AddMembersModal
+          channel={channel}
+          isOpen={showAddMembersModal}
+          onClose={() => setShowAddMembersModal(false)}
+          onSuccess={() => {
+            setToast({ message: 'Member added successfully', type: 'success' });
           }}
         />
       )}

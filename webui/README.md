@@ -16,6 +16,7 @@ Modern real-time team chat application built with Next.js 16.
 
 - ✅ Real-time messaging via WebSockets
 - ✅ Public and private channels
+  - ✅ Add members to private channels via 3-dot menu
 - ✅ Direct messages (1-on-1 and group)
 - ✅ Threaded conversations with inline previews
 - ✅ Thread side panel with breadcrumb navigation
@@ -67,6 +68,7 @@ openchat/ui/
 │   ├── MessageItem.tsx    # Individual message with reactions and thread preview
 │   ├── MessageInput.tsx   # Message input with typing indicators and drafts
 │   ├── ThreadPanel.tsx    # Thread side panel for replies
+│   ├── AddMembersModal.tsx # Add members to private channels
 │   ├── TypingIndicator.tsx # Typing indicator UI
 │   ├── KeyboardShortcutsHelp.tsx # Keyboard shortcuts help modal
 │   └── QuickSwitcher.tsx  # Quick channel/DM switcher modal
@@ -249,7 +251,7 @@ npm run build
 
 ## Version
 
-Current version: 0.26.0
+Current version: 0.27.0
 
 Increment version before commits:
 - **Patch** (0.1.x): Bug fixes, small tweaks
@@ -257,6 +259,14 @@ Increment version before commits:
 - **Major** (x.0.0): Breaking changes
 
 ### Recent Changes
+
+**v0.27.0** - Add Members to Private Channels
+- Added "Add members" option to 3-dot menu for private channels
+- New AddMembersModal component for managing channel membership
+- Search users by name or email to add to channel
+- View current channel members with role badges
+- Real-time member list updates after adding users
+- Consistent modal styling with existing components
 
 **v0.26.0** - Redesigned Settings with Tree Navigation
 - Complete redesign of the settings page with a modern tree-structure navigation

@@ -23,7 +23,7 @@ interface MessageAreaProps {
 
 export default function MessageArea({ channel, dm, onLeaveChannel }: MessageAreaProps) {
   const { user } = useAuth();
-  const { messages, channelData, dmData, setMessages, subscribeChannel, unsubscribeChannel, subscribeDm, unsubscribeDm, typing, setLastReadMessageId, lastReadMessageIds, unreadCounts, setActiveChannel } =
+  const { messages, channelData, setMessages, subscribeChannel, unsubscribeChannel, subscribeDm, unsubscribeDm, typing, setLastReadMessageId, lastReadMessageIds, unreadCounts, setActiveChannel } =
     useWebSocketStore();
   const prevChannelRef = useRef<string | null>(null);
   const prevDmRef = useRef<string | null>(null);

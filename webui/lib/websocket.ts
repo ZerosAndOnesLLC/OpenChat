@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import type { Message, WSClientMessage, WSServerMessage, ChannelMetadata, DmMetadata, PinnedMessageInfo, ChannelMemberInfo, MessageWithDetails } from './types';
+import { apiClient } from './api';
 
 const WS_URL = process.env.NEXT_PUBLIC_WS_URL || 'ws://localhost:8080/api/ws';
 
@@ -32,6 +33,7 @@ interface UserStatusInfo {
 interface WebSocketStore {
   ws: WebSocket | null;
   connected: boolean;
+  currentUserId: string | null;
   initialStateLoaded: boolean;
   channels: ChannelMetadata[]; // Channels with metadata from initial state
   dms: DmMetadata[]; // DMs with metadata from initial state
@@ -88,6 +90,7 @@ interface WebSocketStore {
 export const useWebSocketStore = create<WebSocketStore>((set, get) => ({
   ws: null,
   connected: false,
+  currentUserId: null,
   initialStateLoaded: false,
   channels: [],
   dms: [],
@@ -425,6 +428,7 @@ export const useWebSocketStore = create<WebSocketStore>((set, get) => ({
 
           case 'connected': {
             console.log('WebSocket connection confirmed for user:', message.user_id);
+            set({ currentUserId: message.user_id });
             break;
           }
 
@@ -549,7 +553,31 @@ export const useWebSocketStore = create<WebSocketStore>((set, get) => ({
 
           case 'member_joined': {
             console.log('Member joined:', message.user_name, 'in channel:', message.channel_id);
-            // Add to members list for this channel
+
+            // If the current user is being added to the channel, add it to their sidebar
+            const currentUserId = get().currentUserId;
+            if (currentUserId && message.user_id === currentUserId) {
+              // Check if channel is already in the list
+              const existingChannel = get().channels.find(ch => ch.id === message.channel_id);
+              if (!existingChannel) {
+                // Fetch channel details and add to sidebar
+                apiClient.getChannel(message.channel_id).then(channel => {
+                  const channelMetadata: ChannelMetadata = {
+                    id: channel.id,
+                    name: channel.name,
+                    description: channel.description,
+                    channel_type: channel.channel_type,
+                    unread_count: 0,
+                  };
+                  get().addChannel(channelMetadata);
+                  console.log('Added channel to sidebar:', channel.name);
+                }).catch(err => {
+                  console.error('Failed to fetch channel for sidebar:', err);
+                });
+              }
+            }
+
+            // Add to members list for this channel (for other viewers)
             set((state) => {
               const channelData = state.channelData[message.channel_id];
               if (channelData) {

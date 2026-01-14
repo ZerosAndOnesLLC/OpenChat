@@ -88,6 +88,19 @@ impl WsSessionData {
                     channel_id,
                 });
             }
+            ClientMessage::SubscribeDm { dm_id } => {
+                self.server.do_send(server::SubscribeDm {
+                    session_id: self.id,
+                    user_id: self.user_id,
+                    dm_id,
+                });
+            }
+            ClientMessage::UnsubscribeDm { dm_id } => {
+                self.server.do_send(server::UnsubscribeDm {
+                    session_id: self.id,
+                    dm_id,
+                });
+            }
             ClientMessage::UpdateStatus { status } => {
                 self.server.do_send(server::UpdateUserStatus {
                     user_id: self.user_id,

@@ -251,7 +251,7 @@ npm run build
 
 ## Version
 
-Current version: 0.28.1
+Current version: 0.28.2
 
 Increment version before commits:
 - **Patch** (0.1.x): Bug fixes, small tweaks
@@ -259,6 +259,11 @@ Increment version before commits:
 - **Major** (x.0.0): Breaking changes
 
 ### Recent Changes
+
+**v0.28.2** - Fix added member not showing in list immediately
+- Added optimistic update when adding a member to a channel
+- New member now appears in the "Current Members" list instantly after clicking Add
+- Query invalidation still runs for eventual consistency with server
 
 **v0.28.1** - Fix channel not removed from sidebar after leaving
 - Fixed channel remaining in left nav after leaving via hover X button

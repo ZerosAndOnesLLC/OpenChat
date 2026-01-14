@@ -75,7 +75,25 @@ export default function AddMembersModal({
   const addMemberMutation = useMutation({
     mutationFn: (userId: string) =>
       apiClient.addChannelMember(channel.id, { user_id: userId, role: 'member' }),
-    onSuccess: () => {
+    onSuccess: (_data, userId) => {
+      // Optimistically add the new member to the cache immediately
+      const user = allUsers.find((u: User) => u.id === userId);
+      if (user) {
+        queryClient.setQueryData<ChannelMember[]>(
+          ['channel-members', channel.id],
+          (oldMembers = []) => [
+            ...oldMembers,
+            {
+              id: crypto.randomUUID(),
+              channel_id: channel.id,
+              user_id: userId,
+              role: 'member',
+              joined_at: new Date().toISOString(),
+            },
+          ]
+        );
+      }
+      // Also invalidate to ensure eventual consistency with server
       queryClient.invalidateQueries({ queryKey: ['channel-members', channel.id] });
       setAddingUserId(null);
       onSuccess?.();

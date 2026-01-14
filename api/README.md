@@ -424,6 +424,15 @@ src/
 - Reduces latency for channel switching from 500-1000ms to <100ms
 - Messages include full details (user names, reply counts) without additional queries
 
+**DM Subscription Enhancement (v0.62.9)**:
+- When subscribing to a DM, server sends complete DM data in one message:
+  - Messages (last 50) with user names and reply counts
+  - Unread count and last read message ID
+- Parallel data fetching for optimal performance
+- Eliminates HTTP API calls for DM data
+- Same low-latency benefits as channel subscriptions
+- WebSocket messages: `subscribe_dm`, `unsubscribe_dm`, `dm_data`
+
 **Real-time Updates Enhancement (v0.52.0)**:
 - Push-based updates eliminate the need for HTTP polling
 - All channel events now broadcast via WebSocket in real-time:
@@ -598,9 +607,11 @@ OpenChat implements a comprehensive Redis caching strategy and database optimiza
 OpenChat implements Redis-based rate limiting to protect the API from abuse and ensure fair resource usage for all users.
 
 **Rate Limit Tiers**:
-- **API Requests**: 20 requests per second per user
-- **Messages**: 5 messages per second per user
-- **WebSocket**: 100 messages per minute per user
+- **API Requests**: 200 requests per second per user
+- **Messages**: 30 messages per second per user
+- **WebSocket**: 1000 messages per minute per user
+- **Device Pairing Generate**: 5 requests per minute
+- **Device Pairing Verify**: 10 requests per minute (per IP)
 
 **Implementation**:
 - Token bucket algorithm using Redis for distributed rate limiting
@@ -944,6 +955,17 @@ Infrastructure is managed via Terraform in `~/dev/terraform/prod/us-east-1/openc
 ```
 
 ## Version History
+
+### v0.62.9 (WebSocket DM Subscriptions & Rate Limit Increase)
+- Added WebSocket DM subscription support - eliminates HTTP calls when opening DMs
+- New WebSocket message types: `subscribe_dm`, `unsubscribe_dm`, `dm_data`
+- DM data sent via WebSocket includes messages (last 50), unread count, and last read message ID
+- Increased rate limits for better UX:
+  - API requests: 20 → 200 per second
+  - Messages: 5 → 30 per second
+  - WebSocket: 100 → 1000 per minute
+- Frontend updated to use WebSocket for DM data instead of HTTP API calls
+- Reduces network requests and latency when switching between DMs
 
 ### v0.62.8 (Fix Redis Cache Error Handling)
 - Fixed 500 errors caused by Redis connection issues (broken pipe) in channel endpoints

@@ -26,6 +26,14 @@ pub enum ClientMessage {
     UnsubscribeChannel {
         channel_id: Uuid,
     },
+    /// Subscribe to a DM for real-time updates and get DM data
+    SubscribeDm {
+        dm_id: Uuid,
+    },
+    /// Unsubscribe from a DM
+    UnsubscribeDm {
+        dm_id: Uuid,
+    },
     /// Update user status
     UpdateStatus {
         status: String, // "online", "offline", "away"
@@ -115,6 +123,12 @@ pub enum ServerMessage {
         messages: Vec<MessageWithDetails>,
         pins: Vec<PinnedMessageInfo>,
         members: Vec<ChannelMemberInfo>,
+        unread_info: UnreadInfo,
+    },
+    /// Complete DM data sent when subscribing to a DM
+    DmData {
+        dm_id: Uuid,
+        messages: Vec<MessageWithDetails>,
         unread_info: UnreadInfo,
     },
     /// New message received

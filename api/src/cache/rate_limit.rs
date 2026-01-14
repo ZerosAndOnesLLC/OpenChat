@@ -30,26 +30,30 @@ impl RateLimitConfig {
 #[derive(Debug, Clone, Copy)]
 #[allow(dead_code)]
 pub enum RateLimitType {
-    /// API requests (20/second)
+    /// API requests (200/second)
     ApiRequest,
-    /// Messages (5/second)
+    /// Messages (30/second)
     Message,
-    /// WebSocket messages (100/minute)
+    /// WebSocket messages (1000/minute)
     WebSocket,
-    /// Device pairing code generation (3/minute)
+    /// Device pairing code generation (5/minute)
     DevicePairingGenerate,
-    /// Device pairing code verification (5/minute per IP)
+    /// Device pairing code verification (10/minute per IP)
     DevicePairingVerify,
 }
 
 impl RateLimitType {
     pub fn config(&self) -> RateLimitConfig {
         match self {
-            RateLimitType::ApiRequest => RateLimitConfig::new(20, 1),
-            RateLimitType::Message => RateLimitConfig::new(5, 1),
-            RateLimitType::WebSocket => RateLimitConfig::new(100, 60),
-            RateLimitType::DevicePairingGenerate => RateLimitConfig::new(3, 60),
-            RateLimitType::DevicePairingVerify => RateLimitConfig::new(5, 60),
+            // 200 requests per second - handles page loads with multiple API calls
+            RateLimitType::ApiRequest => RateLimitConfig::new(200, 1),
+            // 30 messages per second - generous for even fast typers
+            RateLimitType::Message => RateLimitConfig::new(30, 1),
+            // 1000 WebSocket messages per minute
+            RateLimitType::WebSocket => RateLimitConfig::new(1000, 60),
+            // Device pairing stays conservative for security
+            RateLimitType::DevicePairingGenerate => RateLimitConfig::new(5, 60),
+            RateLimitType::DevicePairingVerify => RateLimitConfig::new(10, 60),
         }
     }
 

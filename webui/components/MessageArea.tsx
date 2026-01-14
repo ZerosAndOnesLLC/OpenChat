@@ -23,9 +23,10 @@ interface MessageAreaProps {
 
 export default function MessageArea({ channel, dm, onLeaveChannel }: MessageAreaProps) {
   const { user } = useAuth();
-  const { messages, channelData, setMessages, subscribeChannel, unsubscribeChannel, typing, setLastReadMessageId, lastReadMessageIds, unreadCounts, setActiveChannel } =
+  const { messages, channelData, dmData, setMessages, subscribeChannel, unsubscribeChannel, subscribeDm, unsubscribeDm, typing, setLastReadMessageId, lastReadMessageIds, unreadCounts, setActiveChannel } =
     useWebSocketStore();
   const prevChannelRef = useRef<string | null>(null);
+  const prevDmRef = useRef<string | null>(null);
   const [replyTo, setReplyTo] = useState<Message | undefined>(undefined);
   const [openThread, setOpenThread] = useState<string | null>(null);
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
@@ -64,8 +65,8 @@ export default function MessageArea({ channel, dm, onLeaveChannel }: MessageArea
 
   const currentKey = channel?.id || dm?.id || '';
 
-  // For channels, use WebSocket data; for DMs, fallback to HTTP (until DM WebSocket is implemented)
-  const useWebSocketData = !!channel;
+  // Use WebSocket data for both channels and DMs
+  const useWebSocketData = !!(channel || dm);
 
   // Fetch unread count and last read message ID (only for DMs or as fallback)
   const { data: unreadData } = useQuery({
@@ -143,6 +144,23 @@ export default function MessageArea({ channel, dm, onLeaveChannel }: MessageArea
       }
     };
   }, [channel, subscribeChannel, unsubscribeChannel]);
+
+  // Subscribe/unsubscribe to DM when it changes
+  useEffect(() => {
+    if (dm && dm.id !== prevDmRef.current) {
+      if (prevDmRef.current) {
+        unsubscribeDm(prevDmRef.current);
+      }
+      subscribeDm(dm.id);
+      prevDmRef.current = dm.id;
+    }
+
+    return () => {
+      if (prevDmRef.current) {
+        unsubscribeDm(prevDmRef.current);
+      }
+    };
+  }, [dm, subscribeDm, unsubscribeDm]);
 
   // Set fetched messages to store when they arrive
   useEffect(() => {

@@ -71,6 +71,8 @@ pub struct WsServer {
     org_sessions: HashMap<Uuid, HashSet<Uuid>>,
     /// Map of channel_id -> set of session_ids (subscriptions)
     channel_subscriptions: HashMap<Uuid, HashSet<Uuid>>,
+    /// Map of dm_id -> set of session_ids (subscriptions)
+    dm_subscriptions: HashMap<Uuid, HashSet<Uuid>>,
     /// Message batches per session (for batching optimization)
     message_batches: HashMap<Uuid, MessageBatch>,
     /// Total connection count
@@ -87,6 +89,7 @@ impl WsServer {
             user_sessions: HashMap::new(),
             org_sessions: HashMap::new(),
             channel_subscriptions: HashMap::new(),
+            dm_subscriptions: HashMap::new(),
             message_batches: HashMap::new(),
             total_connections: 0,
         }
@@ -329,6 +332,11 @@ impl Handler<Disconnect> for WsServer {
 
         // Remove from all channel subscriptions
         for (_, subscribers) in self.channel_subscriptions.iter_mut() {
+            subscribers.remove(&msg.session_id);
+        }
+
+        // Remove from all DM subscriptions
+        for (_, subscribers) in self.dm_subscriptions.iter_mut() {
             subscribers.remove(&msg.session_id);
         }
     }
@@ -609,6 +617,107 @@ impl Handler<UnsubscribeChannel> for WsServer {
             subscribers.remove(&msg.session_id);
             if subscribers.is_empty() {
                 self.channel_subscriptions.remove(&msg.channel_id);
+            }
+        }
+    }
+}
+
+/// Message: Subscribe to DM
+#[derive(ActixMessage)]
+#[rtype(result = "()")]
+pub struct SubscribeDm {
+    pub session_id: Uuid,
+    pub user_id: Uuid,
+    pub dm_id: Uuid,
+}
+
+impl Handler<SubscribeDm> for WsServer {
+    type Result = ();
+
+    fn handle(&mut self, msg: SubscribeDm, ctx: &mut Context<Self>) {
+        tracing::debug!(
+            "WebSocket: Session {} subscribed to DM {}",
+            msg.session_id, msg.dm_id
+        );
+
+        // Register subscription
+        self.dm_subscriptions
+            .entry(msg.dm_id)
+            .or_insert_with(HashSet::new)
+            .insert(msg.session_id);
+
+        // Fetch and send DM data
+        let pool = self.db_pool.clone();
+        let session = self.sessions.get(&msg.session_id).cloned();
+        let dm_id = msg.dm_id;
+        let user_id = msg.user_id;
+
+        let fut = async move {
+            // Fetch messages and unread info
+            let messages_fut = crate::models::message::Message::get_messages_with_details_for_dm(&pool, dm_id, 50);
+            let unread_fut = crate::models::read_status::DmReadStatus::get_unread_info(&pool, user_id, dm_id);
+
+            let (messages, unread_info) = tokio::join!(
+                messages_fut,
+                unread_fut
+            );
+
+            match (messages, unread_info) {
+                (Ok(messages), Ok(unread_info)) => {
+                    tracing::debug!(
+                        "Loaded DM data for dm {}: {} messages",
+                        dm_id,
+                        messages.len(),
+                    );
+
+                    Some(ServerMessage::DmData {
+                        dm_id,
+                        messages,
+                        unread_info,
+                    })
+                }
+                (Err(e), _) | (_, Err(e)) => {
+                    tracing::error!("Failed to load DM data for dm {}: {}", dm_id, e);
+                    Some(ServerMessage::Error {
+                        message: format!("Failed to load DM data: {}", e),
+                    })
+                }
+            }
+        }
+        .into_actor(self)
+        .map(move |result, _actor, _ctx| {
+            if let Some(message) = result {
+                if let Some(session) = session {
+                    session.do_send(WsSessionMessage(message));
+                }
+            }
+        });
+
+        ctx.spawn(fut);
+    }
+}
+
+/// Message: Unsubscribe from DM
+#[derive(ActixMessage)]
+#[rtype(result = "()")]
+pub struct UnsubscribeDm {
+    pub session_id: Uuid,
+    pub dm_id: Uuid,
+}
+
+impl Handler<UnsubscribeDm> for WsServer {
+    type Result = ();
+
+    fn handle(&mut self, msg: UnsubscribeDm, _: &mut Context<Self>) {
+        tracing::debug!(
+            "WebSocket: Session {} unsubscribed from DM {}",
+            msg.session_id, msg.dm_id
+        );
+
+        if let Some(subscribers) = self.dm_subscriptions.get_mut(&msg.dm_id) {
+            subscribers.remove(&msg.session_id);
+            if subscribers.is_empty() {
+                self.dm_subscriptions.remove(&msg.dm_id);
             }
         }
     }

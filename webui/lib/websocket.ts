@@ -18,6 +18,11 @@ interface ChannelDataState {
   loaded: boolean;
 }
 
+interface DmDataState {
+  messages: Message[];
+  loaded: boolean;
+}
+
 interface UserStatusInfo {
   status: 'online' | 'offline' | 'away' | 'dnd';
   custom_message?: string;
@@ -32,6 +37,7 @@ interface WebSocketStore {
   dms: DmMetadata[]; // DMs with metadata from initial state
   messages: Record<string, Message[]>; // channelId/dmId -> messages
   channelData: Record<string, ChannelDataState>; // channelId -> channel data (messages, pins, members)
+  dmData: Record<string, DmDataState>; // dmId -> dm data (messages)
   typing: TypingIndicator[];
   userStatuses: Record<string, 'online' | 'offline' | 'away' | 'dnd'>;
   userStatusDetails: Record<string, UserStatusInfo>; // Full status info with custom message/emoji
@@ -47,6 +53,8 @@ interface WebSocketStore {
   sendTyping: (channelId: string | undefined, dmId: string | undefined) => void;
   subscribeChannel: (channelId: string) => void;
   unsubscribeChannel: (channelId: string) => void;
+  subscribeDm: (dmId: string) => void;
+  unsubscribeDm: (dmId: string) => void;
   updateStatus: (status: 'online' | 'offline' | 'away') => void;
   addMessage: (key: string, message: Message) => void;
   updateMessage: (messageId: string, content: string, editedAt: string) => void;
@@ -73,6 +81,7 @@ export const useWebSocketStore = create<WebSocketStore>((set, get) => ({
   dms: [],
   messages: {},
   channelData: {},
+  dmData: {},
   typing: [],
   userStatuses: {},
   userStatusDetails: {},
@@ -181,6 +190,57 @@ export const useWebSocketStore = create<WebSocketStore>((set, get) => ({
               lastReadMessageIds: {
                 ...state.lastReadMessageIds,
                 [message.channel_id]: message.unread_info.last_read_message_id,
+              },
+            }));
+            break;
+          }
+
+          case 'dm_data': {
+            console.log('Received DM data for dm', message.dm_id, 'with', message.messages.length, 'messages');
+
+            // Convert MessageWithDetails to Message format
+            const dmMessages: Message[] = message.messages.map((msg: MessageWithDetails) => ({
+              id: msg.id,
+              channel_id: msg.channel_id,
+              dm_id: msg.dm_id,
+              user_id: msg.user_id,
+              content: msg.content,
+              parent_message_id: msg.parent_message_id,
+              created_at: msg.created_at,
+              edited_at: msg.edited_at,
+              reply_count: msg.reply_count,
+              user: {
+                id: msg.user_id,
+                display_name: msg.user_name,
+                email: '',
+                org_id: '',
+                tv_user_id: '',
+                status: 'online',
+                created_at: '',
+                updated_at: '',
+              },
+            }));
+
+            // Update DM data and unread counts
+            set((state) => ({
+              dmData: {
+                ...state.dmData,
+                [message.dm_id]: {
+                  messages: dmMessages,
+                  loaded: true,
+                },
+              },
+              messages: {
+                ...state.messages,
+                [message.dm_id]: dmMessages,
+              },
+              unreadCounts: {
+                ...state.unreadCounts,
+                [message.dm_id]: message.unread_info.count,
+              },
+              lastReadMessageIds: {
+                ...state.lastReadMessageIds,
+                [message.dm_id]: message.unread_info.last_read_message_id,
               },
             }));
             break;
@@ -590,6 +650,28 @@ export const useWebSocketStore = create<WebSocketStore>((set, get) => ({
       const message: WSClientMessage = {
         type: 'unsubscribe_channel',
         channel_id: channelId,
+      };
+      ws.send(JSON.stringify(message));
+    }
+  },
+
+  subscribeDm: (dmId) => {
+    const { ws } = get();
+    if (ws && ws.readyState === WebSocket.OPEN) {
+      const message: WSClientMessage = {
+        type: 'subscribe_dm',
+        dm_id: dmId,
+      };
+      ws.send(JSON.stringify(message));
+    }
+  },
+
+  unsubscribeDm: (dmId) => {
+    const { ws } = get();
+    if (ws && ws.readyState === WebSocket.OPEN) {
+      const message: WSClientMessage = {
+        type: 'unsubscribe_dm',
+        dm_id: dmId,
       };
       ws.send(JSON.stringify(message));
     }

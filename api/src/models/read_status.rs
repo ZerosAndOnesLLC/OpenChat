@@ -240,4 +240,47 @@ impl DmReadStatus {
 
         Ok(result.flatten())
     }
+
+    /// Get unread info for DM subscription
+    pub async fn get_unread_info(
+        pool: &PgPool,
+        user_id: Uuid,
+        dm_id: Uuid,
+    ) -> ApiResult<crate::websocket::messages::UnreadInfo> {
+        #[derive(sqlx::FromRow)]
+        struct UnreadRow {
+            count: i32,
+            last_read_message_id: Option<Uuid>,
+        }
+
+        let row = sqlx::query_as::<_, UnreadRow>(
+            r#"
+            SELECT
+                COALESCE(
+                    (SELECT COUNT(*)::int
+                    FROM messages m
+                    WHERE m.dm_id = $2
+                        AND m.deleted_at IS NULL
+                        AND (
+                            NOT EXISTS (SELECT 1 FROM dm_read_status drs WHERE drs.user_id = $1 AND drs.dm_id = $2)
+                            OR m.created_at > (SELECT last_read_at FROM dm_read_status WHERE user_id = $1 AND dm_id = $2)
+                        )
+                        AND m.user_id != $1
+                    ),
+                    0
+                ) as count,
+                (SELECT last_read_message_id FROM dm_read_status WHERE user_id = $1 AND dm_id = $2) as last_read_message_id
+            "#,
+        )
+        .bind(user_id)
+        .bind(dm_id)
+        .fetch_one(pool)
+        .await?;
+
+        Ok(crate::websocket::messages::UnreadInfo {
+            count: row.count,
+            last_read_message_id: row.last_read_message_id,
+            mentions: 0, // DMs don't have mentions
+        })
+    }
 }

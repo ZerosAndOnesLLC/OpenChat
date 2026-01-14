@@ -20,12 +20,19 @@ fn channel_members_cache_key(channel_id: Uuid) -> String {
 }
 
 /// Get channel from cache
+/// Returns None on Redis errors to gracefully fall back to database
 pub async fn get_channel_from_cache(
     redis: &mut redis::aio::MultiplexedConnection,
     channel_id: Uuid,
 ) -> ApiResult<Option<Channel>> {
     let key = channel_cache_key(channel_id);
-    let cached: Option<String> = redis.get(&key).await?;
+    let cached: Option<String> = match redis.get(&key).await {
+        Ok(val) => val,
+        Err(e) => {
+            tracing::warn!("Redis error fetching channel cache, falling back to DB: {}", e);
+            return Ok(None);
+        }
+    };
 
     match cached {
         Some(json) => {
@@ -67,12 +74,19 @@ pub async fn invalidate_channel_cache(
 }
 
 /// Get channel members from cache
+/// Returns None on Redis errors to gracefully fall back to database
 pub async fn get_channel_members_from_cache(
     redis: &mut redis::aio::MultiplexedConnection,
     channel_id: Uuid,
 ) -> ApiResult<Option<Vec<ChannelMember>>> {
     let key = channel_members_cache_key(channel_id);
-    let cached: Option<String> = redis.get(&key).await?;
+    let cached: Option<String> = match redis.get(&key).await {
+        Ok(val) => val,
+        Err(e) => {
+            tracing::warn!("Redis error fetching channel members cache, falling back to DB: {}", e);
+            return Ok(None);
+        }
+    };
 
     match cached {
         Some(json) => {
@@ -115,6 +129,7 @@ pub async fn invalidate_channel_members_cache(
 }
 
 /// Check if a user is a member of a channel (cached)
+/// Returns None on Redis errors to gracefully fall back to database
 #[allow(dead_code)]
 pub async fn is_channel_member_cached(
     redis: &mut redis::aio::MultiplexedConnection,
@@ -123,7 +138,13 @@ pub async fn is_channel_member_cached(
 ) -> ApiResult<Option<bool>> {
     let key = format!("openchat:channel_membership:{}:{}", channel_id, user_id);
 
-    let cached: Option<String> = redis.get(&key).await?;
+    let cached: Option<String> = match redis.get(&key).await {
+        Ok(val) => val,
+        Err(e) => {
+            tracing::warn!("Redis error checking channel membership cache, falling back to DB: {}", e);
+            return Ok(None);
+        }
+    };
 
     match cached {
         Some(val) => {

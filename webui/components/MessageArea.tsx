@@ -23,7 +23,7 @@ interface MessageAreaProps {
 
 export default function MessageArea({ channel, dm, onLeaveChannel }: MessageAreaProps) {
   const { user } = useAuth();
-  const { messages, channelData, setMessages, subscribeChannel, unsubscribeChannel, subscribeDm, unsubscribeDm, typing, setLastReadMessageId, lastReadMessageIds, unreadCounts, setActiveChannel } =
+  const { messages, channelData, setMessages, subscribeChannel, unsubscribeChannel, subscribeDm, unsubscribeDm, typing, setLastReadMessageId, lastReadMessageIds, unreadCounts, setActiveChannel, markAsRead, pinMessage, unpinMessage, addBookmark, removeBookmark } =
     useWebSocketStore();
   const prevChannelRef = useRef<string | null>(null);
   const prevDmRef = useRef<string | null>(null);
@@ -95,7 +95,7 @@ export default function MessageArea({ channel, dm, onLeaveChannel }: MessageArea
   }, [currentKey, unreadData, setLastReadMessageId, useWebSocketData]);
 
   // Fetch messages when channel/dm changes (only for DMs now)
-  const { data: fetchedMessages, isError, error, isLoading } = useQuery({
+  const { data: fetchedMessages, isError, error } = useQuery({
     queryKey: ['messages', currentKey],
     queryFn: async () => {
       console.log('Fetching messages for:', currentKey, { channel, dm });
@@ -200,21 +200,16 @@ export default function MessageArea({ channel, dm, onLeaveChannel }: MessageArea
     if (!currentKey || localMessages.length === 0) return;
 
     // Mark as read after a short delay when messages change
-    const timer = setTimeout(async () => {
-      try {
-        const lastMessage = localMessages[localMessages.length - 1];
-        if (channel && lastMessage) {
-          await apiClient.markChannelAsRead(channel.id, lastMessage.id);
-        } else if (dm && lastMessage) {
-          await apiClient.markDmAsRead(dm.id, lastMessage.id);
-        }
-      } catch (error) {
-        console.error('Failed to mark as read:', error);
+    const timer = setTimeout(() => {
+      const lastMessage = localMessages[localMessages.length - 1];
+      if (lastMessage) {
+        // Use WebSocket to mark as read (more efficient than HTTP)
+        markAsRead(channel?.id, dm?.id, lastMessage.id);
       }
     }, 1000); // Wait 1 second before marking as read
 
     return () => clearTimeout(timer);
-  }, [currentKey, localMessages, channel, dm]);
+  }, [currentKey, localMessages, channel, dm, markAsRead]);
 
   // Get typing indicators for current channel/dm
   const currentTyping = typing.filter(
@@ -266,58 +261,43 @@ export default function MessageArea({ channel, dm, onLeaveChannel }: MessageArea
     return new Set(bookmarks.map(b => b.message_id));
   }, [bookmarks]);
 
-  // Handle pin/unpin
-  const handlePin = async (message: Message) => {
+  // Handle pin/unpin (via WebSocket)
+  const handlePin = (message: Message) => {
     if (!channel) return;
 
-    try {
-      const isPinned = pinnedMessageIds.has(message.id);
-      if (isPinned) {
-        await apiClient.unpinMessage(message.id);
-        setToast({ message: 'Message unpinned', type: 'success' });
-      } else {
-        await apiClient.pinMessage(message.id);
-        setToast({ message: 'Message pinned', type: 'success' });
-      }
-      // Refresh pinned messages
-      queryClient.invalidateQueries({ queryKey: ['pinned-messages', channel.id] });
-    } catch (error) {
-      console.error('Failed to pin/unpin message:', error);
-      setToast({ message: 'Failed to update pin', type: 'error' });
-    }
-  };
-
-  // Handle bookmark/unbookmark
-  const handleBookmark = async (message: Message) => {
-    try {
-      const isBookmarked = bookmarkedMessageIds.has(message.id);
-      if (isBookmarked) {
-        await apiClient.unbookmarkMessage(message.id);
-        setToast({ message: 'Bookmark removed', type: 'success' });
-      } else {
-        await apiClient.bookmarkMessage(message.id);
-        setToast({ message: 'Message bookmarked', type: 'success' });
-      }
-      // Refresh bookmarks
-      queryClient.invalidateQueries({ queryKey: ['bookmarks'] });
-    } catch (error) {
-      console.error('Failed to bookmark/unbookmark message:', error);
-      setToast({ message: 'Failed to update bookmark', type: 'error' });
-    }
-  };
-
-  // Handle unpin from panel
-  const handleUnpinFromPanel = async (messageId: string) => {
-    if (!channel) return;
-
-    try {
-      await apiClient.unpinMessage(messageId);
+    const isPinned = pinnedMessageIds.has(message.id);
+    if (isPinned) {
+      unpinMessage(message.id);
       setToast({ message: 'Message unpinned', type: 'success' });
-      queryClient.invalidateQueries({ queryKey: ['pinned-messages', channel.id] });
-    } catch (error) {
-      console.error('Failed to unpin message:', error);
-      setToast({ message: 'Failed to unpin message', type: 'error' });
+    } else {
+      pinMessage(message.id);
+      setToast({ message: 'Message pinned', type: 'success' });
     }
+    // Note: WebSocket broadcast will update the UI automatically
+  };
+
+  // Handle bookmark/unbookmark (via WebSocket)
+  const handleBookmark = (message: Message) => {
+    const isBookmarked = bookmarkedMessageIds.has(message.id);
+    if (isBookmarked) {
+      removeBookmark(message.id);
+      setToast({ message: 'Bookmark removed', type: 'success' });
+    } else {
+      addBookmark(message.id);
+      setToast({ message: 'Message bookmarked', type: 'success' });
+    }
+    // Note: WebSocket broadcast will update the UI automatically
+    // Still need to invalidate the bookmarks query since it's fetched via HTTP
+    queryClient.invalidateQueries({ queryKey: ['bookmarks'] });
+  };
+
+  // Handle unpin from panel (via WebSocket)
+  const handleUnpinFromPanel = (messageId: string) => {
+    if (!channel) return;
+
+    unpinMessage(messageId);
+    setToast({ message: 'Message unpinned', type: 'success' });
+    // Note: WebSocket broadcast will update the UI automatically
   };
 
   if (!channel && !dm) {

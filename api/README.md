@@ -412,6 +412,12 @@ src/
   - User presence (online/offline/away)
   - Channel subscriptions with full data delivery (v0.51.0)
   - Heartbeat/ping-pong
+  - Mark as read (v0.63.0)
+  - Reactions add/remove (v0.63.0)
+  - Pin/unpin messages (v0.63.0)
+  - Bookmark add/remove (v0.63.0)
+  - Message edit/delete (v0.63.0)
+  - Thread subscriptions (v0.63.0)
 
 **Channel Subscription Enhancement (v0.51.0)**:
 - When subscribing to a channel, server sends complete channel data in one message:
@@ -955,6 +961,21 @@ Infrastructure is managed via Terraform in `~/dev/terraform/prod/us-east-1/openc
 ```
 
 ## Version History
+
+### v0.63.0 (WebSocket Commands Migration)
+- Migrated frequent HTTP operations to WebSocket for reduced latency and server load
+- New WebSocket client messages:
+  - `mark_as_read` - Mark channel or DM as read (replaces POST /channels/:id/read, POST /dms/:id/read)
+  - `add_reaction` / `remove_reaction` - Add/remove emoji reactions (replaces POST/DELETE /messages/:id/reactions)
+  - `pin_message` / `unpin_message` - Pin/unpin messages in channels (replaces POST/DELETE /messages/:id/pin)
+  - `add_bookmark` / `remove_bookmark` - Bookmark/unbookmark messages (replaces POST/DELETE /bookmarks)
+  - `edit_message` / `delete_message` - Edit/delete messages (replaces PUT/DELETE /messages/:id)
+  - `subscribe_thread` / `unsubscribe_thread` - Subscribe to real-time thread updates (replaces HTTP polling)
+- Added thread subscription tracking in WsServer for real-time thread replies
+- All operations broadcast updates to relevant subscribers automatically
+- Cache invalidation integrated into WebSocket handlers
+- Reduces HTTP calls significantly for interactive operations
+- HTTP endpoints remain available for backwards compatibility
 
 ### v0.62.9 (WebSocket DM Subscriptions & Rate Limit Increase)
 - Added WebSocket DM subscription support - eliminates HTTP calls when opening DMs

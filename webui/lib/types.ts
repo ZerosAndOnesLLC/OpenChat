@@ -199,7 +199,18 @@ export type WSClientMessage =
   | { type: 'unsubscribe_channel'; channel_id: string }
   | { type: 'subscribe_dm'; dm_id: string }
   | { type: 'unsubscribe_dm'; dm_id: string }
-  | { type: 'update_status'; status: 'online' | 'offline' | 'away' };
+  | { type: 'update_status'; status: 'online' | 'offline' | 'away' }
+  | { type: 'mark_as_read'; channel_id?: string; dm_id?: string; last_message_id?: string }
+  | { type: 'add_reaction'; message_id: string; emoji: string }
+  | { type: 'remove_reaction'; message_id: string; emoji: string }
+  | { type: 'pin_message'; message_id: string }
+  | { type: 'unpin_message'; message_id: string }
+  | { type: 'add_bookmark'; message_id: string }
+  | { type: 'remove_bookmark'; message_id: string }
+  | { type: 'edit_message'; message_id: string; content: string }
+  | { type: 'delete_message'; message_id: string }
+  | { type: 'subscribe_thread'; message_id: string }
+  | { type: 'unsubscribe_thread'; message_id: string };
 
 export type WSServerMessage =
   | { type: 'initial_state'; user_id: string; channels: ChannelMetadata[]; dms: DmMetadata[] }

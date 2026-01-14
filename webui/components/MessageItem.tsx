@@ -3,7 +3,6 @@
 import { useState, useRef, useEffect } from 'react';
 import dynamic from 'next/dynamic';
 import { useAuth } from '@/lib/auth';
-import { apiClient } from '@/lib/api';
 import { useWebSocketStore } from '@/lib/websocket';
 import { extractUrls } from '@/lib/url-utils';
 import type { Message } from '@/lib/types';
@@ -16,8 +15,8 @@ import EditHistoryModal from './EditHistoryModal';
 // Dynamically import EmojiPicker to avoid SSR issues
 const EmojiPicker = dynamic(() => import('emoji-picker-react'), { ssr: false });
 
-// Import Theme type
-import { Theme } from 'emoji-picker-react';
+// Import Theme type and EmojiClickData type
+import { Theme, EmojiClickData } from 'emoji-picker-react';
 
 interface MessageItemProps {
   message: Message;
@@ -31,7 +30,7 @@ interface MessageItemProps {
 
 export default function MessageItem({ message, onReply, onOpenThread, onPin, onBookmark, isPinned = false, isBookmarked = false }: MessageItemProps) {
   const { user } = useAuth();
-  const { addReaction: addReactionToStore, removeReaction: removeReactionFromStore } = useWebSocketStore();
+  const { addReaction: addReactionToStore, removeReaction: removeReactionFromStore, wsAddReaction, wsRemoveReaction, wsEditMessage, wsDeleteMessage, updateMessage: updateMessageInStore, deleteMessage: deleteMessageFromStore } = useWebSocketStore();
   const [showReactionPicker, setShowReactionPicker] = useState(false);
   const [showActions, setShowActions] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
@@ -89,65 +88,53 @@ export default function MessageItem({ message, onReply, onOpenThread, onPin, onB
     });
   };
 
-  const handleAddReaction = async (emoji: string) => {
+  const handleAddReaction = (emoji: string) => {
     if (!user) return;
 
     // Optimistically update UI immediately
     addReactionToStore(message.id, user.id, emoji);
     setShowReactionPicker(false);
 
-    // Then make API call
-    try {
-      await apiClient.addReaction(message.id, { emoji });
-    } catch (error) {
-      console.error('Failed to add reaction:', error);
-      // Rollback on error
-      removeReactionFromStore(message.id, user.id, emoji);
-    }
+    // Send via WebSocket (no need to handle errors - the server will broadcast the result)
+    wsAddReaction(message.id, emoji);
   };
 
-  const handleEmojiClick = (emojiData: any) => {
+  const handleEmojiClick = (emojiData: EmojiClickData) => {
     handleAddReaction(emojiData.emoji);
   };
 
-  const handleRemoveReaction = async (emoji: string) => {
+  const handleRemoveReaction = (emoji: string) => {
     if (!user) return;
 
     // Optimistically update UI immediately
     removeReactionFromStore(message.id, user.id, emoji);
 
-    // Then make API call
-    try {
-      await apiClient.removeReaction(message.id, emoji);
-    } catch (error) {
-      console.error('Failed to remove reaction:', error);
-      // Rollback on error
-      addReactionToStore(message.id, user.id, emoji);
-    }
+    // Send via WebSocket (no need to handle errors - the server will broadcast the result)
+    wsRemoveReaction(message.id, emoji);
   };
 
-  const handleEdit = async () => {
+  const handleEdit = () => {
     if (!editContent.trim() || editContent === message.content) {
       setIsEditing(false);
       setEditContent(message.content);
       return;
     }
 
-    try {
-      await apiClient.updateMessage(message.id, { content: editContent });
-      setIsEditing(false);
-    } catch (error) {
-      console.error('Failed to edit message:', error);
-    }
+    // Optimistically update UI
+    updateMessageInStore(message.id, editContent, new Date().toISOString());
+    setIsEditing(false);
+
+    // Send via WebSocket
+    wsEditMessage(message.id, editContent);
   };
 
-  const handleDelete = async () => {
+  const handleDelete = () => {
     if (confirm('Are you sure you want to delete this message?')) {
-      try {
-        await apiClient.deleteMessage(message.id);
-      } catch (error) {
-        console.error('Failed to delete message:', error);
-      }
+      // Optimistically update UI
+      deleteMessageFromStore(message.id);
+
+      // Send via WebSocket
+      wsDeleteMessage(message.id);
     }
   };
 

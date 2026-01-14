@@ -1,6 +1,6 @@
 [package]
 name = "openchat-api"
-version = "0.62.6"
+version = "0.62.7"
 edition = "2024"
 
 [dependencies]

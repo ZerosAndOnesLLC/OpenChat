@@ -153,6 +153,7 @@ export default function ChatLayout() {
         activeDm={activeDm}
         onSelectChannel={handleSelectChannel}
         onSelectDm={handleSelectDm}
+        onLeaveChannel={handleLeaveChannel}
         width={sidebarWidth}
       />
       {/* Resize handle */}

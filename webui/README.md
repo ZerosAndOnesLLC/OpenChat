@@ -251,7 +251,7 @@ npm run build
 
 ## Version
 
-Current version: 0.27.0
+Current version: 0.28.1
 
 Increment version before commits:
 - **Patch** (0.1.x): Bug fixes, small tweaks
@@ -259,6 +259,11 @@ Increment version before commits:
 - **Major** (x.0.0): Breaking changes
 
 ### Recent Changes
+
+**v0.28.1** - Fix channel not removed from sidebar after leaving
+- Fixed channel remaining in left nav after leaving via hover X button
+- Added `onLeaveChannel` prop threading from ChatLayout → Sidebar → ChannelList
+- Channel now properly clears from active state when left
 
 **v0.27.0** - Add Members to Private Channels
 - Added "Add members" option to 3-dot menu for private channels

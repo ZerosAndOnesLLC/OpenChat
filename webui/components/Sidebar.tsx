@@ -18,6 +18,7 @@ interface SidebarProps {
   activeDm: DirectMessage | null;
   onSelectChannel: (channel: Channel) => void;
   onSelectDm: (dm: DirectMessage) => void;
+  onLeaveChannel?: () => void;
   width?: number;
 }
 
@@ -26,6 +27,7 @@ export default function Sidebar({
   activeDm,
   onSelectChannel,
   onSelectDm,
+  onLeaveChannel,
   width = 256,
 }: SidebarProps) {
   const { user } = useAuth();
@@ -226,6 +228,7 @@ export default function Sidebar({
               channels={channelsList}
               activeChannel={activeChannel}
               onSelectChannel={onSelectChannel}
+              onLeaveChannel={onLeaveChannel}
             />
           </div>
 

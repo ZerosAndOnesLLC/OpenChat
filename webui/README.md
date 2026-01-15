@@ -251,7 +251,7 @@ npm run build
 
 ## Version
 
-Current version: 0.28.2
+Current version: 0.28.3
 
 Increment version before commits:
 - **Patch** (0.1.x): Bug fixes, small tweaks
@@ -259,6 +259,12 @@ Increment version before commits:
 - **Major** (x.0.0): Breaking changes
 
 ### Recent Changes
+
+**v0.28.3** - Auto-add channel to sidebar when added by another user
+- Channel now automatically appears in sidebar when another user adds you to it
+- WebSocket `member_joined` handler checks if current user is being added
+- Fetches channel metadata and adds to channels list via WebSocket store
+- Stores current user ID from WebSocket connection for event handling
 
 **v0.28.2** - Fix added member not showing in list immediately
 - Added optimistic update when adding a member to a channel

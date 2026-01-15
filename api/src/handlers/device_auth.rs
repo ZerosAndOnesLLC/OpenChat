@@ -1,5 +1,5 @@
 use actix_web::{web, HttpMessage, HttpRequest, HttpResponse};
-use redis::aio::MultiplexedConnection;
+use crate::db::RedisPool;
 use serde::{Deserialize, Serialize};
 use sqlx::PgPool;
 use std::sync::Arc;
@@ -122,7 +122,7 @@ impl From<DeviceSession> for DeviceSessionResponse {
 /// Requires: Valid JWT from web user
 pub async fn generate_code(
     pool: web::Data<PgPool>,
-    redis: web::Data<MultiplexedConnection>,
+    redis_pool: web::Data<RedisPool>,
     _config: web::Data<Config>,
     req: HttpRequest,
 ) -> ApiResult<HttpResponse> {
@@ -134,9 +134,9 @@ pub async fn generate_code(
         .ok_or_else(|| ApiError::Authentication("Missing authentication".to_string()))?;
 
     // Check rate limit (3 requests per minute per user)
-    let mut redis_conn = redis.as_ref().clone();
+    
     let (allowed, remaining, reset_time) = check_rate_limit(
-        &mut redis_conn,
+        redis_pool.get_ref(),
         claims.user_id,
         RateLimitType::DevicePairingGenerate,
     )
@@ -177,7 +177,7 @@ pub async fn generate_code(
 /// Public endpoint (no authentication required)
 pub async fn verify_code(
     pool: web::Data<PgPool>,
-    redis: web::Data<MultiplexedConnection>,
+    redis_pool: web::Data<RedisPool>,
     tv_api_client: web::Data<Arc<TvApiClient>>,
     config: web::Data<Config>,
     body: web::Json<VerifyCodeRequest>,
@@ -185,9 +185,9 @@ pub async fn verify_code(
 ) -> ApiResult<HttpResponse> {
     // Check rate limit by IP address (5 requests per minute per IP)
     let client_ip = get_client_ip(&req);
-    let mut redis_conn = redis.as_ref().clone();
+    
     let (allowed, remaining, reset_time) = check_rate_limit_by_ip(
-        &mut redis_conn,
+        redis_pool.get_ref(),
         &client_ip,
         RateLimitType::DevicePairingVerify,
     )

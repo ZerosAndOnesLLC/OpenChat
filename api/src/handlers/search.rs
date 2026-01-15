@@ -1,6 +1,6 @@
 use actix_web::{web, HttpMessage, HttpRequest, HttpResponse};
 use chrono::{DateTime, NaiveDate, Utc};
-use redis::aio::MultiplexedConnection;
+use crate::db::RedisPool;
 use regex::Regex;
 use serde::{Deserialize, Serialize};
 use sqlx::PgPool;
@@ -131,7 +131,7 @@ pub struct SearchResult {
 /// - after:YYYY-MM-DD - messages after date
 pub async fn search_messages(
     pool: web::Data<PgPool>,
-    redis: web::Data<MultiplexedConnection>,
+    redis_pool: web::Data<RedisPool>,
     query: web::Query<SearchQuery>,
     req: HttpRequest,
 ) -> ApiResult<HttpResponse> {
@@ -161,9 +161,9 @@ pub async fn search_messages(
     let dm_id_str = query.dm_id.map(|id| id.to_string());
 
     // Try to get cached results
-    let mut redis_conn = redis.as_ref().clone();
+    
     if let Ok(Some(cached_results)) = search::get_search_results_from_cache(
-        &mut redis_conn,
+        redis_pool.get_ref(),
         &org_id_str,
         search_query,
         &query.scope,
@@ -204,7 +204,7 @@ pub async fn search_messages(
 
     // Cache the results
     let _ = search::set_search_results_in_cache(
-        &mut redis_conn,
+        redis_pool.get_ref(),
         &org_id_str,
         search_query,
         &query.scope,

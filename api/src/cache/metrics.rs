@@ -3,6 +3,7 @@ use redis::AsyncCommands;
 use serde::{Deserialize, Serialize};
 use tracing::warn;
 
+use crate::db::RedisPool;
 use crate::errors::ApiResult;
 
 const METRICS_KEY: &str = "openchat:cache:metrics";
@@ -95,7 +96,7 @@ pub enum CacheType {
 
 /// Record a cache hit
 pub async fn record_hit(
-    redis: &mut redis::aio::MultiplexedConnection,
+    redis_pool: &RedisPool,
     cache_type: CacheType,
 ) {
     let field = match cache_type {
@@ -111,14 +112,14 @@ pub async fn record_hit(
         CacheType::Tokens => "tokens_hits",
     };
 
-    if let Err(e) = increment_metric(redis, field).await {
+    if let Err(e) = increment_metric(redis_pool, field).await {
         warn!("Failed to record cache hit for {:?}: {}", cache_type, e);
     }
 }
 
 /// Record a cache miss
 pub async fn record_miss(
-    redis: &mut redis::aio::MultiplexedConnection,
+    redis_pool: &RedisPool,
     cache_type: CacheType,
 ) {
     let field = match cache_type {
@@ -134,30 +135,36 @@ pub async fn record_miss(
         CacheType::Tokens => "tokens_misses",
     };
 
-    if let Err(e) = increment_metric(redis, field).await {
+    if let Err(e) = increment_metric(redis_pool, field).await {
         warn!("Failed to record cache miss for {:?}: {}", cache_type, e);
     }
 }
 
 /// Increment a metric field in Redis
 async fn increment_metric(
-    redis: &mut redis::aio::MultiplexedConnection,
+    redis_pool: &RedisPool,
     field: &str,
 ) -> ApiResult<()> {
+    let mut conn = redis_pool.get().await
+        .map_err(|e| crate::errors::ApiError::Internal(format!("Redis pool error: {}", e)))?;
+
     // Increment the field
-    let _: i64 = redis.hincr(METRICS_KEY, field, 1).await?;
+    let _: i64 = conn.hincr(METRICS_KEY, field, 1).await?;
 
     // Set expiration on the hash (resets TTL on each update)
-    let _: () = redis.expire(METRICS_KEY, METRICS_TTL as i64).await?;
+    let _: () = conn.expire(METRICS_KEY, METRICS_TTL as i64).await?;
 
     Ok(())
 }
 
 /// Get current cache metrics
 pub async fn get_metrics(
-    redis: &mut redis::aio::MultiplexedConnection,
+    redis_pool: &RedisPool,
 ) -> ApiResult<CacheMetrics> {
-    let values: Vec<(String, i64)> = redis.hgetall(METRICS_KEY).await?;
+    let mut conn = redis_pool.get().await
+        .map_err(|e| crate::errors::ApiError::Internal(format!("Redis pool error: {}", e)))?;
+
+    let values: Vec<(String, i64)> = conn.hgetall(METRICS_KEY).await?;
 
     let mut metrics = CacheMetrics::default();
 
@@ -192,8 +199,11 @@ pub async fn get_metrics(
 
 /// Reset cache metrics (useful for testing or periodic resets)
 pub async fn reset_metrics(
-    redis: &mut redis::aio::MultiplexedConnection,
+    redis_pool: &RedisPool,
 ) -> ApiResult<()> {
-    let _: () = redis.del(METRICS_KEY).await?;
+    let mut conn = redis_pool.get().await
+        .map_err(|e| crate::errors::ApiError::Internal(format!("Redis pool error: {}", e)))?;
+
+    let _: () = conn.del(METRICS_KEY).await?;
     Ok(())
 }

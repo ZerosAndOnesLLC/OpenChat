@@ -1,20 +1,34 @@
-use redis::aio::MultiplexedConnection;
 use redis::AsyncCommands;
 use sha2::{Digest, Sha256};
 use tracing::debug;
 
+use crate::db::RedisPool;
 use crate::{errors::ApiResult, services::tv_api::TokenClaims};
 
 /// Get cached token claims from Redis
 /// Uses SHA256 hash of token as cache key for security
 pub async fn get_cached_token_claims(
-    redis: &mut MultiplexedConnection,
+    redis_pool: &RedisPool,
     token: &str,
 ) -> ApiResult<Option<TokenClaims>> {
+    let mut conn = match redis_pool.get().await {
+        Ok(c) => c,
+        Err(e) => {
+            tracing::warn!("Redis pool error fetching token cache: {}", e);
+            return Ok(None);
+        }
+    };
+
     let hash = hash_token(token);
     let key = format!("openchat:token:{}", hash);
 
-    let cached: Option<String> = redis.get(&key).await?;
+    let cached: Option<String> = match conn.get(&key).await {
+        Ok(val) => val,
+        Err(e) => {
+            tracing::warn!("Redis error fetching token cache: {}", e);
+            return Ok(None);
+        }
+    };
 
     match cached {
         Some(json) => {
@@ -33,17 +47,20 @@ pub async fn get_cached_token_claims(
 /// Cache token claims in Redis with TTL
 /// TTL of 300 seconds (5 minutes) balances security and performance
 pub async fn cache_token_claims(
-    redis: &mut MultiplexedConnection,
+    redis_pool: &RedisPool,
     token: &str,
     claims: &TokenClaims,
     ttl_seconds: u64,
 ) -> ApiResult<()> {
+    let mut conn = redis_pool.get().await
+        .map_err(|e| crate::errors::ApiError::Internal(format!("Redis pool error: {}", e)))?;
+
     let hash = hash_token(token);
     let key = format!("openchat:token:{}", hash);
     let value = serde_json::to_string(claims)
         .map_err(|e| crate::errors::ApiError::Internal(format!("Token cache serialization error: {}", e)))?;
 
-    let _: () = redis.set_ex(&key, value, ttl_seconds).await?;
+    let _: () = conn.set_ex(&key, value, ttl_seconds).await?;
 
     debug!("Token cached successfully with TTL: {}s", ttl_seconds);
     Ok(())
@@ -52,13 +69,16 @@ pub async fn cache_token_claims(
 /// Invalidate a cached token (e.g., on logout)
 #[allow(dead_code)]
 pub async fn invalidate_token_cache(
-    redis: &mut MultiplexedConnection,
+    redis_pool: &RedisPool,
     token: &str,
 ) -> ApiResult<()> {
+    let mut conn = redis_pool.get().await
+        .map_err(|e| crate::errors::ApiError::Internal(format!("Redis pool error: {}", e)))?;
+
     let hash = hash_token(token);
     let key = format!("openchat:token:{}", hash);
 
-    let _: () = redis.del(&key).await?;
+    let _: () = conn.del(&key).await?;
 
     debug!("Token cache invalidated");
     Ok(())

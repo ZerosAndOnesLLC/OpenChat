@@ -1,6 +1,6 @@
 use actix::Addr;
 use actix_web::{web, HttpResponse};
-use redis::aio::MultiplexedConnection;
+use crate::db::RedisPool;
 use serde_json::json;
 
 use crate::cache::metrics;
@@ -9,10 +9,9 @@ use crate::websocket::server::{GetConnectionStats, WsServer};
 
 /// GET /api/metrics/cache - Get cache hit/miss metrics
 pub async fn get_cache_metrics(
-    redis_conn: web::Data<MultiplexedConnection>,
+    redis_pool: web::Data<RedisPool>,
 ) -> ApiResult<HttpResponse> {
-    let mut redis_conn = redis_conn.as_ref().clone();
-    let metrics = metrics::get_metrics(&mut redis_conn).await?;
+    let metrics = metrics::get_metrics(redis_pool.get_ref()).await?;
 
     let response = json!({
         "total_hits": metrics.total_hits(),
@@ -128,10 +127,9 @@ pub async fn get_cache_metrics(
 
 /// POST /api/metrics/cache/reset - Reset cache metrics (admin only)
 pub async fn reset_cache_metrics(
-    redis_conn: web::Data<MultiplexedConnection>,
+    redis_pool: web::Data<RedisPool>,
 ) -> ApiResult<HttpResponse> {
-    let mut redis_conn = redis_conn.as_ref().clone();
-    metrics::reset_metrics(&mut redis_conn).await?;
+    metrics::reset_metrics(redis_pool.get_ref()).await?;
 
     Ok(HttpResponse::Ok().json(json!({
         "message": "Cache metrics reset successfully"

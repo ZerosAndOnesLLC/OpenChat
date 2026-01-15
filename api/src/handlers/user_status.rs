@@ -44,7 +44,7 @@ impl From<UserStatus> for UserStatusResponse {
 /// PUT /api/users/me/status - Update current user's status
 pub async fn update_my_status(
     pool: web::Data<PgPool>,
-    redis: web::Data<redis::Client>,
+    redis_pool: web::Data<crate::db::RedisPool>,
     ws_server: web::Data<actix::Addr<WsServer>>,
     body: web::Json<UpdateStatusRequest>,
     req: HttpRequest,
@@ -98,7 +98,7 @@ pub async fn update_my_status(
     .await?;
 
     // Invalidate cache
-    cache::user_status::invalidate_status(&redis, current_user.id).await;
+    let _ = cache::user_status::invalidate_status(redis_pool.get_ref(), current_user.org_id, current_user.id).await;
 
     // Broadcast status change via WebSocket
     ws_server.do_send(BroadcastMessage {
@@ -118,7 +118,7 @@ pub async fn update_my_status(
 /// GET /api/users/:id/status - Get user's status
 pub async fn get_user_status(
     pool: web::Data<PgPool>,
-    redis: web::Data<redis::Client>,
+    redis_pool: web::Data<crate::db::RedisPool>,
     user_id: web::Path<Uuid>,
     req: HttpRequest,
 ) -> ApiResult<HttpResponse> {
@@ -129,8 +129,13 @@ pub async fn get_user_status(
         .cloned()
         .ok_or_else(|| ApiError::Authentication("Missing authentication".to_string()))?;
 
+    // Get current user first to get org_id
+    let current_user = User::get_by_tv_user_id(pool.get_ref(), claims.user_id)
+        .await?
+        .ok_or_else(|| ApiError::NotFound("Current user not found".to_string()))?;
+
     // Check cache first
-    if let Some(cached_status) = cache::user_status::get_status(&redis, *user_id).await {
+    if let Ok(Some(cached_status)) = cache::user_status::get_status(redis_pool.get_ref(), current_user.org_id, *user_id).await {
         return Ok(HttpResponse::Ok().json(cached_status));
     }
 
@@ -138,10 +143,6 @@ pub async fn get_user_status(
     let target_user = User::get_by_id(pool.get_ref(), *user_id)
         .await?
         .ok_or_else(|| ApiError::NotFound("User not found".to_string()))?;
-
-    let current_user = User::get_by_tv_user_id(pool.get_ref(), claims.user_id)
-        .await?
-        .ok_or_else(|| ApiError::NotFound("Current user not found".to_string()))?;
 
     if target_user.org_id != current_user.org_id {
         return Err(ApiError::Authorization(
@@ -164,7 +165,7 @@ pub async fn get_user_status(
 
     // Cache the result
     let response = UserStatusResponse::from(user_status.clone());
-    cache::user_status::set_status(&redis, *user_id, &response).await;
+    let _ = cache::user_status::set_status(redis_pool.get_ref(), current_user.org_id, *user_id, &response).await;
 
     Ok(HttpResponse::Ok().json(response))
 }
@@ -194,7 +195,7 @@ pub async fn get_active_users(
 /// POST /api/users/me/status/online - Quick set status to online
 pub async fn set_online(
     pool: web::Data<PgPool>,
-    redis: web::Data<redis::Client>,
+    redis_pool: web::Data<crate::db::RedisPool>,
     ws_server: web::Data<actix::Addr<WsServer>>,
     req: HttpRequest,
 ) -> ApiResult<HttpResponse> {
@@ -211,7 +212,7 @@ pub async fn set_online(
     let user_status = UserStatus::set_online(pool.get_ref(), current_user.id).await?;
 
     // Invalidate cache
-    cache::user_status::invalidate_status(&redis, current_user.id).await;
+    let _ = cache::user_status::invalidate_status(redis_pool.get_ref(), current_user.org_id, current_user.id).await;
 
     // Broadcast status change
     ws_server.do_send(BroadcastMessage {
@@ -231,7 +232,7 @@ pub async fn set_online(
 /// POST /api/users/me/status/away - Quick set status to away
 pub async fn set_away(
     pool: web::Data<PgPool>,
-    redis: web::Data<redis::Client>,
+    redis_pool: web::Data<crate::db::RedisPool>,
     ws_server: web::Data<actix::Addr<WsServer>>,
     req: HttpRequest,
 ) -> ApiResult<HttpResponse> {
@@ -248,7 +249,7 @@ pub async fn set_away(
     let user_status = UserStatus::set_away(pool.get_ref(), current_user.id).await?;
 
     // Invalidate cache
-    cache::user_status::invalidate_status(&redis, current_user.id).await;
+    let _ = cache::user_status::invalidate_status(redis_pool.get_ref(), current_user.org_id, current_user.id).await;
 
     // Broadcast status change
     ws_server.do_send(BroadcastMessage {
@@ -268,7 +269,7 @@ pub async fn set_away(
 /// POST /api/users/me/status/offline - Quick set status to offline
 pub async fn set_offline(
     pool: web::Data<PgPool>,
-    redis: web::Data<redis::Client>,
+    redis_pool: web::Data<crate::db::RedisPool>,
     ws_server: web::Data<actix::Addr<WsServer>>,
     req: HttpRequest,
 ) -> ApiResult<HttpResponse> {
@@ -285,7 +286,7 @@ pub async fn set_offline(
     let user_status = UserStatus::set_offline(pool.get_ref(), current_user.id).await?;
 
     // Invalidate cache
-    cache::user_status::invalidate_status(&redis, current_user.id).await;
+    let _ = cache::user_status::invalidate_status(redis_pool.get_ref(), current_user.org_id, current_user.id).await;
 
     // Broadcast status change
     ws_server.do_send(BroadcastMessage {

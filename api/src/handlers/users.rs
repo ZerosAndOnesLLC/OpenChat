@@ -70,20 +70,19 @@ pub async fn list_users(
 /// GET /api/users/:id - Get user profile
 pub async fn get_user(
     pool: web::Data<PgPool>,
-    redis_conn: web::Data<redis::aio::MultiplexedConnection>,
+    redis_pool: web::Data<crate::db::RedisPool>,
     user_id: web::Path<Uuid>,
     req: HttpRequest,
 ) -> ApiResult<HttpResponse> {
     // Verify authentication
-    let _claims = req
+    let claims = req
         .extensions()
         .get::<TokenClaims>()
         .ok_or_else(|| ApiError::Authentication("Missing authentication".to_string()))?
         .clone();
 
     // Try to get user from cache first
-    let mut redis = redis_conn.get_ref().clone();
-    let cached_user = crate::cache::users::get_user_from_cache(&mut redis, *user_id).await?;
+    let cached_user = crate::cache::users::get_user_from_cache(redis_pool.get_ref(), claims.org_id, *user_id).await?;
 
     let user = match cached_user {
         Some(user) => user,
@@ -94,7 +93,7 @@ pub async fn get_user(
                 .ok_or_else(|| ApiError::NotFound("User not found".to_string()))?;
 
             // Store in cache for next time
-            crate::cache::users::set_user_in_cache(&mut redis, &user).await?;
+            crate::cache::users::set_user_in_cache(redis_pool.get_ref(), &user).await?;
 
             user
         }
@@ -106,7 +105,7 @@ pub async fn get_user(
 /// PUT /api/users/:id - Update user profile
 pub async fn update_user(
     pool: web::Data<PgPool>,
-    redis_conn: web::Data<redis::aio::MultiplexedConnection>,
+    redis_pool: web::Data<crate::db::RedisPool>,
     user_id: web::Path<Uuid>,
     body: web::Json<UpdateUserRequest>,
     req: HttpRequest,
@@ -155,8 +154,7 @@ pub async fn update_user(
     .await?;
 
     // Invalidate user cache
-    let mut redis = redis_conn.get_ref().clone();
-    crate::cache::users::invalidate_user_cache(&mut redis, *user_id).await?;
+    crate::cache::users::invalidate_user_cache(redis_pool.get_ref(), claims.org_id, *user_id).await?;
 
     Ok(HttpResponse::Ok().json(UserResponse::from(user)))
 }

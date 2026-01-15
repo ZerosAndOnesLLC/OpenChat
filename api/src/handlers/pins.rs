@@ -4,6 +4,7 @@ use sqlx::PgPool;
 use uuid::Uuid;
 
 use crate::{
+    db::RedisPool,
     errors::{ApiError, ApiResult},
     models::{
         channel::{Channel, ChannelMember},
@@ -42,7 +43,7 @@ impl From<PinnedMessage> for PinResponse {
 /// POST /api/messages/{id}/pin - Pin a message
 pub async fn pin_message(
     pool: web::Data<PgPool>,
-    redis: web::Data<redis::Client>,
+    redis_pool: web::Data<RedisPool>,
     message_id: web::Path<Uuid>,
     req: HttpRequest,
     ws_server: web::Data<actix::Addr<WsServer>>,
@@ -80,19 +81,18 @@ pub async fn pin_message(
     // TODO: Add permission check (only admins/moderators should be able to pin)
     // For now, any channel member can pin
 
-    // Pin the message
-    let pin = PinnedMessage::pin(pool.get_ref(), channel_id, *message_id, current_user.id).await?;
-
-    // Invalidate pins cache
-    let mut redis_conn = redis.get_multiplexed_async_connection().await?;
-    if let Err(e) = crate::cache::pins::invalidate_pins_cache(&mut redis_conn, channel_id).await {
-        tracing::warn!("Failed to invalidate pins cache for channel {}: {}", channel_id, e);
-    }
-
     // Get the channel for org_id
     let channel = Channel::get_by_id(pool.get_ref(), channel_id)
         .await?
         .ok_or_else(|| ApiError::NotFound("Channel not found".to_string()))?;
+
+    // Pin the message
+    let pin = PinnedMessage::pin(pool.get_ref(), channel_id, *message_id, current_user.id).await?;
+
+    // Invalidate pins cache
+    if let Err(e) = crate::cache::pins::invalidate_pins_cache(redis_pool.get_ref(), channel.org_id, channel_id).await {
+        tracing::warn!("Failed to invalidate pins cache for channel {}: {}", channel_id, e);
+    }
 
     // Broadcast pin event via WebSocket
     ws_server.do_send(BroadcastMessage {
@@ -113,7 +113,7 @@ pub async fn pin_message(
 /// DELETE /api/messages/{id}/pin - Unpin a message
 pub async fn unpin_message(
     pool: web::Data<PgPool>,
-    redis: web::Data<redis::Client>,
+    redis_pool: web::Data<RedisPool>,
     message_id: web::Path<Uuid>,
     req: HttpRequest,
     ws_server: web::Data<actix::Addr<WsServer>>,
@@ -151,19 +151,18 @@ pub async fn unpin_message(
     // TODO: Add permission check (only admins/moderators should be able to unpin)
     // For now, any channel member can unpin
 
-    // Unpin the message
-    PinnedMessage::unpin(pool.get_ref(), channel_id, *message_id).await?;
-
-    // Invalidate pins cache
-    let mut redis_conn = redis.get_multiplexed_async_connection().await?;
-    if let Err(e) = crate::cache::pins::invalidate_pins_cache(&mut redis_conn, channel_id).await {
-        tracing::warn!("Failed to invalidate pins cache for channel {}: {}", channel_id, e);
-    }
-
     // Get the channel for org_id
     let channel = Channel::get_by_id(pool.get_ref(), channel_id)
         .await?
         .ok_or_else(|| ApiError::NotFound("Channel not found".to_string()))?;
+
+    // Unpin the message
+    PinnedMessage::unpin(pool.get_ref(), channel_id, *message_id).await?;
+
+    // Invalidate pins cache
+    if let Err(e) = crate::cache::pins::invalidate_pins_cache(redis_pool.get_ref(), channel.org_id, channel_id).await {
+        tracing::warn!("Failed to invalidate pins cache for channel {}: {}", channel_id, e);
+    }
 
     // Broadcast unpin event via WebSocket
     ws_server.do_send(BroadcastMessage {

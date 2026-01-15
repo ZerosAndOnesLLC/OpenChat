@@ -12,7 +12,7 @@ use crate::{
     services::{audit_logger::AuditLogger, tv_api::TokenClaims},
     websocket::{
         messages::ServerMessage,
-        server::{BroadcastMessage, WsServer},
+        server::{BroadcastMessage, BroadcastToUser, WsServer},
     },
 };
 
@@ -391,10 +391,23 @@ pub async fn add_member(
         tracing::warn!("Failed to invalidate channel members cache: {}", e);
     }
 
-    // Broadcast member joined event via WebSocket
+    // Broadcast member joined event via WebSocket to channel subscribers
     ws_server.do_send(BroadcastMessage {
         org_id: channel.org_id,
         channel_id: Some(*channel_id),
+        message: ServerMessage::MemberJoined {
+            channel_id: *channel_id,
+            user_id: user_to_add.id,
+            user_name: user_to_add.display_name.clone(),
+            role: role.to_string(),
+            joined_at: member.joined_at.to_rfc3339(),
+        },
+    });
+
+    // Also send directly to the user being added so they see the channel in their sidebar
+    ws_server.do_send(BroadcastToUser {
+        org_id: channel.org_id,
+        user_id: user_to_add.id,
         message: ServerMessage::MemberJoined {
             channel_id: *channel_id,
             user_id: user_to_add.id,

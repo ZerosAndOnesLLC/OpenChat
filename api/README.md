@@ -962,6 +962,11 @@ Infrastructure is managed via Terraform in `~/dev/terraform/prod/us-east-1/openc
 
 ## Version History
 
+### v0.63.1 (Send WebSocket Event to Added User)
+- When adding a user to a channel, now also sends `member_joined` event directly to the user being added
+- Previously only broadcast to channel subscribers, so the added user wouldn't see the channel until refresh
+- Uses `BroadcastToUser` to send the event directly to the user's WebSocket sessions
+
 ### v0.63.0 (WebSocket Commands Migration)
 - Migrated frequent HTTP operations to WebSocket for reduced latency and server load
 - New WebSocket client messages:

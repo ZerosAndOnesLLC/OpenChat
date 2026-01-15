@@ -1,5 +1,5 @@
 use actix_web::{web, HttpMessage, HttpRequest, HttpResponse};
-use redis::aio::MultiplexedConnection;
+use crate::db::RedisPool;
 use serde::{Deserialize, Serialize};
 use sqlx::PgPool;
 use uuid::Uuid;
@@ -97,7 +97,7 @@ pub async fn list_notifications(
 /// GET /api/notifications/unread-count - Get count of unread notifications
 pub async fn get_unread_count(
     pool: web::Data<PgPool>,
-    redis: web::Data<MultiplexedConnection>,
+    redis_pool: web::Data<RedisPool>,
     req: HttpRequest,
 ) -> ApiResult<HttpResponse> {
     let claims = req
@@ -111,11 +111,9 @@ pub async fn get_unread_count(
         .await?
         .ok_or_else(|| ApiError::NotFound("Current user not found".to_string()))?;
 
-    let user_id_str = current_user.id.to_string();
-
     // Try to get from cache first
-    let mut redis_conn = redis.as_ref().clone();
-    if let Ok(Some(cached_count)) = notif_cache::get_notification_count_from_cache(&mut redis_conn, &user_id_str).await {
+
+    if let Ok(Some(cached_count)) = notif_cache::get_notification_count_from_cache(redis_pool.get_ref(), current_user.org_id, current_user.id).await {
         return Ok(HttpResponse::Ok().json(serde_json::json!({ "count": cached_count })));
     }
 
@@ -123,7 +121,7 @@ pub async fn get_unread_count(
     let count = Notification::count_unread_by_user(pool.get_ref(), current_user.id).await?;
 
     // Cache the result
-    let _ = notif_cache::set_notification_count_in_cache(&mut redis_conn, &user_id_str, count as i32).await;
+    let _ = notif_cache::set_notification_count_in_cache(redis_pool.get_ref(), current_user.org_id, current_user.id, count as i32).await;
 
     Ok(HttpResponse::Ok().json(serde_json::json!({ "count": count })))
 }
@@ -131,7 +129,7 @@ pub async fn get_unread_count(
 /// POST /api/notifications/:id/read - Mark a notification as read
 pub async fn mark_notification_as_read(
     pool: web::Data<PgPool>,
-    redis: web::Data<MultiplexedConnection>,
+    redis_pool: web::Data<RedisPool>,
     notification_id: web::Path<Uuid>,
     req: HttpRequest,
     ws_server: web::Data<actix::Addr<crate::websocket::server::WsServer>>,
@@ -151,9 +149,7 @@ pub async fn mark_notification_as_read(
     Notification::mark_as_read(pool.get_ref(), *notification_id, current_user.id).await?;
 
     // Decrement cache count
-    let user_id_str = current_user.id.to_string();
-    let mut redis_conn = redis.as_ref().clone();
-    let _ = notif_cache::decrement_notification_count_in_cache(&mut redis_conn, &user_id_str).await;
+    let _ = notif_cache::decrement_notification_count_in_cache(redis_pool.get_ref(), current_user.org_id, current_user.id).await;
 
     // Get the new unread count and broadcast via WebSocket
     let unread_count = Notification::count_unread_by_user(pool.get_ref(), current_user.id).await? as i32;
@@ -171,7 +167,7 @@ pub async fn mark_notification_as_read(
 /// POST /api/notifications/read-all - Mark all notifications as read
 pub async fn mark_all_notifications_as_read(
     pool: web::Data<PgPool>,
-    redis: web::Data<MultiplexedConnection>,
+    redis_pool: web::Data<RedisPool>,
     req: HttpRequest,
     ws_server: web::Data<actix::Addr<crate::websocket::server::WsServer>>,
 ) -> ApiResult<HttpResponse> {
@@ -190,9 +186,7 @@ pub async fn mark_all_notifications_as_read(
     let count = Notification::mark_all_as_read(pool.get_ref(), current_user.id).await?;
 
     // Clear cache count (set to 0)
-    let user_id_str = current_user.id.to_string();
-    let mut redis_conn = redis.as_ref().clone();
-    let _ = notif_cache::set_notification_count_in_cache(&mut redis_conn, &user_id_str, 0).await;
+    let _ = notif_cache::set_notification_count_in_cache(redis_pool.get_ref(), current_user.org_id, current_user.id, 0).await;
 
     // Broadcast notification count update via WebSocket
     ws_server.do_send(crate::websocket::server::BroadcastToUser {

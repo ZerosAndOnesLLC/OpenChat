@@ -3,7 +3,7 @@ use actix_web::{
     Error, HttpMessage,
 };
 use futures_util::future::LocalBoxFuture;
-use redis::aio::MultiplexedConnection;
+use crate::db::RedisPool;
 use sqlx::PgPool;
 use std::{
     future::{ready, Ready},
@@ -103,15 +103,13 @@ where
             // Extract token from Authorization header
             let token = extract_token(&req)?;
 
-            // Get Redis connection
-            let redis_conn = req
-                .app_data::<actix_web::web::Data<MultiplexedConnection>>()
+            // Get Redis pool
+            let redis_pool = req
+                .app_data::<actix_web::web::Data<RedisPool>>()
                 .ok_or_else(|| {
-                    error!("Redis connection not found in app data");
+                    error!("Redis pool not found in app data");
                     actix_web::error::ErrorInternalServerError("Redis not configured")
                 })?;
-
-            let mut redis = redis_conn.as_ref().clone();
 
             // Get database pool (needed for device token user lookup)
             let pool = req
@@ -130,14 +128,14 @@ where
                 })?;
 
             // Try to get cached token claims first (only for TitaniumVault tokens)
-            let verified_claims: VerifiedClaims = match cache::tokens::get_cached_token_claims(&mut redis, &token)
+            let verified_claims: VerifiedClaims = match cache::tokens::get_cached_token_claims(redis_pool.get_ref(), &token)
                 .await
                 .ok()
                 .flatten()
             {
                 Some(claims) => {
                     debug!("Token cache hit");
-                    record_hit(&mut redis, CacheType::Tokens).await;
+                    record_hit(redis_pool.get_ref(), CacheType::Tokens).await;
                     VerifiedClaims {
                         user_id: claims.user_id,
                         org_id: claims.org_id,
@@ -149,14 +147,14 @@ where
                     }
                 }
                 None => {
-                    record_miss(&mut redis, CacheType::Tokens).await;
+                    record_miss(redis_pool.get_ref(), CacheType::Tokens).await;
 
                     // Try TitaniumVault token first
                     match tv_api_client.verify_token(&token).await {
                         Ok(claims) => {
                             debug!("TitaniumVault token verified");
                             // Cache the token claims for 5 minutes
-                            if let Err(e) = cache::tokens::cache_token_claims(&mut redis, &token, &claims, 300).await {
+                            if let Err(e) = cache::tokens::cache_token_claims(redis_pool.get_ref(), &token, &claims, 300).await {
                                 error!("Failed to cache token claims: {}", e);
                             }
                             VerifiedClaims {
@@ -231,7 +229,7 @@ where
                 })?;
 
             // Check cache for organization first
-            let cached_org = cache::organizations::get_org_from_cache(&mut redis, verified_claims.org_id)
+            let cached_org = cache::organizations::get_org_from_cache(redis_pool.get_ref(), verified_claims.org_id)
                 .await
                 .ok()
                 .flatten();
@@ -247,7 +245,7 @@ where
                     })?;
 
                 // Cache the organization
-                if let Err(e) = cache::organizations::set_org_in_cache(&mut redis, &org).await {
+                if let Err(e) = cache::organizations::set_org_in_cache(redis_pool.get_ref(), &org).await {
                     error!("Failed to cache organization: {}", e);
                 }
             } else {
@@ -257,7 +255,7 @@ where
             // For device tokens, we already looked up the user, so skip upsert logic
             if !verified_claims.is_device_token {
                 // Check cache for user first
-                let cached_user = cache::users::get_user_by_tv_id_from_cache(&mut redis, verified_claims.user_id)
+                let cached_user = cache::users::get_user_by_tv_id_from_cache(redis_pool.get_ref(), verified_claims.org_id, verified_claims.user_id)
                     .await
                     .ok()
                     .flatten();
@@ -282,7 +280,7 @@ where
                             })?;
 
                             // Update cache with new user data
-                            if let Err(e) = cache::users::set_user_with_tv_index_in_cache(&mut redis, &updated_user).await {
+                            if let Err(e) = cache::users::set_user_with_tv_index_in_cache(redis_pool.get_ref(), &updated_user).await {
                                 error!("Failed to cache updated user: {}", e);
                             }
                         }
@@ -304,7 +302,7 @@ where
                         })?;
 
                         // Cache the user
-                        if let Err(e) = cache::users::set_user_with_tv_index_in_cache(&mut redis, &user).await {
+                        if let Err(e) = cache::users::set_user_with_tv_index_in_cache(redis_pool.get_ref(), &user).await {
                             error!("Failed to cache user: {}", e);
                         }
                     }

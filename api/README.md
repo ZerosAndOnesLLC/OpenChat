@@ -962,6 +962,15 @@ Infrastructure is managed via Terraform in `~/dev/terraform/prod/us-east-1/openc
 
 ## Version History
 
+### v0.64.0 (Cache Key Structure Improvement - Multi-Org Isolation)
+- Updated all Redis cache keys to include org_id for better multi-tenant isolation
+- Cache key pattern changed from `openchat:{entity}:{id}` to `openchat:org:{org_id}:{entity}:{id}`
+- Affects all cache modules: channels, users, DMs, messages, pins, notifications, read_status, user_status
+- Added per-org cache invalidation functions for cleanup operations
+- Migrated user_status cache from raw redis::Client to RedisPool for connection pooling
+- Consistent TTL-based expiration across all cache types (no manual cleanup needed)
+- Improved cache isolation prevents potential key collisions in multi-org deployments
+
 ### v0.63.1 (Send WebSocket Event to Added User)
 - When adding a user to a channel, now also sends `member_joined` event directly to the user being added
 - Previously only broadcast to channel subscribers, so the added user wouldn't see the channel until refresh

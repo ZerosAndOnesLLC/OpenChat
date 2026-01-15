@@ -1,8 +1,7 @@
 use actix_multipart::Multipart;
 use actix_web::{web, HttpMessage, HttpRequest, HttpResponse};
 use futures_util::StreamExt;
-use redis::aio::MultiplexedConnection;
-use redis::AsyncCommands;
+use crate::db::RedisPool;
 use sqlx::PgPool;
 use std::sync::Arc;
 use uuid::Uuid;
@@ -22,7 +21,7 @@ pub async fn upload_emoji(
     mut payload: Multipart,
     db: web::Data<PgPool>,
     storage_factory: web::Data<Arc<StorageFactory>>,
-    redis: web::Data<MultiplexedConnection>,
+    redis_pool: web::Data<RedisPool>,
 ) -> Result<HttpResponse, ApiError> {
     let claims = req
         .extensions()
@@ -192,8 +191,10 @@ pub async fn upload_emoji(
 
     // Invalidate emoji cache for this org
     let cache_key = format!("emojis:org:{}", org_id);
-    let mut redis_conn = redis.get_ref().clone();
-    redis_conn.del::<_, ()>(&cache_key).await.ok();
+
+    if let Ok(mut conn) = redis_pool.get().await {
+        let _: Result<(), _> = redis::AsyncCommands::del(&mut *conn, &cache_key).await;
+    }
 
     let emoji: CustomEmoji = sqlx::query_as(
         "SELECT * FROM custom_emojis WHERE id = $1"
@@ -215,7 +216,7 @@ pub async fn upload_emoji(
 pub async fn get_org_emojis(
     req: HttpRequest,
     db: web::Data<PgPool>,
-    redis: web::Data<MultiplexedConnection>,
+    redis_pool: web::Data<RedisPool>,
 ) -> Result<HttpResponse, ApiError> {
     let claims = req
         .extensions()
@@ -225,13 +226,15 @@ pub async fn get_org_emojis(
 
     let org_id = claims.org_id;
 
-    let mut redis_conn = redis.get_ref().clone();
+    
 
     // Try to get from cache first
     let cache_key = format!("emojis:org:{}", org_id);
-    if let Ok(Some(cached_json)) = redis_conn.get::<_, Option<String>>(&cache_key).await {
-        if let Ok(cached) = serde_json::from_str::<Vec<CustomEmoji>>(&cached_json) {
-            return Ok(HttpResponse::Ok().json(cached));
+    if let Ok(mut conn) = redis_pool.get().await {
+        if let Ok(Some(cached_json)) = redis::AsyncCommands::get::<_, Option<String>>(&mut *conn, &cache_key).await {
+            if let Ok(cached) = serde_json::from_str::<Vec<CustomEmoji>>(&cached_json) {
+                return Ok(HttpResponse::Ok().json(cached));
+            }
         }
     }
 
@@ -246,7 +249,9 @@ pub async fn get_org_emojis(
 
     // Cache for 5 minutes
     if let Ok(emojis_json) = serde_json::to_string(&emojis) {
-        redis_conn.set_ex::<_, _, ()>(&cache_key, emojis_json, 300).await.ok();
+        if let Ok(mut conn) = redis_pool.get().await {
+            let _: Result<(), _> = redis::AsyncCommands::set_ex(&mut *conn, &cache_key, emojis_json, 300).await;
+        }
     }
 
     Ok(HttpResponse::Ok().json(emojis))
@@ -257,7 +262,7 @@ pub async fn delete_emoji(
     emoji_id: web::Path<Uuid>,
     db: web::Data<PgPool>,
     storage_factory: web::Data<Arc<StorageFactory>>,
-    redis: web::Data<MultiplexedConnection>,
+    redis_pool: web::Data<RedisPool>,
 ) -> Result<HttpResponse, ApiError> {
     let claims = req
         .extensions()
@@ -316,8 +321,10 @@ pub async fn delete_emoji(
 
     // Invalidate emoji cache for this org
     let cache_key = format!("emojis:org:{}", org_id);
-    let mut redis_conn = redis.get_ref().clone();
-    redis_conn.del::<_, ()>(&cache_key).await.ok();
+
+    if let Ok(mut conn) = redis_pool.get().await {
+        let _: Result<(), _> = redis::AsyncCommands::del(&mut *conn, &cache_key).await;
+    }
 
     Ok(HttpResponse::Ok().json(serde_json::json!({
         "message": "Emoji deleted successfully"

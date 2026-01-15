@@ -1,5 +1,5 @@
 use actix_web::{web, HttpMessage, HttpRequest, HttpResponse};
-use redis::aio::MultiplexedConnection;
+use crate::db::RedisPool;
 use serde::{Deserialize, Serialize};
 use sqlx::PgPool;
 use uuid::Uuid;
@@ -195,7 +195,7 @@ impl From<PaginatedMessages> for PaginatedMessagesResponse {
 /// POST /api/messages - Send a new message
 pub async fn send_message(
     pool: web::Data<PgPool>,
-    redis: web::Data<MultiplexedConnection>,
+    redis_pool: web::Data<RedisPool>,
     body: web::Json<SendMessageRequest>,
     req: HttpRequest,
     ws_server: web::Data<actix::Addr<WsServer>>,
@@ -410,13 +410,13 @@ pub async fn send_message(
     }
 
     // Invalidate message cache after sending a new message
-    let mut redis_conn = redis.as_ref().clone();
+    
     if let Some(channel_id) = body.channel_id {
-        if let Err(e) = message_cache::invalidate_channel_messages_cache(&mut redis_conn, channel_id).await {
+        if let Err(e) = message_cache::invalidate_channel_messages_cache(redis_pool.get_ref(), current_user.org_id, channel_id).await {
             tracing::warn!("Failed to invalidate channel messages cache: {}", e);
         }
     } else if let Some(dm_id) = body.dm_id {
-        if let Err(e) = message_cache::invalidate_dm_messages_cache(&mut redis_conn, dm_id).await {
+        if let Err(e) = message_cache::invalidate_dm_messages_cache(redis_pool.get_ref(), current_user.org_id, dm_id).await {
             tracing::warn!("Failed to invalidate DM messages cache: {}", e);
         }
     }
@@ -503,7 +503,7 @@ pub async fn send_message(
 /// GET /api/channels/:id/messages - List messages in a channel
 pub async fn list_channel_messages(
     pool: web::Data<PgPool>,
-    redis: web::Data<MultiplexedConnection>,
+    redis_pool: web::Data<RedisPool>,
     channel_id: web::Path<Uuid>,
     query: web::Query<ListMessagesQuery>,
     req: HttpRequest,
@@ -537,9 +537,9 @@ pub async fn list_channel_messages(
 
     // Try to get from cache if this is the first page
     let paginated = if query.cursor.is_none() {
-        let mut redis_conn = redis.as_ref().clone();
+        
 
-        match message_cache::get_channel_messages_from_cache(&mut redis_conn, *channel_id).await? {
+        match message_cache::get_channel_messages_from_cache(redis_pool.get_ref(), current_user.org_id, *channel_id).await? {
             Some(cached) => cached,
             None => {
                 // Cache miss - fetch from database
@@ -552,7 +552,7 @@ pub async fn list_channel_messages(
                 .await?;
 
                 // Store in cache for next time
-                if let Err(e) = message_cache::set_channel_messages_in_cache(&mut redis_conn, *channel_id, &paginated).await {
+                if let Err(e) = message_cache::set_channel_messages_in_cache(redis_pool.get_ref(), current_user.org_id, *channel_id, &paginated).await {
                     tracing::warn!("Failed to cache channel messages: {}", e);
                 }
 
@@ -700,7 +700,7 @@ pub async fn list_channel_messages(
 /// PUT /api/messages/:id - Edit a message
 pub async fn update_message(
     pool: web::Data<PgPool>,
-    redis: web::Data<MultiplexedConnection>,
+    redis_pool: web::Data<RedisPool>,
     message_id: web::Path<Uuid>,
     body: web::Json<UpdateMessageRequest>,
     req: HttpRequest,
@@ -736,13 +736,13 @@ pub async fn update_message(
     let updated_message = Message::update(pool.get_ref(), *message_id, &body.content, current_user.id).await?;
 
     // Invalidate message cache after updating
-    let mut redis_conn = redis.as_ref().clone();
+
     if let Some(channel_id) = message.channel_id {
-        if let Err(e) = message_cache::invalidate_channel_messages_cache(&mut redis_conn, channel_id).await {
+        if let Err(e) = message_cache::invalidate_channel_messages_cache(redis_pool.get_ref(), current_user.org_id, channel_id).await {
             tracing::warn!("Failed to invalidate channel messages cache: {}", e);
         }
     } else if let Some(dm_id) = message.dm_id {
-        if let Err(e) = message_cache::invalidate_dm_messages_cache(&mut redis_conn, dm_id).await {
+        if let Err(e) = message_cache::invalidate_dm_messages_cache(redis_pool.get_ref(), current_user.org_id, dm_id).await {
             tracing::warn!("Failed to invalidate DM messages cache: {}", e);
         }
     }
@@ -753,7 +753,7 @@ pub async fn update_message(
 /// DELETE /api/messages/:id - Soft delete a message
 pub async fn delete_message(
     pool: web::Data<PgPool>,
-    redis: web::Data<MultiplexedConnection>,
+    redis_pool: web::Data<RedisPool>,
     message_id: web::Path<Uuid>,
     req: HttpRequest,
 ) -> ApiResult<HttpResponse> {
@@ -799,13 +799,13 @@ pub async fn delete_message(
     }
 
     // Invalidate message cache after deleting
-    let mut redis_conn = redis.as_ref().clone();
+
     if let Some(channel_id) = message.channel_id {
-        if let Err(e) = message_cache::invalidate_channel_messages_cache(&mut redis_conn, channel_id).await {
+        if let Err(e) = message_cache::invalidate_channel_messages_cache(redis_pool.get_ref(), current_user.org_id, channel_id).await {
             tracing::warn!("Failed to invalidate channel messages cache: {}", e);
         }
     } else if let Some(dm_id) = message.dm_id {
-        if let Err(e) = message_cache::invalidate_dm_messages_cache(&mut redis_conn, dm_id).await {
+        if let Err(e) = message_cache::invalidate_dm_messages_cache(redis_pool.get_ref(), current_user.org_id, dm_id).await {
             tracing::warn!("Failed to invalidate DM messages cache: {}", e);
         }
     }

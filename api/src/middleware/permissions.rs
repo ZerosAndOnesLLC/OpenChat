@@ -12,6 +12,7 @@ use std::{
 use tracing::error;
 
 use crate::{
+    db::RedisPool,
     errors::ApiError,
     models::role::user_has_permission,
     services::tv_api::TokenClaims,
@@ -101,7 +102,7 @@ where
                 })?
                 .clone();
 
-            // Get database pool and Redis connection
+            // Get database pool and Redis pool
             let pool = req
                 .app_data::<actix_web::web::Data<PgPool>>()
                 .ok_or_else(|| {
@@ -110,20 +111,15 @@ where
                 })?;
 
             let redis_pool = req
-                .app_data::<actix_web::web::Data<redis::Client>>()
+                .app_data::<actix_web::web::Data<RedisPool>>()
                 .ok_or_else(|| {
-                    error!("Redis client not found in app data");
-                    actix_web::error::ErrorInternalServerError("Redis client not configured")
+                    error!("Redis pool not found in app data");
+                    actix_web::error::ErrorInternalServerError("Redis pool not configured")
                 })?;
-
-            let mut redis_conn = redis_pool.get_multiplexed_tokio_connection().await.map_err(|e| {
-                error!("Failed to get Redis connection: {}", e);
-                actix_web::error::ErrorInternalServerError("Redis connection failed")
-            })?;
 
             // Check permission (with caching)
             let has_perm = check_permission_cached(
-                &mut redis_conn,
+                redis_pool.get_ref(),
                 pool.get_ref(),
                 &claims.roles,
                 &required_permission,
@@ -152,18 +148,32 @@ where
 
 /// Check if user has permission, with Redis caching
 async fn check_permission_cached(
-    redis: &mut redis::aio::MultiplexedConnection,
+    redis_pool: &RedisPool,
     pool: &PgPool,
     roles: &[String],
     permission: &str,
 ) -> Result<bool, ApiError> {
     let cache_key = permission_cache_key(roles, permission);
 
-    // Try to get from cache first
-    let cached: Option<String> = redis
-        .get(&cache_key)
-        .await
-        .map_err(|e| ApiError::Internal(format!("Redis error: {}", e)))?;
+    // Try to get from cache first (fail open if Redis is unavailable)
+    let mut conn = match redis_pool.get().await {
+        Ok(c) => c,
+        Err(e) => {
+            tracing::warn!("Redis pool error in permission check, skipping cache: {}", e);
+            // Fall through to database check
+            let has_perm = user_has_permission(pool, roles, permission).await?;
+            return Ok(has_perm);
+        }
+    };
+
+    let cached: Option<String> = match conn.get(&cache_key).await {
+        Ok(val) => val,
+        Err(e) => {
+            tracing::warn!("Redis error in permission check, skipping cache: {}", e);
+            let has_perm = user_has_permission(pool, roles, permission).await?;
+            return Ok(has_perm);
+        }
+    };
 
     if let Some(cached_value) = cached {
         // Cache hit
@@ -173,12 +183,11 @@ async fn check_permission_cached(
     // Cache miss - check database
     let has_perm = user_has_permission(pool, roles, permission).await?;
 
-    // Store in cache
+    // Store in cache (ignore errors)
     let cache_value = if has_perm { "1" } else { "0" };
-    let _: () = redis
-        .set_ex(&cache_key, cache_value, PERMISSION_CACHE_TTL)
-        .await
-        .map_err(|e| ApiError::Internal(format!("Redis error: {}", e)))?;
+    if let Err(e) = conn.set_ex::<_, _, ()>(&cache_key, cache_value, PERMISSION_CACHE_TTL).await {
+        tracing::warn!("Failed to cache permission check: {}", e);
+    }
 
     Ok(has_perm)
 }
@@ -186,17 +195,20 @@ async fn check_permission_cached(
 /// Helper function to invalidate permission cache when roles or permissions are updated
 #[allow(dead_code)]
 pub async fn invalidate_permission_cache(
-    redis: &mut redis::aio::MultiplexedConnection,
+    redis_pool: &RedisPool,
 ) -> Result<(), ApiError> {
+    let mut conn = redis_pool.get().await
+        .map_err(|e| ApiError::Internal(format!("Redis pool error: {}", e)))?;
+
     // Delete all permission cache keys
     let pattern = format!("{}:*", PERMISSION_CACHE_PREFIX);
-    let keys: Vec<String> = redis
+    let keys: Vec<String> = conn
         .keys(&pattern)
         .await
         .map_err(|e| ApiError::Internal(format!("Redis error: {}", e)))?;
 
     if !keys.is_empty() {
-        let _: () = redis
+        let _: () = conn
             .del(&keys)
             .await
             .map_err(|e| ApiError::Internal(format!("Redis error: {}", e)))?;

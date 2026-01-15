@@ -1,8 +1,12 @@
+use deadpool_redis::{Config as RedisConfig, Pool as DeadpoolRedisPool, Runtime};
 use redis::Client;
 use sqlx::postgres::{PgPool, PgPoolOptions};
 use uuid::Uuid;
 
 use crate::errors::ApiResult;
+
+/// Type alias for Redis connection pool
+pub type RedisPool = DeadpoolRedisPool;
 
 /// Initialize database connection pool
 pub async fn init_pool(database_url: &str) -> ApiResult<PgPool> {
@@ -14,7 +18,16 @@ pub async fn init_pool(database_url: &str) -> ApiResult<PgPool> {
     Ok(pool)
 }
 
-/// Initialize Redis client
+/// Initialize Redis connection pool with deadpool for automatic reconnection
+pub fn init_redis_pool(redis_url: &str) -> ApiResult<RedisPool> {
+    let redis_cfg = RedisConfig::from_url(redis_url);
+    let pool = redis_cfg
+        .create_pool(Some(Runtime::Tokio1))
+        .map_err(|e| crate::errors::ApiError::Internal(format!("Failed to create Redis pool: {}", e)))?;
+    Ok(pool)
+}
+
+/// Initialize Redis client (for pub/sub and other direct client needs)
 pub fn init_redis_client(redis_url: &str) -> ApiResult<Client> {
     let client = Client::open(redis_url)?;
     Ok(client)

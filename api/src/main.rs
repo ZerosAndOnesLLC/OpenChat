@@ -134,19 +134,18 @@ async fn main() -> std::io::Result<()> {
         .expect("Failed to initialize database pool");
     info!("Database connection established");
 
-    // Initialize Redis client and connection
+    // Initialize Redis pool (with automatic reconnection via deadpool)
     info!("Connecting to Redis...");
+    let redis_pool = db::init_redis_pool(&config.redis_url)
+        .expect("Failed to initialize Redis pool");
+    // Also keep a client for pub/sub which needs a dedicated connection
     let redis_client = db::init_redis_client(&config.redis_url)
         .expect("Failed to initialize Redis client");
-    let redis_conn = redis_client.get_multiplexed_async_connection()
-        .await
-        .expect("Failed to connect to Redis");
-    info!("Redis connection established");
+    info!("Redis pool established");
 
     // Warm the cache with frequently accessed data
     info!("Warming cache...");
-    let mut redis_warming_conn = redis_conn.clone();
-    if let Err(e) = cache::warming::warm_cache(&db_pool, &mut redis_warming_conn).await {
+    if let Err(e) = cache::warming::warm_cache(&db_pool, &redis_pool).await {
         tracing::warn!("Cache warming failed (non-critical): {}", e);
     }
 
@@ -155,7 +154,7 @@ async fn main() -> std::io::Result<()> {
     let ws_config = Arc::new(config.websocket.clone());
     let ws_server = websocket::server::WsServer::new(
         db_pool.clone(),
-        redis_client.clone(),
+        redis_pool.clone(),
         ws_config.clone()
     ).start();
     info!(
@@ -220,8 +219,8 @@ async fn main() -> std::io::Result<()> {
         App::new()
             .wrap(cors)
             .app_data(web::Data::new(db_pool.clone()))
+            .app_data(web::Data::new(redis_pool.clone()))
             .app_data(web::Data::new(redis_client.clone()))
-            .app_data(web::Data::new(redis_conn.clone()))
             .app_data(web::Data::new(ws_server.clone()))
             .app_data(web::Data::new(tv_api_client.clone()))
             .app_data(web::Data::new(storage_factory.clone()))

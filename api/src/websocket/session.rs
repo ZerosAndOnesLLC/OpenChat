@@ -79,6 +79,7 @@ impl WsSessionData {
                 self.server.do_send(server::SubscribeChannel {
                     session_id: self.id,
                     user_id: self.user_id,
+                    org_id: self.org_id,
                     channel_id,
                 });
             }
@@ -145,6 +146,7 @@ impl WsSessionData {
                 self.server.do_send(server::PinMessage {
                     user_id: self.user_id,
                     user_name: self.user_name.clone(),
+                    org_id: self.org_id,
                     message_id,
                 });
             }
@@ -152,6 +154,7 @@ impl WsSessionData {
                 self.server.do_send(server::UnpinMessage {
                     user_id: self.user_id,
                     user_name: self.user_name.clone(),
+                    org_id: self.org_id,
                     message_id,
                 });
             }

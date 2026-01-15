@@ -59,8 +59,8 @@ impl MessageBatch {
 pub struct WsServer {
     /// Database pool for persisting messages
     db_pool: PgPool,
-    /// Redis client for caching
-    redis_client: redis::Client,
+    /// Redis pool for caching
+    redis_pool: crate::db::RedisPool,
     /// WebSocket configuration
     config: Arc<WebSocketConfig>,
     /// Map of session_id -> session address
@@ -82,10 +82,10 @@ pub struct WsServer {
 }
 
 impl WsServer {
-    pub fn new(db_pool: PgPool, redis_client: redis::Client, config: Arc<WebSocketConfig>) -> Self {
+    pub fn new(db_pool: PgPool, redis_pool: crate::db::RedisPool, config: Arc<WebSocketConfig>) -> Self {
         Self {
             db_pool,
-            redis_client,
+            redis_pool,
             config,
             sessions: HashMap::new(),
             user_sessions: HashMap::new(),
@@ -480,6 +480,7 @@ impl Handler<TypingIndicator> for WsServer {
 pub struct SubscribeChannel {
     pub session_id: Uuid,
     pub user_id: Uuid,
+    pub org_id: Uuid,
     pub channel_id: Uuid,
 }
 
@@ -500,25 +501,15 @@ impl Handler<SubscribeChannel> for WsServer {
 
         // Fetch and send channel data
         let pool = self.db_pool.clone();
-        let redis_client = self.redis_client.clone();
+        let redis_pool = self.redis_pool.clone();
         let session = self.sessions.get(&msg.session_id).cloned();
         let channel_id = msg.channel_id;
         let user_id = msg.user_id;
+        let org_id = msg.org_id;
 
         let fut = async move {
-            // Get Redis connection
-            let mut redis_conn = match redis_client.get_multiplexed_async_connection().await {
-                Ok(conn) => conn,
-                Err(e) => {
-                    tracing::error!("Failed to get Redis connection: {}", e);
-                    return Some(ServerMessage::Error {
-                        message: "Failed to connect to cache".to_string(),
-                    });
-                }
-            };
-
             // Try to get pins from cache first
-            let pins = match crate::cache::pins::get_pins_from_cache(&mut redis_conn, channel_id).await {
+            let pins = match crate::cache::pins::get_pins_from_cache(&redis_pool, org_id, channel_id).await {
                 Ok(Some(cached_pins)) => {
                     tracing::debug!("Cache hit: pins for channel {}", channel_id);
                     Ok(cached_pins)
@@ -529,7 +520,7 @@ impl Handler<SubscribeChannel> for WsServer {
                     match crate::models::pin::PinnedMessage::get_pins_for_channel(&pool, channel_id).await {
                         Ok(db_pins) => {
                             // Cache for next time
-                            if let Err(e) = crate::cache::pins::set_pins_in_cache(&mut redis_conn, channel_id, &db_pins).await {
+                            if let Err(e) = crate::cache::pins::set_pins_in_cache(&redis_pool, org_id, channel_id, &db_pins).await {
                                 tracing::warn!("Failed to cache pins for channel {}: {}", channel_id, e);
                             }
                             Ok(db_pins)
@@ -544,7 +535,7 @@ impl Handler<SubscribeChannel> for WsServer {
             };
 
             // Try to get channel members from cache
-            let members = match crate::cache::channels::get_channel_members_from_cache(&mut redis_conn, channel_id).await {
+            let members = match crate::cache::channels::get_channel_members_from_cache(&redis_pool, org_id, channel_id).await {
                 Ok(Some(_cached_members)) => {
                     tracing::debug!("Cache hit: members for channel {}", channel_id);
                     // For now, still fetch from DB to get full member info with names
@@ -871,7 +862,7 @@ impl Handler<MarkAsRead> for WsServer {
 
     fn handle(&mut self, msg: MarkAsRead, ctx: &mut Context<Self>) {
         let db_pool = self.db_pool.clone();
-        let redis_client = self.redis_client.clone();
+        let redis_pool = self.redis_pool.clone();
         let channel_id = msg.channel_id;
         let dm_id = msg.dm_id;
         let user_id = msg.user_id;
@@ -882,14 +873,6 @@ impl Handler<MarkAsRead> for WsServer {
             use crate::cache::read_status::{invalidate_channel_unread_cache, invalidate_dm_unread_cache};
             use crate::models::read_status::{ChannelReadStatus, DmReadStatus};
 
-            let mut redis_conn = match redis_client.get_multiplexed_async_connection().await {
-                Ok(conn) => conn,
-                Err(e) => {
-                    tracing::error!("Failed to get Redis connection for mark_as_read: {}", e);
-                    return None;
-                }
-            };
-
             if let Some(cid) = channel_id {
                 // Mark channel as read
                 if let Err(e) = ChannelReadStatus::mark_as_read(&db_pool, user_id, cid, last_message_id).await {
@@ -898,7 +881,7 @@ impl Handler<MarkAsRead> for WsServer {
                 }
 
                 // Invalidate cache
-                if let Err(e) = invalidate_channel_unread_cache(&mut redis_conn, user_id, cid).await {
+                if let Err(e) = invalidate_channel_unread_cache(&redis_pool, org_id, user_id, cid).await {
                     tracing::warn!("Failed to invalidate channel unread cache: {}", e);
                 }
 
@@ -924,7 +907,7 @@ impl Handler<MarkAsRead> for WsServer {
                 }
 
                 // Invalidate cache
-                if let Err(e) = invalidate_dm_unread_cache(&mut redis_conn, user_id, did).await {
+                if let Err(e) = invalidate_dm_unread_cache(&redis_pool, org_id, user_id, did).await {
                     tracing::warn!("Failed to invalidate DM unread cache: {}", e);
                 }
 
@@ -1103,6 +1086,7 @@ impl Handler<RemoveReaction> for WsServer {
 pub struct PinMessage {
     pub user_id: Uuid,
     pub user_name: String,
+    pub org_id: Uuid,
     pub message_id: Uuid,
 }
 
@@ -1111,10 +1095,11 @@ impl Handler<PinMessage> for WsServer {
 
     fn handle(&mut self, msg: PinMessage, ctx: &mut Context<Self>) {
         let db_pool = self.db_pool.clone();
-        let redis_client = self.redis_client.clone();
+        let redis_pool = self.redis_pool.clone();
         let message_id = msg.message_id;
         let user_id = msg.user_id;
         let user_name = msg.user_name.clone();
+        let org_id = msg.org_id;
 
         let fut = async move {
             use crate::cache::pins::invalidate_pins_cache;
@@ -1152,10 +1137,8 @@ impl Handler<PinMessage> for WsServer {
             };
 
             // Invalidate cache
-            if let Ok(mut redis_conn) = redis_client.get_multiplexed_async_connection().await {
-                if let Err(e) = invalidate_pins_cache(&mut redis_conn, channel_id).await {
-                    tracing::warn!("Failed to invalidate pins cache: {}", e);
-                }
+            if let Err(e) = invalidate_pins_cache(&redis_pool, org_id, channel_id).await {
+                tracing::warn!("Failed to invalidate pins cache: {}", e);
             }
 
             Some((
@@ -1186,6 +1169,7 @@ impl Handler<PinMessage> for WsServer {
 pub struct UnpinMessage {
     pub user_id: Uuid,
     pub user_name: String,
+    pub org_id: Uuid,
     pub message_id: Uuid,
 }
 
@@ -1194,10 +1178,11 @@ impl Handler<UnpinMessage> for WsServer {
 
     fn handle(&mut self, msg: UnpinMessage, ctx: &mut Context<Self>) {
         let db_pool = self.db_pool.clone();
-        let redis_client = self.redis_client.clone();
+        let redis_pool = self.redis_pool.clone();
         let message_id = msg.message_id;
         let user_id = msg.user_id;
         let user_name = msg.user_name.clone();
+        let org_id = msg.org_id;
 
         let fut = async move {
             use crate::cache::pins::invalidate_pins_cache;
@@ -1232,10 +1217,8 @@ impl Handler<UnpinMessage> for WsServer {
             }
 
             // Invalidate cache
-            if let Ok(mut redis_conn) = redis_client.get_multiplexed_async_connection().await {
-                if let Err(e) = invalidate_pins_cache(&mut redis_conn, channel_id).await {
-                    tracing::warn!("Failed to invalidate pins cache: {}", e);
-                }
+            if let Err(e) = invalidate_pins_cache(&redis_pool, org_id, channel_id).await {
+                tracing::warn!("Failed to invalidate pins cache: {}", e);
             }
 
             Some((

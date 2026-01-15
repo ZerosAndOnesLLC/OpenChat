@@ -1,5 +1,5 @@
 use actix_web::{web, HttpMessage, HttpRequest, HttpResponse};
-use redis::aio::MultiplexedConnection;
+use crate::db::RedisPool;
 use serde::{Deserialize, Serialize};
 use sqlx::PgPool;
 use uuid::Uuid;
@@ -300,7 +300,7 @@ pub async fn create_dm(
 /// GET /api/dms/:id - Get DM details
 pub async fn get_dm(
     pool: web::Data<PgPool>,
-    redis: web::Data<MultiplexedConnection>,
+    redis_pool: web::Data<RedisPool>,
     dm_id: web::Path<Uuid>,
     req: HttpRequest,
 ) -> ApiResult<HttpResponse> {
@@ -315,10 +315,10 @@ pub async fn get_dm(
         .await?
         .ok_or_else(|| ApiError::NotFound("Current user not found".to_string()))?;
 
-    let mut redis_conn = redis.as_ref().clone();
+    
 
     // Try to get DM from cache first
-    let dm = match dm_cache::get_dm_from_cache(&mut redis_conn, *dm_id).await? {
+    let dm = match dm_cache::get_dm_from_cache(redis_pool.get_ref(), claims.org_id, *dm_id).await? {
         Some(cached_dm) => cached_dm,
         None => {
             // Cache miss - fetch from database
@@ -327,7 +327,7 @@ pub async fn get_dm(
                 .ok_or_else(|| ApiError::NotFound("DM not found".to_string()))?;
 
             // Store in cache for next time
-            if let Err(e) = dm_cache::set_dm_in_cache(&mut redis_conn, &dm).await {
+            if let Err(e) = dm_cache::set_dm_in_cache(redis_pool.get_ref(), &dm).await {
                 tracing::warn!("Failed to cache DM: {}", e);
             }
 
@@ -359,7 +359,7 @@ pub async fn get_dm(
 /// GET /api/dms/:id/messages - List messages in a DM
 pub async fn list_dm_messages(
     pool: web::Data<PgPool>,
-    redis: web::Data<MultiplexedConnection>,
+    redis_pool: web::Data<RedisPool>,
     dm_id: web::Path<Uuid>,
     query: web::Query<ListMessagesQuery>,
     req: HttpRequest,
@@ -393,9 +393,9 @@ pub async fn list_dm_messages(
 
     // Try to get from cache if this is the first page
     let paginated = if query.cursor.is_none() {
-        let mut redis_conn = redis.as_ref().clone();
+        
 
-        match message_cache::get_dm_messages_from_cache(&mut redis_conn, *dm_id).await? {
+        match message_cache::get_dm_messages_from_cache(redis_pool.get_ref(), claims.org_id, *dm_id).await? {
             Some(cached) => cached,
             None => {
                 // Cache miss - fetch from database
@@ -408,7 +408,7 @@ pub async fn list_dm_messages(
                 .await?;
 
                 // Store in cache for next time
-                if let Err(e) = message_cache::set_dm_messages_in_cache(&mut redis_conn, *dm_id, &paginated).await {
+                if let Err(e) = message_cache::set_dm_messages_in_cache(redis_pool.get_ref(), claims.org_id, *dm_id, &paginated).await {
                     tracing::warn!("Failed to cache DM messages: {}", e);
                 }
 

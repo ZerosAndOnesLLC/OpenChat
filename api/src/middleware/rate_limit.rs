@@ -4,7 +4,7 @@ use actix_web::{
     Error, HttpMessage, HttpResponse,
 };
 use futures_util::future::LocalBoxFuture;
-use redis::aio::MultiplexedConnection;
+use crate::db::RedisPool;
 use std::{
     future::{ready, Ready},
     rc::Rc,
@@ -117,20 +117,17 @@ where
                 }
             };
 
-            // Get Redis connection
-            let redis_conn = req
-                .app_data::<actix_web::web::Data<MultiplexedConnection>>()
+            // Get Redis pool
+            let redis_pool = req
+                .app_data::<actix_web::web::Data<RedisPool>>()
                 .ok_or_else(|| {
-                    error!("Redis connection not found in app data");
+                    error!("Redis pool not found in app data");
                     actix_web::error::ErrorInternalServerError("Redis not configured")
                 })?;
 
-            // Clone the connection for async use
-            let mut redis = redis_conn.as_ref().clone();
-
             // Check rate limit
             let (allowed, remaining, reset_time) =
-                match check_rate_limit(&mut redis, user_id, limit_type).await {
+                match check_rate_limit(redis_pool.get_ref(), user_id, limit_type).await {
                     Ok(result) => result,
                     Err(e) => {
                         error!("Rate limit check failed: {}", e);

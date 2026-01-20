@@ -1,4 +1,6 @@
-use deadpool_redis::{Config as RedisConfig, Pool as DeadpoolRedisPool, Runtime};
+use std::time::Duration;
+
+use deadpool_redis::{Config as RedisConfig, Pool as DeadpoolRedisPool, PoolConfig, Runtime, Timeouts};
 use redis::Client;
 use sqlx::postgres::{PgPool, PgPoolOptions};
 use uuid::Uuid;
@@ -20,7 +22,16 @@ pub async fn init_pool(database_url: &str) -> ApiResult<PgPool> {
 
 /// Initialize Redis connection pool with deadpool for automatic reconnection
 pub fn init_redis_pool(redis_url: &str) -> ApiResult<RedisPool> {
-    let redis_cfg = RedisConfig::from_url(redis_url);
+    let mut redis_cfg = RedisConfig::from_url(redis_url);
+    redis_cfg.pool = Some(PoolConfig {
+        max_size: 16,
+        timeouts: Timeouts {
+            wait: Some(Duration::from_secs(5)),
+            create: Some(Duration::from_secs(5)),
+            recycle: Some(Duration::from_secs(5)),
+        },
+        ..Default::default()
+    });
     let pool = redis_cfg
         .create_pool(Some(Runtime::Tokio1))
         .map_err(|e| crate::errors::ApiError::Internal(format!("Failed to create Redis pool: {}", e)))?;

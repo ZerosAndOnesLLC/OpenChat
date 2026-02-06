@@ -30,6 +30,7 @@ pub struct VerifiedClaims {
     pub display_name: String,
     pub org_name: String,
     pub roles: Vec<String>,
+    pub licensed_products: Vec<String>,
     /// Whether this came from a device token (vs TitaniumVault token)
     pub is_device_token: bool,
 }
@@ -143,6 +144,7 @@ where
                         display_name: claims.display_name,
                         org_name: claims.org_name,
                         roles: claims.roles,
+                        licensed_products: claims.licensed_products,
                         is_device_token: false,
                     }
                 }
@@ -164,6 +166,7 @@ where
                                 display_name: claims.display_name,
                                 org_name: claims.org_name,
                                 roles: claims.roles,
+                                licensed_products: claims.licensed_products,
                                 is_device_token: false,
                             }
                         }
@@ -200,12 +203,20 @@ where
                                 display_name: user.display_name,
                                 org_name: format!("org-{}", device_claims.org_id),
                                 roles: device_claims.roles,
+                                licensed_products: vec![],
                                 is_device_token: true,
                             }
                         }
                     }
                 }
             };
+
+            // Check OpenChat product license (device tokens skip - validated at pairing time)
+            if !verified_claims.is_device_token && !verified_claims.licensed_products.iter().any(|p| p == "openchat") {
+                return Err(actix_web::error::ErrorForbidden(ApiError::Authorization(
+                    "OpenChat is not licensed for this organization. Please contact your administrator.".to_string(),
+                )));
+            }
 
             // Check if user has the required role (device tokens always pass since they were validated at pairing)
             if let Some(required) = &required_role {
@@ -318,6 +329,7 @@ where
                 org_name: verified_claims.org_name,
                 display_name: verified_claims.display_name,
                 roles: verified_claims.roles,
+                licensed_products: verified_claims.licensed_products,
             };
             req.extensions_mut().insert(token_claims);
 

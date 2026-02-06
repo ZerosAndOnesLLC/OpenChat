@@ -16,6 +16,7 @@ pub struct TokenClaims {
     pub org_name: String,
     pub display_name: String,
     pub roles: Vec<String>,
+    pub licensed_products: Vec<String>,
 }
 
 // JWT payload structure from TitaniumVault access tokens
@@ -32,6 +33,8 @@ struct AccessTokenClaims {
     org_name: Option<String>,
     #[serde(default)]
     roles: Option<Vec<String>>,  // User roles
+    #[serde(default)]
+    licensed_products: Option<Vec<String>>,  // Active/trial product codes
     #[allow(dead_code)]
     exp: i64,
     #[allow(dead_code)]
@@ -139,6 +142,8 @@ impl TvApiClient {
             .or(jwt_claims.name)
             .unwrap_or_else(|| email.split('@').next().unwrap_or("User").to_string());
 
+        let licensed_products = jwt_claims.licensed_products.unwrap_or_default();
+
         let claims = TokenClaims {
             user_id,
             email,
@@ -146,6 +151,7 @@ impl TvApiClient {
             org_name,
             display_name,
             roles,
+            licensed_products,
         };
 
         Ok(claims)

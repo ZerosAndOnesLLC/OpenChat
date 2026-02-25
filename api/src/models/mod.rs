@@ -3,6 +3,7 @@ pub mod job;
 pub mod audit_log;
 pub mod bookmark;
 pub mod channel;
+pub mod channel_section;
 pub mod device;
 pub mod direct_message;
 pub mod emoji;

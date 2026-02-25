@@ -11,6 +11,7 @@ import BookmarksList from './BookmarksList';
 import UserProfile from './UserProfile';
 import BrowseChannelsModal from './BrowseChannelsModal';
 import NewDmModal from './NewDmModal';
+import ScheduledMessagesList from './ScheduledMessagesList';
 import { useState, useMemo } from 'react';
 
 interface SidebarProps {
@@ -34,6 +35,13 @@ export default function Sidebar({
   const [showCreateChannel, setShowCreateChannel] = useState(false);
   const [showBrowseChannels, setShowBrowseChannels] = useState(false);
   const [showNewDmModal, setShowNewDmModal] = useState(false);
+  const [showScheduledMessages, setShowScheduledMessages] = useState(false);
+
+  const { data: scheduledMessages = [] } = useQuery({
+    queryKey: ['scheduled-messages'],
+    queryFn: () => apiClient.listScheduledMessages(),
+    refetchInterval: 60000,
+  });
   const [newChannelName, setNewChannelName] = useState('');
   const [newChannelType, setNewChannelType] = useState<'public' | 'private'>('public');
 
@@ -140,8 +148,22 @@ export default function Sidebar({
 
   return (
     <div className="flex flex-col bg-gray-900 text-white" style={{ width }}>
-      <div className="flex h-14 items-center border-b border-gray-700 px-4">
+      <div className="flex h-14 items-center justify-between border-b border-gray-700 px-4">
         <h1 className="text-xl font-bold">OpenChat</h1>
+        <button
+          onClick={() => setShowScheduledMessages(true)}
+          className="relative rounded p-1 text-gray-400 hover:bg-gray-800 hover:text-white"
+          title="Scheduled messages"
+        >
+          <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+          </svg>
+          {scheduledMessages.length > 0 && (
+            <span className="absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-blue-600 text-[10px] font-bold text-white">
+              {scheduledMessages.length}
+            </span>
+          )}
+        </button>
       </div>
 
       <div className="flex-1 overflow-y-auto">
@@ -277,6 +299,11 @@ export default function Sidebar({
         onClose={() => setShowNewDmModal(false)}
         onSelectDm={onSelectDm}
         currentDms={dmsList}
+      />
+
+      <ScheduledMessagesList
+        isOpen={showScheduledMessages}
+        onClose={() => setShowScheduledMessages(false)}
       />
     </div>
   );

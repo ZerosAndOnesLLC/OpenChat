@@ -31,6 +31,7 @@ impl From<Notification> for NotificationResponse {
             crate::models::notification::NotificationType::Dm => "dm",
             crate::models::notification::NotificationType::ThreadReply => "thread_reply",
             crate::models::notification::NotificationType::ChannelInvite => "channel_invite",
+            crate::models::notification::NotificationType::Reminder => "reminder",
         };
 
         Self {

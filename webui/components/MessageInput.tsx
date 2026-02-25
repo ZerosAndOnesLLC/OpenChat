@@ -9,6 +9,8 @@ import { apiClient } from '@/lib/api';
 import type { Message } from '@/lib/types';
 import MarkdownToolbar from './MarkdownToolbar';
 import MarkdownRenderer from './MarkdownRenderer';
+import ScheduleSendModal from './ScheduleSendModal';
+import { toastManager } from '@/lib/toast';
 
 interface MessageInputProps {
   channelId?: string;
@@ -30,6 +32,7 @@ export default function MessageInput({ channelId, dmId, replyTo, onClearReply }:
   const [showPreview, setShowPreview] = useState(false);
   const [selectedFiles, setSelectedFiles] = useState<SelectedFile[]>([]);
   const [isDragging, setIsDragging] = useState(false);
+  const [showScheduleModal, setShowScheduleModal] = useState(false);
   const { sendMessage, sendTyping } = useWebSocketStore();
   const queryClient = useQueryClient();
   const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -319,6 +322,24 @@ export default function MessageInput({ channelId, dmId, replyTo, onClearReply }:
     setShowPreview(!showPreview);
   };
 
+  const handleScheduleSend = async (scheduledAt: string) => {
+    if (!message.trim()) return;
+    try {
+      await apiClient.createScheduledMessage({
+        channel_id: channelId || undefined,
+        dm_id: dmId || undefined,
+        content: message.trim(),
+        parent_message_id: replyTo?.id || undefined,
+        scheduled_at: scheduledAt,
+      });
+      setMessage('');
+      toastManager.success('Message scheduled');
+      if (onClearReply) onClearReply();
+    } catch (error) {
+      toastManager.error('Failed to schedule message');
+    }
+  };
+
   // Load draft when channel/DM changes
   useEffect(() => {
     const loadDraft = async () => {
@@ -552,17 +573,36 @@ export default function MessageInput({ channelId, dmId, replyTo, onClearReply }:
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
             </svg>
           </button>
-          <button
-            type="submit"
-            disabled={!message.trim() && selectedFiles.length === 0}
-            className="absolute right-3 top-3 rounded-md bg-blue-600 p-2 text-white transition-colors hover:bg-blue-700 disabled:bg-gray-700 disabled:text-gray-400 disabled:cursor-not-allowed z-20"
-          >
-            <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
-            </svg>
-          </button>
+          <div className="absolute right-3 top-3 flex gap-1 z-20">
+            <button
+              type="button"
+              onClick={() => setShowScheduleModal(true)}
+              disabled={!message.trim()}
+              className="rounded-md p-2 text-gray-400 transition-colors hover:text-white hover:bg-gray-800 disabled:text-gray-600 disabled:cursor-not-allowed"
+              title="Schedule message"
+            >
+              <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+            </button>
+            <button
+              type="submit"
+              disabled={!message.trim() && selectedFiles.length === 0}
+              className="rounded-md bg-blue-600 p-2 text-white transition-colors hover:bg-blue-700 disabled:bg-gray-700 disabled:text-gray-400 disabled:cursor-not-allowed"
+            >
+              <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
+              </svg>
+            </button>
+          </div>
         </div>
       </form>
+
+      <ScheduleSendModal
+        isOpen={showScheduleModal}
+        onClose={() => setShowScheduleModal(false)}
+        onSchedule={handleScheduleSend}
+      />
     </div>
   );
 }

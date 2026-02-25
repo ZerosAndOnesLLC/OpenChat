@@ -605,6 +605,15 @@ export const useWebSocketStore = create<WebSocketStore>((set, get) => ({
             break;
           }
 
+          case 'reminder_triggered': {
+            console.log('Reminder triggered:', message.reminder_id);
+            // Show toast notification for reminder
+            if (typeof window !== 'undefined' && (window as any).showToast) {
+              (window as any).showToast(`Reminder: ${message.message_preview}`, 'info');
+            }
+            break;
+          }
+
           case 'member_left': {
             console.log('Member left:', message.user_name, 'from channel:', message.channel_id);
             // Remove from members list for this channel

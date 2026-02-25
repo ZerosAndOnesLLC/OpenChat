@@ -7,7 +7,7 @@ use uuid::Uuid;
 
 use crate::models::job::{Job, JobType};
 use crate::storage::StorageFactory;
-use super::{retention_worker, webhook_worker};
+use super::{reminder_worker, retention_worker, scheduled_message_worker, webhook_worker};
 
 const STREAM_KEY: &str = "openchat:jobs:stream";
 const GROUP_NAME: &str = "openchat-workers";
@@ -333,13 +333,13 @@ impl JobQueue {
             }
             JobType::ScheduledMessage => {
                 info!(job_id = %job.id, "Executing scheduled message job");
-                // TODO: Implement in Phase 1.2
-                Ok(())
+                let mut redis = self.redis.clone();
+                scheduled_message_worker::execute(&self.pool, &mut redis, &job.payload).await
             }
             JobType::Reminder => {
                 info!(job_id = %job.id, "Executing reminder job");
-                // TODO: Implement in Phase 1.2
-                Ok(())
+                let mut redis = self.redis.clone();
+                reminder_worker::execute(&self.pool, &mut redis, &job.payload).await
             }
             JobType::EmailNotification => {
                 info!(job_id = %job.id, "Executing email notification job");

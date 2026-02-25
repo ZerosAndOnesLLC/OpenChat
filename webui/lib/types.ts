@@ -234,6 +234,7 @@ export type WSServerMessage =
   | { type: 'channel_updated'; channel_id: string; name?: string; description?: string; updated_by: string; updated_by_name: string }
   | { type: 'member_joined'; channel_id: string; user_id: string; user_name: string; role: string; joined_at: string }
   | { type: 'member_left'; channel_id: string; user_id: string; user_name: string }
+  | { type: 'reminder_triggered'; reminder_id: string; message_id: string; channel_id?: string; dm_id?: string; message_preview: string; created_at: string }
   | { type: 'connected'; user_id: string }
   | { type: 'error'; message: string }
   | { type: 'pong' };
@@ -434,4 +435,32 @@ export interface UpdateWebhookRequest {
   icon_url?: string;
   username?: string;
   enabled?: boolean;
+}
+
+// Scheduled Message types
+export interface ScheduledMessage {
+  id: string;
+  org_id: string;
+  user_id: string;
+  channel_id?: string;
+  dm_id?: string;
+  content: string;
+  parent_message_id?: string;
+  scheduled_at: string;
+  sent: boolean;
+  created_at: string;
+}
+
+// Reminder types
+export interface Reminder {
+  id: string;
+  user_id: string;
+  org_id: string;
+  message_id: string;
+  channel_id?: string;
+  dm_id?: string;
+  remind_at: string;
+  message_preview: string;
+  completed: boolean;
+  created_at: string;
 }

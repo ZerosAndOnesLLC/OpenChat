@@ -67,13 +67,13 @@ jobs:
           mkdir -p release
           cp api/target/release/openchat-api release/
           chmod +x release/openchat-api
-          cd release && tar -czvf openchat-api-linux-${{ matrix.arch }}.tar.gz openchat-api
+          cd release && tar -czvf openchat-api-v${{ steps.version.outputs.version }}-linux-${{ matrix.arch }}.tar.gz openchat-api
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: openchat-api-linux-${{ matrix.arch }}
-          path: release/openchat-api-linux-${{ matrix.arch }}.tar.gz
+          name: openchat-api-v${{ steps.version.outputs.version }}-linux-${{ matrix.arch }}
+          path: release/openchat-api-v${{ steps.version.outputs.version }}-linux-${{ matrix.arch }}.tar.gz
 
   release:
     needs: build
@@ -101,8 +101,8 @@ jobs:
       - name: Collect release files
         run: |
           mkdir -p release
-          cp artifacts/openchat-api-linux-x86_64/openchat-api-linux-x86_64.tar.gz release/
-          cp artifacts/openchat-api-linux-aarch64/openchat-api-linux-aarch64.tar.gz release/
+          cp artifacts/openchat-api-v${{ steps.version.outputs.version }}-linux-x86_64/openchat-api-v${{ steps.version.outputs.version }}-linux-x86_64.tar.gz release/
+          cp artifacts/openchat-api-v${{ steps.version.outputs.version }}-linux-aarch64/openchat-api-v${{ steps.version.outputs.version }}-linux-aarch64.tar.gz release/
           ls -la release/
 
       - name: Create GitHub Release
@@ -116,9 +116,9 @@ jobs:
             ### Installation
             ```bash
             # x86_64
-            tar -xzvf openchat-api-linux-x86_64.tar.gz
+            tar -xzvf openchat-api-v${{ steps.version.outputs.version }}-linux-x86_64.tar.gz
             # ARM64
-            tar -xzvf openchat-api-linux-aarch64.tar.gz
+            tar -xzvf openchat-api-v${{ steps.version.outputs.version }}-linux-aarch64.tar.gz
 
             chmod +x openchat-api
             ./openchat-api
@@ -130,8 +130,8 @@ jobs:
 
             See [documentation](https://github.com/ZerosAndOnesLLC/OpenChat#readme) for configuration details.
           files: |
-            release/openchat-api-linux-x86_64.tar.gz
-            release/openchat-api-linux-aarch64.tar.gz
+            release/openchat-api-v${{ steps.version.outputs.version }}-linux-x86_64.tar.gz
+            release/openchat-api-v${{ steps.version.outputs.version }}-linux-aarch64.tar.gz
           draft: false
           prerelease: false
           generate_release_notes: true

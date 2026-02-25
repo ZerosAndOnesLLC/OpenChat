@@ -25,4 +25,5 @@ pub mod scheduled_message;
 pub mod role;
 pub mod storage_settings;
 pub mod user;
+pub mod user_group;
 pub mod user_status;

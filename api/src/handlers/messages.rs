@@ -14,6 +14,7 @@ use crate::{
     models::notification::{CreateNotification, Notification, NotificationType},
     models::reaction::Reaction,
     models::user::User,
+    models::user_group::UserGroup,
     services::{audit_logger::AuditLogger, mention_parser, tv_api::TokenClaims},
     websocket::{
         messages::ServerMessage,
@@ -357,6 +358,49 @@ pub async fn send_message(
                                         message_id: Some(message.id),
                                         channel_id: Some(channel_id),
                                         dm_id: None,
+                                        created_at: created_notif.created_at.to_rfc3339(),
+                                    },
+                                });
+                            }
+                        }
+                    }
+                }
+                MentionType::Group => {
+                    // Get group members and create notifications for them
+                    if let Some(group_id) = parsed_mention.mentioned_group_id {
+                        let member_ids = UserGroup::get_member_ids(pool.get_ref(), group_id).await?;
+                        for member_id in member_ids {
+                            // Don't notify the sender
+                            if member_id != current_user.id {
+                                let notification = CreateNotification {
+                                    user_id: member_id,
+                                    notification_type: NotificationType::Mention,
+                                    message_id: Some(message.id),
+                                    channel_id: message.channel_id,
+                                    dm_id: message.dm_id,
+                                };
+                                let created_notif = Notification::create(pool.get_ref(), notification).await?;
+
+                                // Broadcast notification count and new notification
+                                if let Ok(notif_count) = Notification::count_unread_by_user(pool.get_ref(), member_id).await {
+                                    ws_server.do_send(crate::websocket::server::BroadcastToUser {
+                                        org_id: current_user.org_id,
+                                        user_id: member_id,
+                                        message: ServerMessage::NotificationCountUpdated {
+                                            unread_count: notif_count as i32,
+                                        },
+                                    });
+                                }
+
+                                ws_server.do_send(crate::websocket::server::BroadcastToUser {
+                                    org_id: current_user.org_id,
+                                    user_id: member_id,
+                                    message: ServerMessage::NewNotification {
+                                        notification_id: created_notif.id,
+                                        notification_type: "mention".to_string(),
+                                        message_id: Some(message.id),
+                                        channel_id: message.channel_id,
+                                        dm_id: message.dm_id,
                                         created_at: created_notif.created_at.to_rfc3339(),
                                     },
                                 });

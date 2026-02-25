@@ -7,15 +7,23 @@ on:
     paths:
       - 'api/**'
       - '.github/workflows/api-release.yml'
+  workflow_dispatch:
 
 env:
   CARGO_TERM_COLOR: always
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        include:
+          - arch: x86_64
+            runner: [self-hosted, linux, X64]
+          - arch: aarch64
+            runner: [self-hosted, linux, ARM64]
+    runs-on: ${{ matrix.runner }}
     permissions:
-      contents: write
+      contents: read
 
     steps:
       - name: Checkout repository
@@ -33,9 +41,9 @@ jobs:
             ~/.cargo/registry
             ~/.cargo/git
             api/target
-          key: ${{ runner.os }}-cargo-api-${{ hashFiles('api/Cargo.lock') }}
+          key: ${{ runner.os }}-${{ matrix.arch }}-cargo-api-${{ hashFiles('api/Cargo.lock') }}
           restore-keys: |
-            ${{ runner.os }}-cargo-api-
+            ${{ runner.os }}-${{ matrix.arch }}-cargo-api-
 
       - name: Extract version
         id: version
@@ -46,6 +54,7 @@ jobs:
           echo "API Version: $VERSION"
 
       - name: Run clippy
+        if: matrix.arch == 'x86_64'
         working-directory: api
         run: cargo clippy --release -- -D warnings
 
@@ -58,7 +67,43 @@ jobs:
           mkdir -p release
           cp api/target/release/openchat-api release/
           chmod +x release/openchat-api
-          cd release && tar -czvf openchat-api-linux-x86_64.tar.gz openchat-api
+          cd release && tar -czvf openchat-api-linux-${{ matrix.arch }}.tar.gz openchat-api
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: openchat-api-linux-${{ matrix.arch }}
+          path: release/openchat-api-linux-${{ matrix.arch }}.tar.gz
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Extract version
+        id: version
+        working-directory: api
+        run: |
+          VERSION=$(grep '^version' Cargo.toml | head -1 | sed 's/version = "\(.*\)"/\1/')
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "API Version: $VERSION"
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Collect release files
+        run: |
+          mkdir -p release
+          cp artifacts/openchat-api-linux-x86_64/openchat-api-linux-x86_64.tar.gz release/
+          cp artifacts/openchat-api-linux-aarch64/openchat-api-linux-aarch64.tar.gz release/
+          ls -la release/
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
@@ -70,7 +115,11 @@ jobs:
 
             ### Installation
             ```bash
+            # x86_64
             tar -xzvf openchat-api-linux-x86_64.tar.gz
+            # ARM64
+            tar -xzvf openchat-api-linux-aarch64.tar.gz
+
             chmod +x openchat-api
             ./openchat-api
             ```
@@ -82,6 +131,7 @@ jobs:
             See [documentation](https://github.com/ZerosAndOnesLLC/OpenChat#readme) for configuration details.
           files: |
             release/openchat-api-linux-x86_64.tar.gz
+            release/openchat-api-linux-aarch64.tar.gz
           draft: false
           prerelease: false
           generate_release_notes: true

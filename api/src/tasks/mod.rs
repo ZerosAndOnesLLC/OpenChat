@@ -1,3 +1,4 @@
+pub mod job_queue;
 pub mod status;
 pub mod websocket;
 

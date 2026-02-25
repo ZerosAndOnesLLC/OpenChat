@@ -9,20 +9,7 @@ use std::sync::Arc;
 use tracing::info;
 use tracing_subscriber::EnvFilter;
 
-mod cache;
-mod config;
-mod db;
-mod errors;
-mod handlers;
-mod middleware;
-mod migration;
-mod models;
-mod routes;
-mod services;
-mod storage;
-mod tasks;
-mod utils;
-mod websocket;
+use openchat_api::*;
 
 use config::Config;
 use handlers::{

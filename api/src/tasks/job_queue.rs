@@ -1,10 +1,13 @@
 use chrono::Utc;
 use sqlx::PgPool;
+use std::sync::Arc;
 use tokio_util::sync::CancellationToken;
 use tracing::{error, info, warn};
 use uuid::Uuid;
 
 use crate::models::job::{Job, JobType};
+use crate::storage::StorageFactory;
+use super::{retention_worker, webhook_worker};
 
 const STREAM_KEY: &str = "openchat:jobs:stream";
 const GROUP_NAME: &str = "openchat-workers";
@@ -59,15 +62,17 @@ pub struct JobQueue {
     pool: PgPool,
     redis: redis::aio::MultiplexedConnection,
     consumer_id: String,
+    storage_factory: Arc<StorageFactory>,
 }
 
 impl JobQueue {
-    pub fn new(pool: PgPool, redis: redis::aio::MultiplexedConnection) -> Self {
+    pub fn new(pool: PgPool, redis: redis::aio::MultiplexedConnection, storage_factory: Arc<StorageFactory>) -> Self {
         let consumer_id = format!("worker-{}", Uuid::new_v4());
         Self {
             pool,
             redis,
             consumer_id,
+            storage_factory,
         }
     }
 
@@ -319,13 +324,12 @@ impl JobQueue {
         match job_type {
             JobType::RetentionEnforcement => {
                 info!(job_id = %job.id, "Executing retention enforcement job");
-                // TODO: Implement in Phase 2
-                Ok(())
+                let org_id = job.org_id.ok_or("Missing org_id for retention job")?;
+                retention_worker::execute(&self.pool, &self.storage_factory, org_id).await
             }
             JobType::WebhookDelivery => {
                 info!(job_id = %job.id, "Executing webhook delivery job");
-                // TODO: Implement in Phase 1.3
-                Ok(())
+                webhook_worker::execute(&self.pool, &job.payload).await
             }
             JobType::ScheduledMessage => {
                 info!(job_id = %job.id, "Executing scheduled message job");

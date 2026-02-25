@@ -38,6 +38,7 @@ use handlers::{
     user_status as user_status_handlers,
     users as user_handlers,
     webhooks as webhook_handlers,
+    outgoing_webhooks as outgoing_webhook_handlers,
 };
 use middleware::auth::AuthMiddleware;
 use middleware::permissions::PermissionMiddleware;
@@ -449,6 +450,19 @@ async fn main() -> std::io::Result<()> {
                     .route("/{id}", web::put().to(webhook_handlers::update_webhook))
                     .route("/{id}", web::delete().to(webhook_handlers::delete_webhook))
                     .route("/{id}/regenerate", web::post().to(webhook_handlers::regenerate_token))
+            )
+            // Outgoing webhooks management
+            .service(
+                web::scope("/api/webhooks/outgoing")
+                    .wrap(api_rate_limit.clone())
+                    .wrap(PermissionMiddleware::require("org.manage_integrations"))
+                    .wrap(openchat_auth.clone())
+                    .route("", web::get().to(outgoing_webhook_handlers::list_webhooks))
+                    .route("", web::post().to(outgoing_webhook_handlers::create_webhook))
+                    .route("/{id}", web::get().to(outgoing_webhook_handlers::get_webhook))
+                    .route("/{id}", web::put().to(outgoing_webhook_handlers::update_webhook))
+                    .route("/{id}", web::delete().to(outgoing_webhook_handlers::delete_webhook))
+                    .route("/{id}/deliveries", web::get().to(outgoing_webhook_handlers::list_deliveries))
             )
             // Public webhook receiver endpoint - no auth (uses token in URL)
             .service(

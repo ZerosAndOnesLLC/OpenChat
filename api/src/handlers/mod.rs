@@ -12,6 +12,7 @@ pub mod messages;
 pub mod metrics;
 pub mod migration;
 pub mod notifications;
+pub mod outgoing_webhooks;
 pub mod pins;
 pub mod reactions;
 pub mod read_receipts;

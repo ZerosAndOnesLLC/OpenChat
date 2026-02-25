@@ -218,6 +218,9 @@ pub mod actions {
     pub const ROLE_UPDATED: &str = "role.updated";
     pub const ROLE_DELETED: &str = "role.deleted";
 
+    // Retention actions
+    pub const RETENTION_ENFORCED: &str = "retention.enforced";
+
     // Settings actions
     pub const SETTINGS_UPDATED: &str = "settings.updated";
     pub const STORAGE_SETTINGS_UPDATED: &str = "storage_settings.updated";

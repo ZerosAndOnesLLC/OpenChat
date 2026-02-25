@@ -11,6 +11,7 @@ import AttachmentDisplay from './AttachmentDisplay';
 import LinkPreview from './LinkPreview';
 import ReadReceiptModal from './ReadReceiptModal';
 import EditHistoryModal from './EditHistoryModal';
+import ReminderPickerModal from './ReminderPickerModal';
 
 // Dynamically import EmojiPicker to avoid SSR issues
 const EmojiPicker = dynamic(() => import('emoji-picker-react'), { ssr: false });
@@ -37,6 +38,7 @@ export default function MessageItem({ message, onReply, onOpenThread, onPin, onB
   const [editContent, setEditContent] = useState(message.content);
   const [showReadReceiptModal, setShowReadReceiptModal] = useState(false);
   const [showEditHistoryModal, setShowEditHistoryModal] = useState(false);
+  const [showReminderPicker, setShowReminderPicker] = useState(false);
   const pickerRef = useRef<HTMLDivElement>(null);
   const hoverTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
@@ -382,6 +384,32 @@ export default function MessageItem({ message, onReply, onOpenThread, onPin, onB
               />
             </svg>
           </button>
+          <div className="relative">
+            <button
+              onClick={() => setShowReminderPicker(!showReminderPicker)}
+              className="rounded p-1 hover:bg-gray-800"
+              title="Remind me"
+            >
+              <svg
+                className="h-4 w-4 text-gray-300"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
+                />
+              </svg>
+            </button>
+            <ReminderPickerModal
+              isOpen={showReminderPicker}
+              onClose={() => setShowReminderPicker(false)}
+              messageId={message.id}
+            />
+          </div>
           {isOwnMessage && (
             <>
               <button

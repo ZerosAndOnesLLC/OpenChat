@@ -1,5 +1,7 @@
 pub mod job_queue;
+pub mod reminder_worker;
 pub mod retention_worker;
+pub mod scheduled_message_worker;
 pub mod status;
 pub mod webhook_worker;
 pub mod websocket;

@@ -10,6 +10,8 @@ use uuid::Uuid;
 use openchat_api::config::Config;
 use openchat_api::db;
 use openchat_api::models::job::JobType;
+use openchat_api::models::reminder::Reminder;
+use openchat_api::models::scheduled_message::ScheduledMessage;
 use openchat_api::storage::StorageFactory;
 use openchat_api::tasks::job_queue::{self, JobQueue};
 
@@ -119,6 +121,22 @@ async fn main() -> anyhow::Result<()> {
         }
     });
 
+    // Start due-item poller for scheduled messages and reminders
+    let due_pool = db_pool.clone();
+    let mut due_redis = redis_conn.clone();
+    let due_shutdown = shutdown_token.clone();
+
+    let due_handle = tokio::spawn(async move {
+        let mut interval = tokio::time::interval(std::time::Duration::from_secs(30));
+        loop {
+            interval.tick().await;
+            if due_shutdown.is_cancelled() {
+                break;
+            }
+            poll_due_items(&due_pool, &mut due_redis).await;
+        }
+    });
+
     // Create and run the job queue worker
     let job_queue = JobQueue::new(db_pool, redis_conn, storage_factory);
     job_queue.run(shutdown_token.clone()).await;
@@ -126,6 +144,7 @@ async fn main() -> anyhow::Result<()> {
     // Wait for background tasks to finish
     let _ = poller_handle.await;
     let _ = retention_handle.await;
+    let _ = due_handle.await;
 
     // Grace period for in-flight work
     info!("Waiting for in-flight jobs to complete (5s grace period)...");
@@ -133,6 +152,70 @@ async fn main() -> anyhow::Result<()> {
 
     info!("OpenChat Worker stopped");
     Ok(())
+}
+
+/// Poll for due scheduled messages and reminders, enqueue jobs for each.
+async fn poll_due_items(
+    pool: &sqlx::PgPool,
+    redis: &mut redis::aio::MultiplexedConnection,
+) {
+    // Poll due scheduled messages
+    match ScheduledMessage::list_due(pool).await {
+        Ok(items) => {
+            for sm in &items {
+                let payload = serde_json::json!({
+                    "scheduled_message_id": sm.id.to_string(),
+                });
+                if let Err(e) = job_queue::enqueue_job(
+                    pool,
+                    redis,
+                    Some(sm.org_id),
+                    JobType::ScheduledMessage,
+                    payload,
+                    None,
+                )
+                .await
+                {
+                    error!(id = %sm.id, "Failed to enqueue scheduled message job: {}", e);
+                }
+            }
+            if !items.is_empty() {
+                info!(count = items.len(), "Enqueued due scheduled messages");
+            }
+        }
+        Err(e) => {
+            error!("Failed to poll due scheduled messages: {}", e);
+        }
+    }
+
+    // Poll due reminders
+    match Reminder::list_due(pool).await {
+        Ok(items) => {
+            for r in &items {
+                let payload = serde_json::json!({
+                    "reminder_id": r.id.to_string(),
+                });
+                if let Err(e) = job_queue::enqueue_job(
+                    pool,
+                    redis,
+                    Some(r.org_id),
+                    JobType::Reminder,
+                    payload,
+                    None,
+                )
+                .await
+                {
+                    error!(id = %r.id, "Failed to enqueue reminder job: {}", e);
+                }
+            }
+            if !items.is_empty() {
+                info!(count = items.len(), "Enqueued due reminders");
+            }
+        }
+        Err(e) => {
+            error!("Failed to poll due reminders: {}", e);
+        }
+    }
 }
 
 /// Check if retention has been run today; if not, enqueue retention jobs for all orgs with policies.

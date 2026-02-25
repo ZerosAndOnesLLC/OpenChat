@@ -34,6 +34,8 @@ import type {
   IncomingWebhook,
   CreateWebhookRequest,
   UpdateWebhookRequest,
+  ScheduledMessage,
+  Reminder,
 } from './types';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080';
@@ -678,6 +680,61 @@ class ApiClient {
   async regenerateWebhookToken(id: string): Promise<IncomingWebhook> {
     return this.request<IncomingWebhook>(`/api/webhooks/incoming/${id}/regenerate`, {
       method: 'POST',
+    });
+  }
+
+  // Scheduled Message endpoints
+  async createScheduledMessage(data: {
+    channel_id?: string;
+    dm_id?: string;
+    content: string;
+    parent_message_id?: string;
+    scheduled_at: string;
+  }): Promise<ScheduledMessage> {
+    return this.request<ScheduledMessage>('/api/messages/scheduled', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async listScheduledMessages(): Promise<ScheduledMessage[]> {
+    return this.request<ScheduledMessage[]>('/api/messages/scheduled');
+  }
+
+  async updateScheduledMessage(id: string, data: {
+    content?: string;
+    scheduled_at?: string;
+  }): Promise<ScheduledMessage> {
+    return this.request<ScheduledMessage>(`/api/messages/scheduled/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async deleteScheduledMessage(id: string): Promise<void> {
+    return this.request<void>(`/api/messages/scheduled/${id}`, {
+      method: 'DELETE',
+    });
+  }
+
+  // Reminder endpoints
+  async createReminder(data: {
+    message_id: string;
+    remind_at: string;
+  }): Promise<Reminder> {
+    return this.request<Reminder>('/api/reminders', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async listReminders(): Promise<Reminder[]> {
+    return this.request<Reminder[]>('/api/reminders');
+  }
+
+  async deleteReminder(id: string): Promise<void> {
+    return this.request<void>(`/api/reminders/${id}`, {
+      method: 'DELETE',
     });
   }
 }

@@ -39,6 +39,8 @@ use handlers::{
     users as user_handlers,
     webhooks as webhook_handlers,
     outgoing_webhooks as outgoing_webhook_handlers,
+    reminders as reminder_handlers,
+    scheduled_messages as scheduled_message_handlers,
 };
 use middleware::auth::AuthMiddleware;
 use middleware::permissions::PermissionMiddleware;
@@ -262,6 +264,10 @@ async fn main() -> std::io::Result<()> {
                 web::scope("/api/messages")
                     .wrap(api_rate_limit.clone())
                     .wrap(openchat_auth.clone())
+                    .route("/scheduled", web::post().to(scheduled_message_handlers::create_scheduled_message))
+                    .route("/scheduled", web::get().to(scheduled_message_handlers::list_scheduled_messages))
+                    .route("/scheduled/{id}", web::put().to(scheduled_message_handlers::update_scheduled_message))
+                    .route("/scheduled/{id}", web::delete().to(scheduled_message_handlers::delete_scheduled_message))
                     .route("", web::post().to(message_handlers::send_message))
                     .route("/{id}", web::put().to(message_handlers::update_message))
                     .route("/{id}", web::delete().to(message_handlers::delete_message))
@@ -276,6 +282,15 @@ async fn main() -> std::io::Result<()> {
                     .route("/{id}/pin", web::delete().to(pin_handlers::unpin_message))
                     .route("/{id}/read", web::post().to(read_receipt_handlers::record_read_receipt))
                     .route("/{id}/receipts", web::get().to(read_receipt_handlers::get_message_receipts))
+            )
+            // Reminder routes - require "openchat" role
+            .service(
+                web::scope("/api/reminders")
+                    .wrap(api_rate_limit.clone())
+                    .wrap(openchat_auth.clone())
+                    .route("", web::post().to(reminder_handlers::create_reminder))
+                    .route("", web::get().to(reminder_handlers::list_reminders))
+                    .route("/{id}", web::delete().to(reminder_handlers::delete_reminder))
             )
             // Read Receipt routes - require "openchat" role
             .service(

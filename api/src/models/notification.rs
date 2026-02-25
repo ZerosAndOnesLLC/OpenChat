@@ -12,6 +12,7 @@ pub enum NotificationType {
     Dm,
     ThreadReply,
     ChannelInvite,
+    Reminder,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]

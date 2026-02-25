@@ -90,6 +90,17 @@ pub enum PubSubEvent {
         org_id: Uuid,
         unread_count: i32,
     },
+    /// Reminder triggered
+    ReminderTriggered {
+        user_id: Uuid,
+        org_id: Uuid,
+        reminder_id: Uuid,
+        message_id: Uuid,
+        channel_id: Option<Uuid>,
+        dm_id: Option<Uuid>,
+        message_preview: String,
+        created_at: String,
+    },
 }
 
 /// Redis Pub/Sub manager
@@ -329,6 +340,29 @@ impl RedisPubSub {
                     org_id,
                     user_id,
                     message: ServerMessage::NotificationCountUpdated { unread_count },
+                });
+            }
+            PubSubEvent::ReminderTriggered {
+                user_id,
+                org_id,
+                reminder_id,
+                message_id,
+                channel_id,
+                dm_id,
+                message_preview,
+                created_at,
+            } => {
+                ws_server.do_send(super::server::BroadcastToUser {
+                    org_id,
+                    user_id,
+                    message: ServerMessage::ReminderTriggered {
+                        reminder_id,
+                        message_id,
+                        channel_id,
+                        dm_id,
+                        message_preview,
+                        created_at,
+                    },
                 });
             }
         }

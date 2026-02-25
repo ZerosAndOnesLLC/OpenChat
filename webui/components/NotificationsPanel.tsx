@@ -72,6 +72,8 @@ export default function NotificationsPanel({ isOpen, onClose }: NotificationsPan
         return '↩️';
       case 'channel_invite':
         return '➕';
+      case 'reminder':
+        return '⏰';
       default:
         return '🔔';
     }
@@ -87,6 +89,8 @@ export default function NotificationsPanel({ isOpen, onClose }: NotificationsPan
         return 'replied to a thread you follow';
       case 'channel_invite':
         return 'invited you to a channel';
+      case 'reminder':
+        return 'Reminder for a message you saved';
       default:
         return 'sent you a notification';
     }

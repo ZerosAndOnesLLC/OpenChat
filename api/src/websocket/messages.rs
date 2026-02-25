@@ -319,4 +319,13 @@ pub enum ServerMessage {
         user_id: Uuid,
         user_name: String,
     },
+    /// Reminder triggered for user
+    ReminderTriggered {
+        reminder_id: Uuid,
+        message_id: Uuid,
+        channel_id: Option<Uuid>,
+        dm_id: Option<Uuid>,
+        message_preview: String,
+        created_at: String,
+    },
 }

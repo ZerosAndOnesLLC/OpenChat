@@ -1,3 +1,4 @@
+pub mod channel_sections;
 pub mod channels;
 pub mod dms;
 pub mod messages;
@@ -9,6 +10,7 @@ pub mod rate_limit;
 pub mod read_status;
 pub mod search;
 pub mod tokens;
+pub mod user_groups;
 pub mod user_status;
 pub mod users;
 pub mod warming;

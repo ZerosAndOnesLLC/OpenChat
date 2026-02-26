@@ -165,6 +165,14 @@ pub struct NotificationPrefInfo {
     pub mute_until: Option<DateTime<Utc>>,
 }
 
+/// Poll option result for real-time vote updates
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PollOptionResult {
+    pub index: i32,
+    pub text: String,
+    pub votes: i64,
+}
+
 /// Messages sent from server to client
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
@@ -337,5 +345,25 @@ pub enum ServerMessage {
         dm_id: Option<Uuid>,
         message_preview: String,
         created_at: String,
+    },
+    /// Ephemeral message (only visible to one user, not persisted)
+    EphemeralMessage {
+        content: String,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        channel_id: Option<Uuid>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        dm_id: Option<Uuid>,
+    },
+    /// Poll vote was updated (broadcast to channel/DM subscribers)
+    PollVoteUpdated {
+        poll_id: Uuid,
+        message_id: Uuid,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        channel_id: Option<Uuid>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        dm_id: Option<Uuid>,
+        options: Vec<PollOptionResult>,
+        total_votes: i64,
+        user_votes: Vec<i32>,
     },
 }

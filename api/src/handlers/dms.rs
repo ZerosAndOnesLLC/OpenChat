@@ -127,6 +127,8 @@ pub struct MessageResponse {
     pub user: Option<UserResponse>,
     pub reactions: Vec<ReactionResponse>,
     pub attachments: Vec<AttachmentResponse>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub poll: Option<crate::handlers::messages::PollResponseEmbed>,
 }
 
 impl From<crate::models::message::Message> for MessageResponse {
@@ -143,6 +145,7 @@ impl From<crate::models::message::Message> for MessageResponse {
             user: None,
             reactions: vec![],
             attachments: vec![],
+            poll: None,
         }
     }
 }
@@ -160,6 +163,11 @@ impl MessageResponse {
 
     pub fn with_attachments(mut self, attachments: Vec<Attachment>) -> Self {
         self.attachments = attachments.into_iter().map(AttachmentResponse::from).collect();
+        self
+    }
+
+    pub fn with_poll(mut self, poll_embed: crate::handlers::messages::PollResponseEmbed) -> Self {
+        self.poll = Some(poll_embed);
         self
     }
 }
@@ -488,7 +496,36 @@ pub async fn list_dm_messages(
             .push(attachment);
     }
 
-    // Enrich messages with user data, reactions, and attachments
+    // Fetch polls for all messages
+    let polls = if !message_ids.is_empty() {
+        crate::models::poll::Poll::get_by_message_ids(pool.get_ref(), &message_ids).await?
+    } else {
+        vec![]
+    };
+
+    let mut poll_map: std::collections::HashMap<Uuid, crate::handlers::messages::PollResponseEmbed> = std::collections::HashMap::new();
+    for poll in &polls {
+        let results = crate::models::poll::Poll::get_results(pool.get_ref(), poll.id, current_user.id).await?;
+        poll_map.insert(poll.message_id, crate::handlers::messages::PollResponseEmbed {
+            id: poll.id,
+            question: results.question,
+            options: results.options.into_iter().map(|o| crate::handlers::messages::PollOptionEmbed {
+                index: o.index,
+                text: o.text,
+                votes: o.votes,
+            }).collect(),
+            poll_type: results.poll_type,
+            anonymous: results.anonymous,
+            total_votes: results.total_votes,
+            user_votes: results.user_votes,
+            closed: results.closed,
+            expires_at: poll.expires_at.map(|dt| dt.to_rfc3339()),
+            created_by: poll.created_by,
+            created_at: poll.created_at.to_rfc3339(),
+        });
+    }
+
+    // Enrich messages with user data, reactions, attachments, and polls
     let messages_with_users: Vec<MessageResponse> = paginated.messages
         .into_iter()
         .map(|msg| {
@@ -501,6 +538,9 @@ pub async fn list_dm_messages(
             }
             if let Some(attachments) = attachment_map.get(&msg.id) {
                 response = response.with_attachments(attachments.clone());
+            }
+            if let Some(poll_embed) = poll_map.remove(&msg.id) {
+                response = response.with_poll(poll_embed);
             }
             response
         })

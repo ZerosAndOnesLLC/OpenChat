@@ -12,6 +12,7 @@ import LinkPreview from './LinkPreview';
 import ReadReceiptModal from './ReadReceiptModal';
 import EditHistoryModal from './EditHistoryModal';
 import ReminderPickerModal from './ReminderPickerModal';
+import PollDisplay from './PollDisplay';
 
 // Dynamically import EmojiPicker to avoid SSR issues
 const EmojiPicker = dynamic(() => import('emoji-picker-react'), { ssr: false });
@@ -221,6 +222,11 @@ export default function MessageItem({ message, onReply, onOpenThread, onPin, onB
           {/* Attachments */}
           {message.attachments && message.attachments.length > 0 && (
             <AttachmentDisplay attachments={message.attachments} />
+          )}
+
+          {/* Poll Display */}
+          {message.poll && (
+            <PollDisplay poll={message.poll} messageId={message.id} />
           )}
 
           {/* Link Previews */}

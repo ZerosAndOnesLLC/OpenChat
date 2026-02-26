@@ -18,6 +18,7 @@ use handlers::{
     bookmarks as bookmark_handlers,
     channel_sections as channel_section_handlers,
     channels as channel_handlers,
+    commands as command_handlers,
     device_auth as device_auth_handlers,
     dms as dm_handlers,
     drafts as draft_handlers,
@@ -30,6 +31,7 @@ use handlers::{
     notification_prefs as notification_pref_handlers,
     notifications as notification_handlers,
     pins as pin_handlers,
+    polls as poll_handlers,
     reactions as reaction_handlers,
     read_receipts as read_receipt_handlers,
     read_status as read_status_handlers,
@@ -532,6 +534,28 @@ async fn main() -> std::io::Result<()> {
                     .route("/jobs", web::get().to(migration_handlers::list_jobs))
                     .route("/jobs/{id}", web::get().to(migration_handlers::get_job_status))
                     .route("/jobs/{id}/cancel", web::post().to(migration_handlers::cancel_job))
+            )
+            // Poll routes - require "openchat" role
+            .service(
+                web::scope("/api/polls")
+                    .wrap(api_rate_limit.clone())
+                    .wrap(openchat_auth.clone())
+                    .route("", web::post().to(poll_handlers::create_poll))
+                    .route("/{id}", web::get().to(poll_handlers::get_poll))
+                    .route("/{id}/vote", web::post().to(poll_handlers::vote))
+                    .route("/{id}/vote", web::delete().to(poll_handlers::remove_vote))
+                    .route("/{id}/close", web::post().to(poll_handlers::close_poll))
+            )
+            // Slash command routes - require "openchat" role
+            .service(
+                web::scope("/api/commands")
+                    .wrap(api_rate_limit.clone())
+                    .wrap(openchat_auth.clone())
+                    .route("/execute", web::post().to(command_handlers::execute_command))
+                    .route("", web::get().to(command_handlers::list_commands))
+                    .route("", web::post().to(command_handlers::create_command))
+                    .route("/{id}", web::put().to(command_handlers::update_command))
+                    .route("/{id}", web::delete().to(command_handlers::delete_command))
             )
             // SSO routes - no auth required (they handle authentication themselves)
             .configure(routes::sso::configure)

@@ -9,6 +9,7 @@ import PrivacySettings from '@/components/settings/privacy-settings';
 import DeviceManagement from '@/components/settings/devices';
 import DesktopAppSettings from '@/components/settings/desktop-app-settings';
 import WebhookManagement from '@/components/settings/webhooks';
+import NotificationSoundSettings from '@/components/settings/notification-sound-settings';
 import AboutSettings from '@/components/settings/about-settings';
 import packageJson from '../../package.json';
 import {
@@ -17,6 +18,7 @@ import {
   Smartphone,
   Monitor,
   Webhook,
+  Bell,
   Info,
   ChevronLeft,
   RefreshCw,
@@ -70,6 +72,19 @@ function SettingsContent() {
           label: 'Desktop App',
           icon: <Monitor className="w-4 h-4" />,
           component: <DesktopAppSettings />,
+        },
+      ],
+    },
+    {
+      id: 'notifications',
+      label: 'Notifications',
+      icon: <Bell className="w-4 h-4" />,
+      items: [
+        {
+          id: 'notification-sounds',
+          label: 'Sounds & Alerts',
+          icon: <Bell className="w-4 h-4" />,
+          component: <NotificationSoundSettings />,
         },
       ],
     },

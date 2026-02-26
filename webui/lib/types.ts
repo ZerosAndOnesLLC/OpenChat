@@ -62,6 +62,9 @@ export interface Message {
   first_reply?: Message;
   attachments?: Attachment[];
   poll?: Poll;
+  forwarded_from_message_id?: string;
+  forwarded_from_channel_id?: string;
+  forwarded_from_channel_name?: string;
 }
 
 // Attachment types
@@ -169,6 +172,9 @@ export interface MessageWithDetails {
   created_at: string;
   edited_at?: string;
   reply_count: number;
+  forwarded_from_message_id?: string;
+  forwarded_from_channel_id?: string;
+  forwarded_from_channel_name?: string;
 }
 
 export interface PinnedMessageInfo {
@@ -217,7 +223,7 @@ export type WSServerMessage =
   | { type: 'initial_state'; user_id: string; channels: ChannelMetadata[]; dms: DmMetadata[]; notification_preferences: { channel_id?: string; dm_id?: string; preference: string; mute_until?: string | null }[] }
   | { type: 'channel_data'; channel_id: string; messages: MessageWithDetails[]; pins: PinnedMessageInfo[]; members: ChannelMemberInfo[]; unread_info: UnreadInfo }
   | { type: 'dm_data'; dm_id: string; messages: MessageWithDetails[]; unread_info: UnreadInfo }
-  | { type: 'new_message'; id: string; channel_id?: string; dm_id?: string; user_id: string; user_name: string; content: string; parent_message_id?: string; created_at: string }
+  | { type: 'new_message'; id: string; channel_id?: string; dm_id?: string; user_id: string; user_name: string; content: string; parent_message_id?: string; created_at: string; forwarded_from_message_id?: string; forwarded_from_channel_id?: string; forwarded_from_channel_name?: string }
   | { type: 'message_edited'; message_id: string; content: string; edited_at: string }
   | { type: 'message_deleted'; message_id: string }
   | { type: 'user_typing'; user_id: string; channel_id?: string; dm_id?: string; user_name: string }
@@ -589,6 +595,12 @@ export interface Poll {
   expires_at?: string;
   created_by: string;
   created_at: string;
+}
+
+export interface ForwardMessageRequest {
+  channel_id?: string;
+  dm_id?: string;
+  comment?: string;
 }
 
 export interface CreatePollRequest {

@@ -26,11 +26,12 @@ interface MessageItemProps {
   onOpenThread?: (message: Message) => void;
   onPin?: (message: Message) => void;
   onBookmark?: (message: Message) => void;
+  onForward?: (message: Message) => void;
   isPinned?: boolean;
   isBookmarked?: boolean;
 }
 
-export default function MessageItem({ message, onReply, onOpenThread, onPin, onBookmark, isPinned = false, isBookmarked = false }: MessageItemProps) {
+export default function MessageItem({ message, onReply, onOpenThread, onPin, onBookmark, onForward, isPinned = false, isBookmarked = false }: MessageItemProps) {
   const { user } = useAuth();
   const { addReaction: addReactionToStore, removeReaction: removeReactionFromStore, wsAddReaction, wsRemoveReaction, wsEditMessage, wsDeleteMessage, updateMessage: updateMessageInStore, deleteMessage: deleteMessageFromStore } = useWebSocketStore();
   const [showReactionPicker, setShowReactionPicker] = useState(false);
@@ -179,6 +180,17 @@ export default function MessageItem({ message, onReply, onOpenThread, onPin, onB
               </button>
             )}
           </div>
+          {/* Forwarded attribution bar */}
+          {message.forwarded_from_message_id && (
+            <div className="mb-1 flex items-center gap-1 text-xs text-gray-400">
+              <svg className="h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" />
+              </svg>
+              <span>
+                Forwarded{message.forwarded_from_channel_name ? ` from #${message.forwarded_from_channel_name}` : ' from a direct message'}
+              </span>
+            </div>
+          )}
           {isEditing ? (
             <div className="mb-2">
               <input
@@ -387,6 +399,25 @@ export default function MessageItem({ message, onReply, onOpenThread, onPin, onB
                 strokeLinejoin="round"
                 strokeWidth={2}
                 d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z"
+              />
+            </svg>
+          </button>
+          <button
+            onClick={() => onForward?.(message)}
+            className="rounded p-1 hover:bg-gray-800"
+            title="Forward message"
+          >
+            <svg
+              className="h-4 w-4 text-gray-300"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M13 7l5 5m0 0l-5 5m5-5H6"
               />
             </svg>
           </button>

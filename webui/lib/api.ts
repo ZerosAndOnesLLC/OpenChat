@@ -16,6 +16,7 @@ import type {
   Message,
   SendMessageRequest,
   UpdateMessageRequest,
+  ForwardMessageRequest,
   Reaction,
   ReactionCount,
   AddReactionRequest,
@@ -315,6 +316,13 @@ class ApiClient {
 
   async getMessageThread(id: string): Promise<ThreadResponse> {
     return this.request<ThreadResponse>(`/api/messages/${id}/thread`);
+  }
+
+  async forwardMessage(messageId: string, data: ForwardMessageRequest): Promise<Message> {
+    return this.request<Message>(`/api/messages/${messageId}/forward`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
   }
 
   // Reaction endpoints

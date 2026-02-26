@@ -12,11 +12,12 @@ interface MessageListProps {
   onOpenThread?: (message: Message) => void;
   onPin?: (message: Message) => void;
   onBookmark?: (message: Message) => void;
+  onForward?: (message: Message) => void;
   pinnedMessageIds?: Set<string>;
   bookmarkedMessageIds?: Set<string>;
 }
 
-export default function MessageList({ messages, unreadCount = 0, lastReadMessageId, onReply, onOpenThread, onPin, onBookmark, pinnedMessageIds = new Set(), bookmarkedMessageIds = new Set() }: MessageListProps) {
+export default function MessageList({ messages, unreadCount = 0, lastReadMessageId, onReply, onOpenThread, onPin, onBookmark, onForward, pinnedMessageIds = new Set(), bookmarkedMessageIds = new Set() }: MessageListProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const unreadMarkerRef = useRef<HTMLDivElement>(null);
   const lastReadMessageRef = useRef<HTMLDivElement>(null);
@@ -143,6 +144,7 @@ export default function MessageList({ messages, unreadCount = 0, lastReadMessage
               onOpenThread={onOpenThread}
               onPin={onPin}
               onBookmark={onBookmark}
+              onForward={onForward}
               isPinned={pinnedMessageIds.has(message.id)}
               isBookmarked={bookmarkedMessageIds.has(message.id)}
             />

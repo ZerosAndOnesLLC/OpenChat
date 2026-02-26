@@ -13,6 +13,7 @@ import ThreadPanel from './ThreadPanel';
 import PinnedMessagesPanel from './PinnedMessagesPanel';
 import EditChannelModal from './EditChannelModal';
 import AddMembersModal from './AddMembersModal';
+import ForwardMessageModal from './ForwardMessageModal';
 import Toast from './Toast';
 
 interface MessageAreaProps {
@@ -35,6 +36,7 @@ export default function MessageArea({ channel, dm, onLeaveChannel }: MessageArea
   const [showMuteSubmenu, setShowMuteSubmenu] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [showAddMembersModal, setShowAddMembersModal] = useState(false);
+  const [forwardMessage, setForwardMessage] = useState<Message | null>(null);
   const queryClient = useQueryClient();
   const channelMenuRef = useRef<HTMLDivElement>(null);
   const notifMenuRef = useRef<HTMLDivElement>(null);
@@ -265,6 +267,11 @@ export default function MessageArea({ channel, dm, onLeaveChannel }: MessageArea
 
   const handleClearReply = () => {
     setReplyTo(undefined);
+  };
+
+  // Handle forwarding a message
+  const handleForward = (message: Message) => {
+    setForwardMessage(message);
   };
 
   // Handle opening a thread
@@ -563,6 +570,7 @@ export default function MessageArea({ channel, dm, onLeaveChannel }: MessageArea
               onOpenThread={handleOpenThread}
               onPin={handlePin}
               onBookmark={handleBookmark}
+              onForward={handleForward}
               pinnedMessageIds={pinnedMessageIds}
               bookmarkedMessageIds={bookmarkedMessageIds}
             />
@@ -617,6 +625,18 @@ export default function MessageArea({ channel, dm, onLeaveChannel }: MessageArea
           onClose={() => setShowAddMembersModal(false)}
           onSuccess={() => {
             setToast({ message: 'Member added successfully', type: 'success' });
+          }}
+        />
+      )}
+
+      {/* Forward Message Modal */}
+      {forwardMessage && (
+        <ForwardMessageModal
+          message={forwardMessage}
+          isOpen={!!forwardMessage}
+          onClose={() => setForwardMessage(null)}
+          onSuccess={() => {
+            setToast({ message: 'Message forwarded', type: 'success' });
           }}
         />
       )}

@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { Message, WSClientMessage, WSServerMessage, ChannelMetadata, DmMetadata, PinnedMessageInfo, ChannelMemberInfo, MessageWithDetails } from './types';
+import type { Message, WSClientMessage, WSServerMessage, ChannelMetadata, DmMetadata, PinnedMessageInfo, ChannelMemberInfo, MessageWithDetails, NotificationPref } from './types';
 import { apiClient } from './api';
 
 const WS_URL = process.env.NEXT_PUBLIC_WS_URL || 'ws://localhost:8080/api/ws';
@@ -46,6 +46,7 @@ interface WebSocketStore {
   unreadCounts: Record<string, number>; // channelId/dmId -> unread count
   lastReadMessageIds: Record<string, string | undefined>; // channelId/dmId -> last read message ID
   notificationCount: number;
+  notificationPrefs: Record<string, NotificationPref>; // channelId/dmId -> pref
   activeChannelId: string | null; // Currently active/viewed channel
   activeDmId: string | null; // Currently active/viewed DM
 
@@ -85,6 +86,7 @@ interface WebSocketStore {
   wsDeleteMessage: (messageId: string) => void;
   subscribeThread: (messageId: string) => void;
   unsubscribeThread: (messageId: string) => void;
+  setNotificationPref: (key: string, pref: NotificationPref) => void;
 }
 
 export const useWebSocketStore = create<WebSocketStore>((set, get) => ({
@@ -103,6 +105,7 @@ export const useWebSocketStore = create<WebSocketStore>((set, get) => ({
   unreadCounts: {},
   lastReadMessageIds: {},
   notificationCount: 0,
+  notificationPrefs: {},
   activeChannelId: null,
   activeDmId: null,
 
@@ -148,10 +151,25 @@ export const useWebSocketStore = create<WebSocketStore>((set, get) => ({
               newUnreadCounts[dm.id] = dm.unread_count;
             });
 
+            // Parse notification preferences
+            const newNotificationPrefs: Record<string, NotificationPref> = {};
+            if (message.notification_preferences) {
+              for (const pref of message.notification_preferences) {
+                const key = pref.channel_id || pref.dm_id;
+                if (key) {
+                  newNotificationPrefs[key] = {
+                    preference: pref.preference as NotificationPref['preference'],
+                    mute_until: pref.mute_until || null,
+                  };
+                }
+              }
+            }
+
             set({
               channels: message.channels,
               dms: message.dms,
               unreadCounts: newUnreadCounts,
+              notificationPrefs: newNotificationPrefs,
               initialStateLoaded: true,
             });
             break;
@@ -1049,5 +1067,14 @@ export const useWebSocketStore = create<WebSocketStore>((set, get) => ({
       };
       ws.send(JSON.stringify(message));
     }
+  },
+
+  setNotificationPref: (key, pref) => {
+    set((state) => ({
+      notificationPrefs: {
+        ...state.notificationPrefs,
+        [key]: pref,
+      },
+    }));
   },
 }));

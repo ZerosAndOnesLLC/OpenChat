@@ -23,7 +23,7 @@ interface MessageAreaProps {
 
 export default function MessageArea({ channel, dm, onLeaveChannel }: MessageAreaProps) {
   const { user } = useAuth();
-  const { messages, channelData, setMessages, subscribeChannel, unsubscribeChannel, subscribeDm, unsubscribeDm, typing, setLastReadMessageId, lastReadMessageIds, unreadCounts, setActiveChannel, markAsRead, pinMessage, unpinMessage, addBookmark, removeBookmark } =
+  const { messages, channelData, setMessages, subscribeChannel, unsubscribeChannel, subscribeDm, unsubscribeDm, typing, setLastReadMessageId, lastReadMessageIds, unreadCounts, setActiveChannel, markAsRead, pinMessage, unpinMessage, addBookmark, removeBookmark, notificationPrefs, setNotificationPref } =
     useWebSocketStore();
   const prevChannelRef = useRef<string | null>(null);
   const prevDmRef = useRef<string | null>(null);
@@ -31,24 +31,67 @@ export default function MessageArea({ channel, dm, onLeaveChannel }: MessageArea
   const [openThread, setOpenThread] = useState<string | null>(null);
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
   const [showChannelMenu, setShowChannelMenu] = useState(false);
+  const [showNotifMenu, setShowNotifMenu] = useState(false);
+  const [showMuteSubmenu, setShowMuteSubmenu] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [showAddMembersModal, setShowAddMembersModal] = useState(false);
   const queryClient = useQueryClient();
   const channelMenuRef = useRef<HTMLDivElement>(null);
+  const notifMenuRef = useRef<HTMLDivElement>(null);
 
   // Check if current user is the channel creator
   const isChannelCreator = channel && user?.id === channel.created_by;
 
-  // Close menu when clicking outside
+  // Current notification pref for this channel/DM
+  const currentKey = channel?.id || dm?.id || '';
+  const currentNotifPref = currentKey ? notificationPrefs[currentKey] : undefined;
+  const currentPreference = currentNotifPref?.preference || 'all';
+  const isMuted = currentPreference === 'nothing' || (currentNotifPref?.mute_until && new Date(currentNotifPref.mute_until) > new Date());
+
+  // Close menus when clicking outside
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (channelMenuRef.current && !channelMenuRef.current.contains(event.target as Node)) {
         setShowChannelMenu(false);
       }
+      if (notifMenuRef.current && !notifMenuRef.current.contains(event.target as Node)) {
+        setShowNotifMenu(false);
+        setShowMuteSubmenu(false);
+      }
     };
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
+
+  // Handle setting notification preference
+  const handleSetNotifPref = async (preference: 'all' | 'mentions' | 'nothing', muteUntil?: string | null) => {
+    const key = channel?.id || dm?.id;
+    if (!key) return;
+
+    const data = { preference, mute_until: muteUntil || null };
+    try {
+      if (channel) {
+        await apiClient.setChannelNotificationPref(channel.id, data);
+      } else if (dm) {
+        await apiClient.setDmNotificationPref(dm.id, data);
+      }
+      setNotificationPref(key, data);
+      setShowNotifMenu(false);
+      setShowMuteSubmenu(false);
+    } catch {
+      setToast({ message: 'Failed to update notification preference', type: 'error' });
+    }
+  };
+
+  const handleMuteDuration = (hours: number | null) => {
+    if (hours === null) {
+      // "Until I turn it back on" — no expiry
+      handleSetNotifPref('nothing', null);
+    } else {
+      const muteUntil = new Date(Date.now() + hours * 60 * 60 * 1000).toISOString();
+      handleSetNotifPref('nothing', muteUntil);
+    }
+  };
 
   // Leave channel mutation
   const leaveChannelMutation = useMutation({
@@ -62,8 +105,6 @@ export default function MessageArea({ channel, dm, onLeaveChannel }: MessageArea
       setToast({ message: error.message || 'Failed to leave channel', type: 'error' });
     },
   });
-
-  const currentKey = channel?.id || dm?.id || '';
 
   // Use WebSocket data for both channels and DMs
   const useWebSocketData = !!(channel || dm);
@@ -332,6 +373,118 @@ export default function MessageArea({ channel, dm, onLeaveChannel }: MessageArea
                 <p className="ml-4 text-sm text-gray-400">{channel.description}</p>
               )}
             </div>
+            <div className="flex items-center gap-1">
+              {/* Notification preference bell icon */}
+              {(channel || dm) && (
+                <div className="relative" ref={notifMenuRef}>
+                  <button
+                    onClick={() => { setShowNotifMenu(!showNotifMenu); setShowMuteSubmenu(false); }}
+                    className="rounded p-2 text-gray-400 hover:bg-gray-800 hover:text-white"
+                    title="Notification preferences"
+                  >
+                    {isMuted ? (
+                      <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z" />
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2" />
+                      </svg>
+                    ) : currentPreference === 'mentions' ? (
+                      <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+                        <circle cx="18" cy="8" r="3" fill="currentColor" />
+                      </svg>
+                    ) : (
+                      <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+                      </svg>
+                    )}
+                  </button>
+                  {showNotifMenu && (
+                    <div className="absolute right-0 top-full z-50 mt-1 w-52 rounded-md bg-gray-800 py-1 shadow-lg ring-1 ring-black ring-opacity-5">
+                      <button
+                        onClick={() => handleSetNotifPref('all')}
+                        className={`flex w-full items-center px-4 py-2 text-sm hover:bg-gray-700 ${currentPreference === 'all' && !isMuted ? 'text-blue-400' : 'text-gray-300'}`}
+                      >
+                        <svg className="mr-2 h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+                        </svg>
+                        All messages
+                        {currentPreference === 'all' && !isMuted && <span className="ml-auto">✓</span>}
+                      </button>
+                      <button
+                        onClick={() => handleSetNotifPref('mentions')}
+                        className={`flex w-full items-center px-4 py-2 text-sm hover:bg-gray-700 ${currentPreference === 'mentions' ? 'text-blue-400' : 'text-gray-300'}`}
+                      >
+                        <svg className="mr-2 h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 12a4 4 0 10-8 0 4 4 0 008 0zm0 0v1.5a2.5 2.5 0 005 0V12a9 9 0 10-9 9m4.5-1.206a8.959 8.959 0 01-4.5 1.207" />
+                        </svg>
+                        Mentions only
+                        {currentPreference === 'mentions' && <span className="ml-auto">✓</span>}
+                      </button>
+                      <div className="my-1 border-t border-gray-700" />
+                      <div className="relative">
+                        <button
+                          onClick={() => setShowMuteSubmenu(!showMuteSubmenu)}
+                          className={`flex w-full items-center px-4 py-2 text-sm hover:bg-gray-700 ${isMuted ? 'text-blue-400' : 'text-gray-300'}`}
+                        >
+                          <svg className="mr-2 h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z" />
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2" />
+                          </svg>
+                          {isMuted ? 'Muted' : 'Mute channel'}
+                          <svg className="ml-auto h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                          </svg>
+                        </button>
+                        {showMuteSubmenu && (
+                          <div className="absolute left-full top-0 z-50 ml-1 w-48 rounded-md bg-gray-800 py-1 shadow-lg ring-1 ring-black ring-opacity-5">
+                            {isMuted && (
+                              <>
+                                <button
+                                  onClick={() => handleSetNotifPref('all')}
+                                  className="flex w-full items-center px-4 py-2 text-sm text-green-400 hover:bg-gray-700"
+                                >
+                                  Unmute
+                                </button>
+                                <div className="my-1 border-t border-gray-700" />
+                              </>
+                            )}
+                            <button
+                              onClick={() => handleMuteDuration(1)}
+                              className="flex w-full items-center px-4 py-2 text-sm text-gray-300 hover:bg-gray-700"
+                            >
+                              For 1 hour
+                            </button>
+                            <button
+                              onClick={() => handleMuteDuration(8)}
+                              className="flex w-full items-center px-4 py-2 text-sm text-gray-300 hover:bg-gray-700"
+                            >
+                              For 8 hours
+                            </button>
+                            <button
+                              onClick={() => handleMuteDuration(24)}
+                              className="flex w-full items-center px-4 py-2 text-sm text-gray-300 hover:bg-gray-700"
+                            >
+                              For 24 hours
+                            </button>
+                            <button
+                              onClick={() => handleMuteDuration(168)}
+                              className="flex w-full items-center px-4 py-2 text-sm text-gray-300 hover:bg-gray-700"
+                            >
+                              For 1 week
+                            </button>
+                            <button
+                              onClick={() => handleMuteDuration(null)}
+                              className="flex w-full items-center px-4 py-2 text-sm text-gray-300 hover:bg-gray-700"
+                            >
+                              Until I turn it back on
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
             {channel && (
               <div className="relative" ref={channelMenuRef}>
                 <button
@@ -394,6 +547,7 @@ export default function MessageArea({ channel, dm, onLeaveChannel }: MessageArea
                 )}
               </div>
             )}
+            </div>
           </div>
 
           {/* Pinned messages panel - only show for channels */}

@@ -14,6 +14,7 @@ use crate::{
     models::notification::{CreateNotification, Notification, NotificationType},
     models::reaction::Reaction,
     models::user::User,
+    models::notification_pref::NotificationPref,
     models::user_group::UserGroup,
     services::{audit_logger::AuditLogger, mention_parser, tv_api::TokenClaims},
     websocket::{
@@ -278,7 +279,46 @@ pub async fn send_message(
         let create_mentions = mention_parser::to_create_mentions(parsed_mentions.clone(), message.id);
         Mention::create_batch(pool.get_ref(), create_mentions).await?;
 
-        // Create notifications for mentions
+        // Collect all user IDs that may need notifications for batch pref loading
+        let mut all_notif_user_ids: Vec<Uuid> = Vec::new();
+        for pm in &parsed_mentions {
+            match pm.mention_type {
+                MentionType::User => {
+                    if let Some(uid) = pm.mentioned_user_id {
+                        if uid != current_user.id {
+                            all_notif_user_ids.push(uid);
+                        }
+                    }
+                }
+                MentionType::Channel | MentionType::Here | MentionType::Everyone => {
+                    if let Some(ch_id) = message.channel_id {
+                        if let Ok(ids) = mention_parser::get_channel_members(pool.get_ref(), ch_id).await {
+                            all_notif_user_ids.extend(ids.into_iter().filter(|id| *id != current_user.id));
+                        }
+                    }
+                }
+                MentionType::Group => {
+                    if let Some(group_id) = pm.mentioned_group_id {
+                        if let Ok(ids) = UserGroup::get_member_ids(pool.get_ref(), group_id).await {
+                            all_notif_user_ids.extend(ids.into_iter().filter(|id| *id != current_user.id));
+                        }
+                    }
+                }
+            }
+        }
+        all_notif_user_ids.sort();
+        all_notif_user_ids.dedup();
+
+        // Batch-load notification preferences for all users in this channel/DM
+        let notif_prefs_map = if let Some(channel_id) = message.channel_id {
+            NotificationPref::list_for_channel_users(pool.get_ref(), channel_id, &all_notif_user_ids).await.unwrap_or_default()
+        } else if let Some(dm_id) = message.dm_id {
+            NotificationPref::list_for_dm_users(pool.get_ref(), dm_id, &all_notif_user_ids).await.unwrap_or_default()
+        } else {
+            std::collections::HashMap::new()
+        };
+
+        // Create notifications for mentions, respecting user preferences
         for parsed_mention in parsed_mentions {
             match parsed_mention.mention_type {
                 MentionType::User => {
@@ -286,6 +326,12 @@ pub async fn send_message(
                     if let Some(mentioned_user_id) = parsed_mention.mentioned_user_id {
                         // Don't notify if user mentioned themselves
                         if mentioned_user_id != current_user.id {
+                            // Check notification preference — direct @mention counts as a direct mention
+                            let pref = notif_prefs_map.get(&mentioned_user_id);
+                            if !NotificationPref::should_notify(pref, true) {
+                                continue;
+                            }
+
                             let notification = CreateNotification {
                                 user_id: mentioned_user_id,
                                 notification_type: NotificationType::Mention,
@@ -329,6 +375,12 @@ pub async fn send_message(
                         for member_id in member_ids {
                             // Don't notify the sender
                             if member_id != current_user.id {
+                                // Broadcast mentions are NOT direct mentions for "mentions only" preference
+                                let pref = notif_prefs_map.get(&member_id);
+                                if !NotificationPref::should_notify(pref, false) {
+                                    continue;
+                                }
+
                                 let notification = CreateNotification {
                                     user_id: member_id,
                                     notification_type: NotificationType::Mention,
@@ -372,6 +424,12 @@ pub async fn send_message(
                         for member_id in member_ids {
                             // Don't notify the sender
                             if member_id != current_user.id {
+                                // Group mentions count as direct mentions
+                                let pref = notif_prefs_map.get(&member_id);
+                                if !NotificationPref::should_notify(pref, true) {
+                                    continue;
+                                }
+
                                 let notification = CreateNotification {
                                     user_id: member_id,
                                     notification_type: NotificationType::Mention,
@@ -417,38 +475,49 @@ pub async fn send_message(
         if let Ok(Some(parent_message)) = Message::get_by_id(pool.get_ref(), parent_message_id).await {
             // Don't notify if replying to your own message
             if parent_message.user_id != current_user.id {
-                let notification = CreateNotification {
-                    user_id: parent_message.user_id,
-                    notification_type: NotificationType::ThreadReply,
-                    message_id: Some(message.id),
-                    channel_id: message.channel_id,
-                    dm_id: message.dm_id,
+                // Check notification preference — thread replies count as direct mentions
+                let thread_pref = if let Some(channel_id) = message.channel_id {
+                    NotificationPref::get_for_channel(pool.get_ref(), parent_message.user_id, channel_id).await.ok().flatten()
+                } else if let Some(dm_id) = message.dm_id {
+                    NotificationPref::get_for_dm(pool.get_ref(), parent_message.user_id, dm_id).await.ok().flatten()
+                } else {
+                    None
                 };
-                let created_notif = Notification::create(pool.get_ref(), notification).await?;
 
-                // Broadcast notification count and new notification
-                if let Ok(notif_count) = Notification::count_unread_by_user(pool.get_ref(), parent_message.user_id).await {
-                    ws_server.do_send(crate::websocket::server::BroadcastToUser {
-                        org_id: current_user.org_id,
+                if NotificationPref::should_notify(thread_pref.as_ref(), true) {
+                    let notification = CreateNotification {
                         user_id: parent_message.user_id,
-                        message: ServerMessage::NotificationCountUpdated {
-                            unread_count: notif_count as i32,
-                        },
-                    });
-                }
-
-                ws_server.do_send(crate::websocket::server::BroadcastToUser {
-                    org_id: current_user.org_id,
-                    user_id: parent_message.user_id,
-                    message: ServerMessage::NewNotification {
-                        notification_id: created_notif.id,
-                        notification_type: "thread_reply".to_string(),
+                        notification_type: NotificationType::ThreadReply,
                         message_id: Some(message.id),
                         channel_id: message.channel_id,
                         dm_id: message.dm_id,
-                        created_at: created_notif.created_at.to_rfc3339(),
-                    },
-                });
+                    };
+                    let created_notif = Notification::create(pool.get_ref(), notification).await?;
+
+                    // Broadcast notification count and new notification
+                    if let Ok(notif_count) = Notification::count_unread_by_user(pool.get_ref(), parent_message.user_id).await {
+                        ws_server.do_send(crate::websocket::server::BroadcastToUser {
+                            org_id: current_user.org_id,
+                            user_id: parent_message.user_id,
+                            message: ServerMessage::NotificationCountUpdated {
+                                unread_count: notif_count as i32,
+                            },
+                        });
+                    }
+
+                    ws_server.do_send(crate::websocket::server::BroadcastToUser {
+                        org_id: current_user.org_id,
+                        user_id: parent_message.user_id,
+                        message: ServerMessage::NewNotification {
+                            notification_id: created_notif.id,
+                            notification_type: "thread_reply".to_string(),
+                            message_id: Some(message.id),
+                            channel_id: message.channel_id,
+                            dm_id: message.dm_id,
+                            created_at: created_notif.created_at.to_rfc3339(),
+                        },
+                    });
+                }
             }
         }
     }

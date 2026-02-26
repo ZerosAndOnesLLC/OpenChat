@@ -3,6 +3,7 @@ pub mod channels;
 pub mod dms;
 pub mod messages;
 pub mod metrics;
+pub mod notification_prefs;
 pub mod notifications;
 pub mod organizations;
 pub mod pins;

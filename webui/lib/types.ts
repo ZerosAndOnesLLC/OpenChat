@@ -213,7 +213,7 @@ export type WSClientMessage =
   | { type: 'unsubscribe_thread'; message_id: string };
 
 export type WSServerMessage =
-  | { type: 'initial_state'; user_id: string; channels: ChannelMetadata[]; dms: DmMetadata[] }
+  | { type: 'initial_state'; user_id: string; channels: ChannelMetadata[]; dms: DmMetadata[]; notification_preferences: { channel_id?: string; dm_id?: string; preference: string; mute_until?: string | null }[] }
   | { type: 'channel_data'; channel_id: string; messages: MessageWithDetails[]; pins: PinnedMessageInfo[]; members: ChannelMemberInfo[]; unread_info: UnreadInfo }
   | { type: 'dm_data'; dm_id: string; messages: MessageWithDetails[]; unread_info: UnreadInfo }
   | { type: 'new_message'; id: string; channel_id?: string; dm_id?: string; user_id: string; user_name: string; content: string; parent_message_id?: string; created_at: string }
@@ -523,4 +523,9 @@ export interface Reminder {
   message_preview: string;
   completed: boolean;
   created_at: string;
+}
+
+export interface NotificationPref {
+  preference: 'all' | 'mentions' | 'nothing';
+  mute_until?: string | null;
 }

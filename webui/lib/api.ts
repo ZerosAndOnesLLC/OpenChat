@@ -45,6 +45,7 @@ import type {
   UpdateWebhookRequest,
   ScheduledMessage,
   Reminder,
+  NotificationPref,
 } from './types';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080';
@@ -842,6 +843,29 @@ class ApiClient {
   async removeGroupMember(groupId: string, userId: string): Promise<void> {
     return this.request<void>(`/api/user-groups/${groupId}/members/${userId}`, {
       method: 'DELETE',
+    });
+  }
+
+  // Notification Preferences
+  async getChannelNotificationPref(channelId: string): Promise<NotificationPref> {
+    return this.request<NotificationPref>(`/api/channels/${channelId}/notifications`);
+  }
+
+  async setChannelNotificationPref(channelId: string, data: NotificationPref): Promise<NotificationPref> {
+    return this.request<NotificationPref>(`/api/channels/${channelId}/notifications`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async getDmNotificationPref(dmId: string): Promise<NotificationPref> {
+    return this.request<NotificationPref>(`/api/dms/${dmId}/notifications`);
+  }
+
+  async setDmNotificationPref(dmId: string, data: NotificationPref): Promise<NotificationPref> {
+    return this.request<NotificationPref>(`/api/dms/${dmId}/notifications`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
     });
   }
 }

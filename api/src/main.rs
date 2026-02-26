@@ -27,6 +27,7 @@ use handlers::{
     messages as message_handlers,
     metrics as metrics_handlers,
     migration as migration_handlers,
+    notification_prefs as notification_pref_handlers,
     notifications as notification_handlers,
     pins as pin_handlers,
     reactions as reaction_handlers,
@@ -260,6 +261,8 @@ async fn main() -> std::io::Result<()> {
                     .route("/{id}/legal-hold", web::post().to(retention_handlers::create_legal_hold))
                     .route("/{id}/legal-hold", web::get().to(retention_handlers::get_legal_hold))
                     .route("/{id}/legal-hold", web::delete().to(retention_handlers::disable_legal_hold))
+                    .route("/{id}/notifications", web::put().to(notification_pref_handlers::set_channel_notification_pref))
+                    .route("/{id}/notifications", web::get().to(notification_pref_handlers::get_channel_notification_pref))
             )
             // Message routes - require "openchat" role
             .service(
@@ -322,6 +325,8 @@ async fn main() -> std::io::Result<()> {
                     .route("/{id}/read", web::post().to(read_status_handlers::mark_dm_as_read))
                     .route("/{id}/unread", web::get().to(read_status_handlers::get_dm_unread_count))
                     .route("/{id}/hide", web::post().to(dm_handlers::hide_dm))
+                    .route("/{id}/notifications", web::put().to(notification_pref_handlers::set_dm_notification_pref))
+                    .route("/{id}/notifications", web::get().to(notification_pref_handlers::get_dm_notification_pref))
             )
             // Search routes - require "openchat" role
             .service(

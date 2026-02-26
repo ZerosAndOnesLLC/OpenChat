@@ -5,6 +5,7 @@ use uuid::Uuid;
 use crate::errors::ApiResult;
 use crate::models::mention::{CreateMention, MentionType};
 use crate::models::user::User;
+use crate::models::user_group::UserGroup;
 
 /// Parsed mention information
 #[derive(Debug, Clone)]
@@ -12,6 +13,7 @@ use crate::models::user::User;
 pub struct ParsedMention {
     pub mention_type: MentionType,
     pub mentioned_user_id: Option<Uuid>,
+    pub mentioned_group_id: Option<Uuid>,
     pub raw_text: String,
 }
 
@@ -20,8 +22,8 @@ pub struct ParsedMention {
 pub async fn parse_mentions(content: &str, org_id: Uuid, pool: &PgPool) -> ApiResult<Vec<ParsedMention>> {
     let mut mentions = Vec::new();
 
-    // Regex for @username, @channel, @here, @everyone
-    let mention_regex = Regex::new(r"@(\w+)").unwrap();
+    // Regex for @username, @channel, @here, @everyone (supports hyphens for group handles)
+    let mention_regex = Regex::new(r"@([\w-]+)").unwrap();
 
     for capture in mention_regex.captures_iter(content) {
         let full_match = capture.get(0).unwrap().as_str();
@@ -32,26 +34,38 @@ pub async fn parse_mentions(content: &str, org_id: Uuid, pool: &PgPool) -> ApiRe
             mentions.push(ParsedMention {
                 mention_type: MentionType::Channel,
                 mentioned_user_id: None,
+                mentioned_group_id: None,
                 raw_text: full_match.to_string(),
             });
         } else if username.eq_ignore_ascii_case("here") {
             mentions.push(ParsedMention {
                 mention_type: MentionType::Here,
                 mentioned_user_id: None,
+                mentioned_group_id: None,
                 raw_text: full_match.to_string(),
             });
         } else if username.eq_ignore_ascii_case("everyone") {
             mentions.push(ParsedMention {
                 mention_type: MentionType::Everyone,
                 mentioned_user_id: None,
+                mentioned_group_id: None,
                 raw_text: full_match.to_string(),
             });
         } else {
-            // Look up user by display name
-            if let Ok(Some(user)) = find_user_by_display_name(pool, org_id, username).await {
+            // Check for group handle first
+            if let Ok(Some(group)) = UserGroup::get_by_handle(pool, org_id, username).await {
+                mentions.push(ParsedMention {
+                    mention_type: MentionType::Group,
+                    mentioned_user_id: None,
+                    mentioned_group_id: Some(group.id),
+                    raw_text: full_match.to_string(),
+                });
+            } else if let Ok(Some(user)) = find_user_by_display_name(pool, org_id, username).await {
+                // Fall through to user lookup
                 mentions.push(ParsedMention {
                     mention_type: MentionType::User,
                     mentioned_user_id: Some(user.id),
+                    mentioned_group_id: None,
                     raw_text: full_match.to_string(),
                 });
             }
@@ -86,6 +100,7 @@ pub fn to_create_mentions(parsed_mentions: Vec<ParsedMention>, message_id: Uuid)
             message_id,
             mentioned_user_id: pm.mentioned_user_id,
             mention_type: pm.mention_type,
+            mentioned_group_id: pm.mentioned_group_id,
         })
         .collect()
 }
@@ -108,13 +123,13 @@ mod tests {
 
     #[test]
     fn test_mention_regex() {
-        let content = "Hey @john, can you review this? @channel FYI @everyone";
-        let regex = Regex::new(r"@(\w+)").unwrap();
+        let content = "Hey @john, can you review this? @channel FYI @everyone @dev-team";
+        let regex = Regex::new(r"@([\w-]+)").unwrap();
         let matches: Vec<String> = regex
             .captures_iter(content)
             .map(|cap| cap.get(1).unwrap().as_str().to_string())
             .collect();
 
-        assert_eq!(matches, vec!["john", "channel", "everyone"]);
+        assert_eq!(matches, vec!["john", "channel", "everyone", "dev-team"]);
     }
 }

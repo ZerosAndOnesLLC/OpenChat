@@ -12,6 +12,7 @@ pub enum MentionType {
     Channel,
     Here,
     Everyone,
+    Group,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
@@ -20,6 +21,7 @@ pub struct Mention {
     pub message_id: Uuid,
     pub mentioned_user_id: Option<Uuid>,
     pub mention_type: MentionType,
+    pub mentioned_group_id: Option<Uuid>,
     pub created_at: DateTime<Utc>,
 }
 
@@ -28,6 +30,7 @@ pub struct CreateMention {
     pub message_id: Uuid,
     pub mentioned_user_id: Option<Uuid>,
     pub mention_type: MentionType,
+    pub mentioned_group_id: Option<Uuid>,
 }
 
 impl Mention {
@@ -35,8 +38,8 @@ impl Mention {
     pub async fn create(pool: &PgPool, data: CreateMention) -> ApiResult<Mention> {
         let mention = sqlx::query_as::<_, Mention>(
             r#"
-            INSERT INTO mentions (id, message_id, mentioned_user_id, mention_type)
-            VALUES ($1, $2, $3, $4)
+            INSERT INTO mentions (id, message_id, mentioned_user_id, mention_type, mentioned_group_id)
+            VALUES ($1, $2, $3, $4, $5)
             RETURNING *
             "#,
         )
@@ -44,6 +47,7 @@ impl Mention {
         .bind(data.message_id)
         .bind(data.mentioned_user_id)
         .bind(data.mention_type)
+        .bind(data.mentioned_group_id)
         .fetch_one(pool)
         .await?;
 
@@ -112,7 +116,13 @@ impl Mention {
             INNER JOIN messages msg ON m.message_id = msg.id
             LEFT JOIN channel_read_status crs ON msg.channel_id = crs.channel_id AND crs.user_id = $1
             LEFT JOIN dm_read_status drs ON msg.dm_id = drs.dm_id AND drs.user_id = $1
-            WHERE m.mentioned_user_id = $1
+            WHERE (
+                m.mentioned_user_id = $1
+                OR (m.mentioned_group_id IS NOT NULL AND EXISTS (
+                    SELECT 1 FROM user_group_members ugm
+                    WHERE ugm.group_id = m.mentioned_group_id AND ugm.user_id = $1
+                ))
+            )
             AND (
                 (msg.channel_id IS NOT NULL AND (crs.last_read_message_id IS NULL OR msg.created_at > crs.last_read_at))
                 OR (msg.dm_id IS NOT NULL AND (drs.last_read_message_id IS NULL OR msg.created_at > drs.last_read_at))

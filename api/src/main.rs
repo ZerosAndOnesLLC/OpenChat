@@ -16,6 +16,7 @@ use handlers::{
     attachment as attachment_handlers,
     audit_logs as audit_log_handlers,
     bookmarks as bookmark_handlers,
+    channel_sections as channel_section_handlers,
     channels as channel_handlers,
     device_auth as device_auth_handlers,
     dms as dm_handlers,
@@ -41,6 +42,7 @@ use handlers::{
     outgoing_webhooks as outgoing_webhook_handlers,
     reminders as reminder_handlers,
     scheduled_messages as scheduled_message_handlers,
+    user_groups as user_group_handlers,
 };
 use middleware::auth::AuthMiddleware;
 use middleware::permissions::PermissionMiddleware;
@@ -370,6 +372,34 @@ async fn main() -> std::io::Result<()> {
                     .route("", web::get().to(bookmark_handlers::list_bookmarks))
                     .route("", web::post().to(bookmark_handlers::create_bookmark))
                     .route("/{message_id}", web::delete().to(bookmark_handlers::delete_bookmark))
+            )
+            // Channel Section routes - require "openchat" role
+            .service(
+                web::scope("/api/channel-sections")
+                    .wrap(api_rate_limit.clone())
+                    .wrap(openchat_auth.clone())
+                    .route("/reorder", web::put().to(channel_section_handlers::reorder_sections))
+                    .route("", web::get().to(channel_section_handlers::list_sections))
+                    .route("", web::post().to(channel_section_handlers::create_section))
+                    .route("/{id}", web::put().to(channel_section_handlers::update_section))
+                    .route("/{id}", web::delete().to(channel_section_handlers::delete_section))
+                    .route("/{id}/channels", web::post().to(channel_section_handlers::add_channel))
+                    .route("/{id}/channels/{channel_id}", web::delete().to(channel_section_handlers::remove_channel))
+                    .route("/{id}/reorder", web::put().to(channel_section_handlers::reorder_items))
+            )
+            // User Group routes - require "openchat" role
+            .service(
+                web::scope("/api/user-groups")
+                    .wrap(api_rate_limit.clone())
+                    .wrap(openchat_auth.clone())
+                    .route("", web::get().to(user_group_handlers::list_groups))
+                    .route("", web::post().to(user_group_handlers::create_group))
+                    .route("/{id}", web::get().to(user_group_handlers::get_group))
+                    .route("/{id}", web::put().to(user_group_handlers::update_group))
+                    .route("/{id}", web::delete().to(user_group_handlers::delete_group))
+                    .route("/{id}/members", web::get().to(user_group_handlers::list_members))
+                    .route("/{id}/members", web::post().to(user_group_handlers::add_member))
+                    .route("/{id}/members/{user_id}", web::delete().to(user_group_handlers::remove_member))
             )
             // Draft routes - require "openchat" role
             .service(

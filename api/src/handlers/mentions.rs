@@ -26,6 +26,7 @@ impl From<Mention> for MentionResponse {
             crate::models::mention::MentionType::Channel => "channel",
             crate::models::mention::MentionType::Here => "here",
             crate::models::mention::MentionType::Everyone => "everyone",
+            crate::models::mention::MentionType::Group => "group",
         };
 
         Self {

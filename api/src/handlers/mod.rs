@@ -1,6 +1,7 @@
 pub mod attachment;
 pub mod audit_logs;
 pub mod bookmarks;
+pub mod channel_sections;
 pub mod channels;
 pub mod device_auth;
 pub mod dms;
@@ -23,6 +24,7 @@ pub mod scheduled_messages;
 pub mod roles;
 pub mod search;
 pub mod storage_settings;
+pub mod user_groups;
 pub mod user_status;
 pub mod users;
 pub mod webhooks;

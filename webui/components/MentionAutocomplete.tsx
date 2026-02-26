@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { apiClient } from '@/lib/api';
-import type { User } from '@/lib/types';
+import type { User, UserGroup } from '@/lib/types';
 
 // Helper to get username from email (before @)
 const getUsernameFromEmail = (email: string): string => {
@@ -25,6 +25,7 @@ export default function MentionAutocomplete({
   className
 }: MentionAutocompleteProps) {
   const [users, setUsers] = useState<User[]>([]);
+  const [groups, setGroups] = useState<UserGroup[]>([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [mentionQuery, setMentionQuery] = useState('');
@@ -32,6 +33,7 @@ export default function MentionAutocomplete({
 
   useEffect(() => {
     loadUsers();
+    loadGroups();
   }, []);
 
   const loadUsers = async () => {
@@ -43,10 +45,19 @@ export default function MentionAutocomplete({
     }
   };
 
+  const loadGroups = async () => {
+    try {
+      const data = await apiClient.listUserGroups();
+      setGroups(data);
+    } catch (error) {
+      console.error('Failed to load groups:', error);
+    }
+  };
+
   useEffect(() => {
     const cursorPos = textareaRef.current?.selectionStart || 0;
     const textBeforeCursor = value.substring(0, cursorPos);
-    const mentionMatch = textBeforeCursor.match(/@(\w*)$/);
+    const mentionMatch = textBeforeCursor.match(/@([\w-]*)$/);
 
     if (mentionMatch) {
       const query = mentionMatch[1];
@@ -64,11 +75,20 @@ export default function MentionAutocomplete({
       user.display_name.toLowerCase().includes(mentionQuery.toLowerCase());
   }).slice(0, 5);
 
+  const filteredGroups = groups.filter(group =>
+    group.handle.toLowerCase().includes(mentionQuery.toLowerCase()) ||
+    group.name.toLowerCase().includes(mentionQuery.toLowerCase())
+  ).slice(0, 3);
+
   const specialMentions = ['@channel', '@here'].filter(m =>
     m.includes(mentionQuery.toLowerCase())
   );
 
-  const allSuggestions = [...specialMentions, ...filteredUsers.map(u => `@${getUsernameFromEmail(u.email)}`)];
+  const allSuggestions = [
+    ...specialMentions,
+    ...filteredGroups.map(g => `@${g.handle}`),
+    ...filteredUsers.map(u => `@${getUsernameFromEmail(u.email)}`),
+  ];
 
   const insertMention = (mention: string) => {
     const cursorPos = textareaRef.current?.selectionStart || 0;
@@ -148,8 +168,32 @@ export default function MentionAutocomplete({
               </div>
             </div>
           ))}
-          {filteredUsers.map((user, index) => {
+          {filteredGroups.map((group, index) => {
             const adjustedIndex = index + specialMentions.length;
+            return (
+              <div
+                key={group.id}
+                onClick={() => insertMention(`@${group.handle}`)}
+                className={`px-4 py-2 cursor-pointer flex items-center gap-2 ${
+                  selectedIndex === adjustedIndex
+                    ? 'bg-blue-500 text-white'
+                    : 'hover:bg-gray-100 dark:hover:bg-gray-700'
+                }`}
+              >
+                <div className="w-8 h-8 rounded-lg bg-purple-600/20 flex items-center justify-center">
+                  <svg className="w-4 h-4 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
+                  </svg>
+                </div>
+                <div>
+                  <div className="font-medium">{group.name}</div>
+                  <div className="text-xs opacity-75">@{group.handle}</div>
+                </div>
+              </div>
+            );
+          })}
+          {filteredUsers.map((user, index) => {
+            const adjustedIndex = index + specialMentions.length + filteredGroups.length;
             const username = getUsernameFromEmail(user.email);
             return (
               <div

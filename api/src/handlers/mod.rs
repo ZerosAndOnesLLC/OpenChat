@@ -12,6 +12,7 @@ pub mod mentions;
 pub mod messages;
 pub mod metrics;
 pub mod migration;
+pub mod notification_prefs;
 pub mod notifications;
 pub mod outgoing_webhooks;
 pub mod pins;

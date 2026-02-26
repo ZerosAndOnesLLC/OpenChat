@@ -13,6 +13,7 @@ pub mod message;
 pub mod message_draft;
 pub mod message_edit;
 pub mod notification;
+pub mod notification_pref;
 pub mod outgoing_webhook;
 pub mod organization;
 pub mod pin;

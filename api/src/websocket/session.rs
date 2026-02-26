@@ -354,23 +354,36 @@ impl Handler<WsSessionMessage> for WsSessionHandle {
     }
 }
 
-/// Load initial state (channels and DMs) for a user
+/// Load initial state (channels, DMs, and notification preferences) for a user
 async fn load_initial_state(
     pool: &PgPool,
     org_id: Uuid,
     user_id: Uuid,
 ) -> Result<ServerMessage, Box<dyn std::error::Error>> {
-    use crate::models::{channel::Channel, direct_message::DirectMessage};
+    use crate::models::{channel::Channel, direct_message::DirectMessage, notification_pref::NotificationPref};
+    use crate::websocket::messages::NotificationPrefInfo;
 
-    // Fetch channels and DMs in parallel
-    let (channels, dms) = tokio::try_join!(
+    // Fetch channels, DMs, and notification preferences in parallel
+    let (channels, dms, prefs) = tokio::try_join!(
         Channel::get_metadata_for_user(pool, org_id, user_id),
         DirectMessage::get_metadata_for_user(pool, user_id),
+        NotificationPref::list_by_user(pool, user_id),
     )?;
+
+    let notification_preferences: Vec<NotificationPrefInfo> = prefs
+        .into_iter()
+        .map(|p| NotificationPrefInfo {
+            channel_id: p.channel_id,
+            dm_id: p.dm_id,
+            preference: p.preference,
+            mute_until: p.mute_until,
+        })
+        .collect();
 
     Ok(ServerMessage::InitialState {
         user_id,
         channels,
         dms,
+        notification_preferences,
     })
 }

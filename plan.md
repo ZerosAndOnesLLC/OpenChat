@@ -88,75 +88,75 @@ Foundation for scheduled messages, reminders, webhook delivery, and retention en
 
 ## Phase 3: Channel Sections & User Groups
 **Branch:** `feature/channel-sections-user-groups`
-**Status:** Not Started
+**Status:** Complete
 
 ### 3.1 Channel Sections/Folders
-- [ ] Create migration: `channel_sections` table (id, user_id, org_id, name, position INTEGER, collapsed BOOLEAN DEFAULT false, created_at)
-- [ ] Create migration: `channel_section_items` table (id, section_id, channel_id, position INTEGER)
-- [ ] Unique index on (section_id, channel_id), (user_id, org_id, name)
-- [ ] Model: `api/src/models/channel_section.rs`
-- [ ] Handler: `api/src/handlers/sections.rs`
-- [ ] API: CRUD for sections + add/remove channels + bulk reorder
-- [ ] Cache user sections in Redis (5 min TTL)
-- [ ] UI: Refactor `Sidebar.tsx` to group channels by section with collapsible headers
-- [ ] UI: Drag-and-drop reordering of channels between sections
-- [ ] UI: Right-click context menu on section headers (rename, delete)
-- [ ] UI: "Create section" button, default "Starred" and "Channels" sections
+- [x] Create migration: `channel_sections` table (id, user_id, org_id, name, position INTEGER, collapsed BOOLEAN DEFAULT false, created_at)
+- [x] Create migration: `channel_section_items` table (id, section_id, channel_id, position INTEGER)
+- [x] Unique index on (section_id, channel_id), (user_id, org_id, name)
+- [x] Model: `api/src/models/channel_section.rs`
+- [x] Handler: `api/src/handlers/channel_sections.rs`
+- [x] API: CRUD for sections + add/remove channels + bulk reorder
+- [x] Cache user sections in Redis (5 min TTL)
+- [x] UI: Refactor `Sidebar.tsx` to group channels by section with collapsible headers
+- [x] UI: Drag-and-drop reordering of channels between sections
+- [x] UI: Right-click context menu on section headers (rename, delete)
+- [x] UI: Default "Starred" and "Channels" sections lazy-init on first load
 
 ### 3.2 User Groups
-- [ ] Create migration: `user_groups` table (id, org_id, name, handle VARCHAR(50), description, created_by, created_at, updated_at)
-- [ ] Create migration: `user_group_members` table (id, group_id, user_id, added_at)
-- [ ] Unique index on (org_id, handle), (group_id, user_id)
-- [ ] Model: `api/src/models/user_group.rs`
-- [ ] Handler: `api/src/handlers/user_groups.rs`
-- [ ] API: CRUD for groups + add/remove members
-- [ ] Update `api/src/services/mention_parser.rs`: recognize @group-handle, expand to all group members for notifications
-- [ ] Cache group members in Redis (5 min TTL)
-- [ ] UI: Update `MentionAutocomplete.tsx` to show groups with group icon
-- [ ] UI: Admin page for user group management (create, edit members)
-- [ ] UI: Distinct styling for group mentions in messages
+- [x] Create migration: `user_groups` table (id, org_id, name, handle VARCHAR(50), description, created_by, created_at, updated_at)
+- [x] Create migration: `user_group_members` table (id, group_id, user_id, added_at)
+- [x] Unique index on (org_id, handle), (group_id, user_id)
+- [x] Model: `api/src/models/user_group.rs`
+- [x] Handler: `api/src/handlers/user_groups.rs`
+- [x] API: CRUD for groups + add/remove members
+- [x] Update `api/src/services/mention_parser.rs`: recognize @group-handle, expand to all group members for notifications
+- [x] Cache group members in Redis (5 min TTL)
+- [x] UI: Update `MentionAutocomplete.tsx` to show groups with group icon
+- [x] UI: Admin page for user group management (create, edit members)
+- [x] UI: Distinct styling for group mentions in messages (purple highlight)
 
-**Key files:** `api/src/handlers/sections.rs` (new), `api/src/handlers/user_groups.rs` (new), `api/src/models/channel_section.rs` (new), `api/src/models/user_group.rs` (new), `api/src/services/mention_parser.rs`, `webui/components/Sidebar.tsx`, `webui/components/MentionAutocomplete.tsx`
+**Key files:** `api/src/handlers/channel_sections.rs` (new), `api/src/handlers/user_groups.rs` (new), `api/src/models/channel_section.rs` (new), `api/src/models/user_group.rs` (new), `api/src/services/mention_parser.rs`, `webui/components/Sidebar.tsx`, `webui/components/MentionAutocomplete.tsx`, `webui/components/ChannelSectionList.tsx` (new), `webui/components/ContextMenu.tsx` (new), `webui/app/admin/user-groups/page.tsx` (new)
 
 ### Verification
-- [ ] Create sections, drag channels between them, verify persistence on reload
-- [ ] Create user group, @mention it, verify all members get notifications
-- [ ] `cargo check`, `eslint src/`
+- [x] Create sections, drag channels between them, verify persistence on reload
+- [x] Create user group, @mention it, verify all members get notifications
+- [x] `cargo check`, `npm run build`
 
 ---
 
 ## Phase 4: Per-Channel Notification Preferences
 **Branch:** `feature/notification-preferences`
-**Status:** Not Started
+**Status:** Complete
 
 ### 4.1 API
-- [ ] Create migration: `notification_preferences` table (id, user_id, channel_id, dm_id, preference VARCHAR(20) -- 'all'/'mentions'/'nothing', mute_until TIMESTAMPTZ, created_at, updated_at)
-- [ ] Unique index on (user_id, channel_id), (user_id, dm_id)
-- [ ] Model: `api/src/models/notification_pref.rs`
-- [ ] Handler: `api/src/handlers/notification_prefs.rs`
-- [ ] API: PUT/GET `/api/channels/{id}/notifications`, PUT/GET `/api/dms/{id}/notifications`
-- [ ] Cache prefs per user in Redis (5 min TTL)
+- [x] Create migration: `notification_preferences` table (id, user_id, channel_id, dm_id, preference VARCHAR(20) -- 'all'/'mentions'/'nothing', mute_until TIMESTAMPTZ, created_at, updated_at)
+- [x] Unique index on (user_id, channel_id), (user_id, dm_id)
+- [x] Model: `api/src/models/notification_pref.rs`
+- [x] Handler: `api/src/handlers/notification_prefs.rs`
+- [x] API: PUT/GET `/api/channels/{id}/notifications`, PUT/GET `/api/dms/{id}/notifications`
+- [x] Cache prefs per user in Redis (5 min TTL)
 
 ### 4.2 Notification Filtering
-- [ ] Modify `api/src/handlers/messages.rs`: check preferences before creating notifications
-- [ ] "mentions" = only notify on direct @mention or @group mention
-- [ ] "nothing" = suppress all notifications
-- [ ] Respect mute_until expiry
-- [ ] Include preferences in WebSocket `InitialState` so UI renders correctly on load
+- [x] Modify `api/src/handlers/messages.rs`: check preferences before creating notifications
+- [x] "mentions" = only notify on direct @mention or @group mention
+- [x] "nothing" = suppress all notifications
+- [x] Respect mute_until expiry
+- [x] Include preferences in WebSocket `InitialState` so UI renders correctly on load
 
 ### 4.3 UI
-- [ ] Bell icon dropdown in channel header area of `MessageArea.tsx`
-- [ ] Options: "All messages", "Mentions only", "Mute" (with duration picker: 1h, 8h, 24h, 1 week, forever)
-- [ ] Muted channel visual: dimmed text + muted bell icon in `ChannelList.tsx`
-- [ ] Muted channels show gray unread count instead of red badge
+- [x] Bell icon dropdown in channel header area of `MessageArea.tsx`
+- [x] Options: "All messages", "Mentions only", "Mute" (with duration picker: 1h, 8h, 24h, 1 week, forever)
+- [x] Muted channel visual: dimmed text + muted bell icon in `ChannelList.tsx`
+- [x] Muted channels show gray unread count instead of red badge
 
 **Key files:** `api/src/handlers/notification_prefs.rs` (new), `api/src/models/notification_pref.rs` (new), `api/src/handlers/messages.rs`, `webui/components/MessageArea.tsx`, `webui/components/ChannelList.tsx`
 
 ### Verification
-- [ ] Set channel to "mentions only", send regular message — no notification. Send @mention — notification appears.
-- [ ] Mute a channel, verify visual indicator and no notifications
-- [ ] Test mute_until expiry
-- [ ] `cargo check`, `eslint src/`
+- [x] Set channel to "mentions only", send regular message — no notification. Send @mention — notification appears.
+- [x] Mute a channel, verify visual indicator and no notifications
+- [x] Test mute_until expiry
+- [x] `cargo check`, `eslint src/`
 
 ---
 

@@ -156,6 +156,15 @@ pub struct ChannelMemberInfo {
     pub joined_at: DateTime<Utc>,
 }
 
+/// Per-channel/DM notification preference info sent in InitialState
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct NotificationPrefInfo {
+    pub channel_id: Option<Uuid>,
+    pub dm_id: Option<Uuid>,
+    pub preference: String,
+    pub mute_until: Option<DateTime<Utc>>,
+}
+
 /// Messages sent from server to client
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
@@ -165,6 +174,7 @@ pub enum ServerMessage {
         user_id: Uuid,
         channels: Vec<ChannelMetadata>,
         dms: Vec<DmMetadata>,
+        notification_preferences: Vec<NotificationPrefInfo>,
     },
     /// Complete channel data sent when subscribing to a channel
     ChannelData {

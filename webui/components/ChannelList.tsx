@@ -31,10 +31,14 @@ function ChannelItem({
   const queryClient = useQueryClient();
   const removeChannel = useWebSocketStore((state) => state.removeChannel);
 
-  // Get unread count and initial state status from WebSocket store
+  // Get unread count, initial state status, and notification prefs from WebSocket store
   const wsUnreadCount = useWebSocketStore((state) => state.unreadCounts[channel.id]);
   const initialStateLoaded = useWebSocketStore((state) => state.initialStateLoaded);
+  const notifPref = useWebSocketStore((state) => state.notificationPrefs[channel.id]);
   const unreadCount = wsUnreadCount ?? 0;
+
+  const preference = notifPref?.preference || 'all';
+  const isMuted = preference === 'nothing' || (notifPref?.mute_until ? new Date(notifPref.mute_until) > new Date() : false);
 
   // Load initial unread count only if WebSocket initial state hasn't loaded
   useEffect(() => {
@@ -136,15 +140,26 @@ function ChannelItem({
       >
         <div className="flex items-center justify-between">
           <div className="flex items-center min-w-0 flex-1">
-            <span className="mr-1.5">
+            <span className={`mr-1.5 ${isMuted && !isActive ? 'opacity-50' : ''}`}>
               {channel.channel_type === 'private' ? '🔒' : '#'}
             </span>
-            <span className={`truncate ${hasUnread && !isActive ? 'font-bold' : ''}`}>
+            <span className={`truncate ${hasUnread && !isActive ? 'font-bold' : ''} ${isMuted && !isActive ? 'text-gray-500' : ''}`}>
               {channel.name}
             </span>
+            {isMuted && !isActive && (
+              <svg className="ml-1 h-3 w-3 flex-shrink-0 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z" />
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2" />
+              </svg>
+            )}
+            {preference === 'mentions' && !isMuted && !isActive && (
+              <svg className="ml-1 h-3 w-3 flex-shrink-0 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 12a4 4 0 10-8 0 4 4 0 008 0zm0 0v1.5a2.5 2.5 0 005 0V12a9 9 0 10-9 9m4.5-1.206a8.959 8.959 0 01-4.5 1.207" />
+              </svg>
+            )}
           </div>
           {hasUnread && !isActive && !isHovered && (
-            <span className="ml-2 flex-shrink-0 rounded-full bg-red-500 px-2 py-0.5 text-xs font-semibold text-white">
+            <span className={`ml-2 flex-shrink-0 rounded-full px-2 py-0.5 text-xs font-semibold text-white ${isMuted ? 'bg-gray-600' : 'bg-red-500'}`}>
               {unreadCount > 99 ? '99+' : unreadCount}
             </span>
           )}

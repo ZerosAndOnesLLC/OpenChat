@@ -24,6 +24,7 @@ pub mod scheduled_messages;
 pub mod roles;
 pub mod search;
 pub mod storage_settings;
+pub mod user_groups;
 pub mod user_status;
 pub mod users;
 pub mod webhooks;

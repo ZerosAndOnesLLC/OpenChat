@@ -42,6 +42,7 @@ use handlers::{
     outgoing_webhooks as outgoing_webhook_handlers,
     reminders as reminder_handlers,
     scheduled_messages as scheduled_message_handlers,
+    user_groups as user_group_handlers,
 };
 use middleware::auth::AuthMiddleware;
 use middleware::permissions::PermissionMiddleware;
@@ -385,6 +386,20 @@ async fn main() -> std::io::Result<()> {
                     .route("/{id}/channels", web::post().to(channel_section_handlers::add_channel))
                     .route("/{id}/channels/{channel_id}", web::delete().to(channel_section_handlers::remove_channel))
                     .route("/{id}/reorder", web::put().to(channel_section_handlers::reorder_items))
+            )
+            // User Group routes - require "openchat" role
+            .service(
+                web::scope("/api/user-groups")
+                    .wrap(api_rate_limit.clone())
+                    .wrap(openchat_auth.clone())
+                    .route("", web::get().to(user_group_handlers::list_groups))
+                    .route("", web::post().to(user_group_handlers::create_group))
+                    .route("/{id}", web::get().to(user_group_handlers::get_group))
+                    .route("/{id}", web::put().to(user_group_handlers::update_group))
+                    .route("/{id}", web::delete().to(user_group_handlers::delete_group))
+                    .route("/{id}/members", web::get().to(user_group_handlers::list_members))
+                    .route("/{id}/members", web::post().to(user_group_handlers::add_member))
+                    .route("/{id}/members/{user_id}", web::delete().to(user_group_handlers::remove_member))
             )
             // Draft routes - require "openchat" role
             .service(

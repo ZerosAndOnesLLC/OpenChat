@@ -5,7 +5,7 @@ import { apiClient } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import type { Channel, DirectMessage, ChannelMetadata } from '@/lib/types';
 import { useWebSocketStore } from '@/lib/websocket';
-import ChannelList from './ChannelList';
+import ChannelSectionList from './ChannelSectionList';
 import DirectMessageList from './DirectMessageList';
 import BookmarksList from './BookmarksList';
 import UserProfile from './UserProfile';
@@ -246,7 +246,7 @@ export default function Sidebar({
               </form>
             )}
 
-            <ChannelList
+            <ChannelSectionList
               channels={channelsList}
               activeChannel={activeChannel}
               onSelectChannel={onSelectChannel}

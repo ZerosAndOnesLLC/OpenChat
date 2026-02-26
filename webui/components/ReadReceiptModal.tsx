@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { apiClient } from '@/lib/api';
+import { useFocusTrap } from '@/hooks/useFocusTrap';
 import type { ReadReceiptWithUser } from '@/lib/types';
 
 interface ReadReceiptModalProps {
@@ -14,6 +15,7 @@ export default function ReadReceiptModal({ messageId, isOpen, onClose }: ReadRec
   const [receipts, setReceipts] = useState<ReadReceiptWithUser[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const trapRef = useFocusTrap(isOpen);
 
   useEffect(() => {
     if (isOpen && messageId) {
@@ -49,13 +51,17 @@ export default function ReadReceiptModal({ messageId, isOpen, onClose }: ReadRec
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50" onClick={onClose}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 animate-fade-in" onClick={onClose}>
       <div
-        className="w-full max-w-md rounded-lg bg-gray-900 p-6 shadow-xl"
+        ref={trapRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="read-receipt-modal-title"
+        className="w-full max-w-md rounded-lg bg-gray-900 p-6 shadow-xl animate-modal-in"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="mb-4 flex items-center justify-between">
-          <h2 className="text-xl font-semibold text-white">Read by</h2>
+          <h2 id="read-receipt-modal-title" className="text-xl font-semibold text-white">Read by</h2>
           <button
             onClick={onClose}
             className="text-gray-400 hover:text-white"

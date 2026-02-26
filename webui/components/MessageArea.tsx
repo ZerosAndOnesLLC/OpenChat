@@ -13,6 +13,7 @@ import ThreadPanel from './ThreadPanel';
 import PinnedMessagesPanel from './PinnedMessagesPanel';
 import EditChannelModal from './EditChannelModal';
 import AddMembersModal from './AddMembersModal';
+import ForwardMessageModal from './ForwardMessageModal';
 import Toast from './Toast';
 
 interface MessageAreaProps {
@@ -35,6 +36,7 @@ export default function MessageArea({ channel, dm, onLeaveChannel }: MessageArea
   const [showMuteSubmenu, setShowMuteSubmenu] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [showAddMembersModal, setShowAddMembersModal] = useState(false);
+  const [forwardMessage, setForwardMessage] = useState<Message | null>(null);
   const queryClient = useQueryClient();
   const channelMenuRef = useRef<HTMLDivElement>(null);
   const notifMenuRef = useRef<HTMLDivElement>(null);
@@ -267,6 +269,11 @@ export default function MessageArea({ channel, dm, onLeaveChannel }: MessageArea
     setReplyTo(undefined);
   };
 
+  // Handle forwarding a message
+  const handleForward = (message: Message) => {
+    setForwardMessage(message);
+  };
+
   // Handle opening a thread
   const handleOpenThread = (message: Message) => {
     setOpenThread(message.id);
@@ -381,6 +388,8 @@ export default function MessageArea({ channel, dm, onLeaveChannel }: MessageArea
                     onClick={() => { setShowNotifMenu(!showNotifMenu); setShowMuteSubmenu(false); }}
                     className="rounded p-2 text-gray-400 hover:bg-gray-800 hover:text-white"
                     title="Notification preferences"
+                    aria-label="Notification preferences"
+                    aria-expanded={showNotifMenu}
                   >
                     {isMuted ? (
                       <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -491,6 +500,8 @@ export default function MessageArea({ channel, dm, onLeaveChannel }: MessageArea
                   onClick={() => setShowChannelMenu(!showChannelMenu)}
                   className="rounded p-2 text-gray-400 hover:bg-gray-800 hover:text-white"
                   title="Channel options"
+                  aria-label="Channel options"
+                  aria-expanded={showChannelMenu}
                 >
                   <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 5v.01M12 12v.01M12 19v.01M12 6a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2z" />
@@ -563,6 +574,7 @@ export default function MessageArea({ channel, dm, onLeaveChannel }: MessageArea
               onOpenThread={handleOpenThread}
               onPin={handlePin}
               onBookmark={handleBookmark}
+              onForward={handleForward}
               pinnedMessageIds={pinnedMessageIds}
               bookmarkedMessageIds={bookmarkedMessageIds}
             />
@@ -617,6 +629,18 @@ export default function MessageArea({ channel, dm, onLeaveChannel }: MessageArea
           onClose={() => setShowAddMembersModal(false)}
           onSuccess={() => {
             setToast({ message: 'Member added successfully', type: 'success' });
+          }}
+        />
+      )}
+
+      {/* Forward Message Modal */}
+      {forwardMessage && (
+        <ForwardMessageModal
+          message={forwardMessage}
+          isOpen={!!forwardMessage}
+          onClose={() => setForwardMessage(null)}
+          onSuccess={() => {
+            setToast({ message: 'Message forwarded', type: 'success' });
           }}
         />
       )}

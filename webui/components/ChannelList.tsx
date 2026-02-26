@@ -126,7 +126,7 @@ function ChannelItem({
 
   return (
     <div
-      className={`group relative flex items-center rounded transition-colors ${
+      className={`group relative flex items-center rounded transition-colors duration-150 ${
         isActive
           ? 'bg-blue-600 text-white'
           : 'text-gray-300 hover:bg-gray-800'
@@ -137,6 +137,7 @@ function ChannelItem({
       <button
         onClick={onSelect}
         className="flex-1 px-2 py-1.5 text-left text-sm"
+        aria-current={isActive ? 'page' : undefined}
       >
         <div className="flex items-center justify-between">
           <div className="flex items-center min-w-0 flex-1">

@@ -116,10 +116,10 @@ export default function NotificationsPanel({ isOpen, onClose }: NotificationsPan
   return (
     <>
       <div
-        className="fixed inset-0 bg-black bg-opacity-50 z-40"
+        className="fixed inset-0 bg-black bg-opacity-50 z-40 animate-fade-in"
         onClick={onClose}
       />
-      <div className="fixed right-4 top-16 w-96 max-h-[600px] bg-white dark:bg-gray-800 rounded-lg shadow-xl z-50 flex flex-col">
+      <div className="fixed right-4 top-16 w-96 max-h-[600px] bg-white dark:bg-gray-800 rounded-lg shadow-xl z-50 flex flex-col animate-modal-in">
         <div className="p-4 border-b border-gray-200 dark:border-gray-700">
           <div className="flex items-center justify-between mb-3">
             <h2 className="text-lg font-semibold">Notifications</h2>

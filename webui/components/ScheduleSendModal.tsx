@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { useFocusTrap } from '@/hooks/useFocusTrap';
 
 interface ScheduleSendModalProps {
   isOpen: boolean;
@@ -11,6 +12,7 @@ interface ScheduleSendModalProps {
 export default function ScheduleSendModal({ isOpen, onClose, onSchedule }: ScheduleSendModalProps) {
   const [customDate, setCustomDate] = useState('');
   const [showCustom, setShowCustom] = useState(false);
+  const trapRef = useFocusTrap(isOpen);
 
   if (!isOpen) return null;
 
@@ -75,12 +77,12 @@ export default function ScheduleSendModal({ isOpen, onClose, onSchedule }: Sched
 
   return (
     <>
-      <div className="fixed inset-0 bg-black bg-opacity-50 z-40" onClick={onClose} />
+      <div className="fixed inset-0 bg-black bg-opacity-50 z-40 animate-fade-in" onClick={onClose} />
       <div className="fixed inset-0 flex items-center justify-center z-50 pointer-events-none">
-        <div className="bg-gray-900 border border-gray-700 rounded-lg shadow-xl w-80 pointer-events-auto">
+        <div ref={trapRef} role="dialog" aria-modal="true" aria-labelledby="schedule-send-modal-title" className="bg-gray-900 border border-gray-700 rounded-lg shadow-xl w-80 pointer-events-auto animate-modal-in">
           <div className="p-4 border-b border-gray-700">
             <div className="flex items-center justify-between">
-              <h3 className="text-lg font-semibold text-white">Schedule Message</h3>
+              <h3 id="schedule-send-modal-title" className="text-lg font-semibold text-white">Schedule Message</h3>
               <button onClick={onClose} className="text-gray-400 hover:text-white">
                 <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />

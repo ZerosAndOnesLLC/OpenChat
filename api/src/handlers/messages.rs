@@ -130,6 +130,12 @@ pub struct MessageResponse {
     pub attachments: Vec<AttachmentResponse>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub poll: Option<PollResponseEmbed>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub forwarded_from_message_id: Option<Uuid>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub forwarded_from_channel_id: Option<Uuid>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub forwarded_from_channel_name: Option<String>,
 }
 
 #[derive(Debug, Serialize, Clone)]
@@ -171,6 +177,9 @@ impl From<Message> for MessageResponse {
             first_reply: None,
             attachments: vec![],
             poll: None,
+            forwarded_from_message_id: message.forwarded_from_message_id,
+            forwarded_from_channel_id: message.forwarded_from_channel_id,
+            forwarded_from_channel_name: None,
         }
     }
 }
@@ -203,6 +212,11 @@ impl MessageResponse {
 
     pub fn with_poll(mut self, poll_embed: PollResponseEmbed) -> Self {
         self.poll = Some(poll_embed);
+        self
+    }
+
+    pub fn with_forwarded_channel_name(mut self, name: Option<String>) -> Self {
+        self.forwarded_from_channel_name = name;
         self
     }
 }
@@ -579,6 +593,9 @@ pub async fn send_message(
             parent_message_id: message.parent_message_id,
             created_at: message.created_at.to_rfc3339(),
             is_webhook: None,
+            forwarded_from_message_id: None,
+            forwarded_from_channel_id: None,
+            forwarded_from_channel_name: None,
         },
     });
 
@@ -832,6 +849,26 @@ pub async fn list_channel_messages(
         });
     }
 
+    // Batch-resolve forwarded channel names
+    let forwarded_channel_ids: Vec<Uuid> = paginated.messages.iter()
+        .filter_map(|m| m.forwarded_from_channel_id)
+        .collect::<std::collections::HashSet<_>>()
+        .into_iter()
+        .collect();
+    let forwarded_channel_names: std::collections::HashMap<Uuid, String> = if !forwarded_channel_ids.is_empty() {
+        #[derive(sqlx::FromRow)]
+        struct ChannelName { id: Uuid, name: String }
+        sqlx::query_as::<_, ChannelName>("SELECT id, name FROM channels WHERE id = ANY($1)")
+            .bind(&forwarded_channel_ids)
+            .fetch_all(pool.get_ref())
+            .await?
+            .into_iter()
+            .map(|cn| (cn.id, cn.name))
+            .collect()
+    } else {
+        std::collections::HashMap::new()
+    };
+
     // Enrich messages with user data, reactions, reply counts, first replies, attachments, and polls
     let messages_with_users: Vec<MessageResponse> = paginated.messages
         .into_iter()
@@ -858,6 +895,9 @@ pub async fn list_channel_messages(
             }
             if let Some(attachments) = attachment_map.get(&msg.id) {
                 response = response.with_attachments(attachments.clone());
+            }
+            if let Some(fwd_ch_id) = msg.forwarded_from_channel_id {
+                response = response.with_forwarded_channel_name(forwarded_channel_names.get(&fwd_ch_id).cloned());
             }
             if let Some(poll_embed) = poll_map.remove(&msg.id) {
                 response = response.with_poll(poll_embed);
@@ -1155,4 +1195,152 @@ pub async fn get_message_history(
     let edits = crate::models::message_edit::MessageEdit::list_by_message(pool.get_ref(), *message_id).await?;
 
     Ok(HttpResponse::Ok().json(edits))
+}
+
+#[derive(Debug, Deserialize)]
+pub struct ForwardMessageRequest {
+    pub channel_id: Option<Uuid>,
+    pub dm_id: Option<Uuid>,
+    pub comment: Option<String>,
+}
+
+/// POST /api/messages/:id/forward - Forward a message to a channel or DM
+pub async fn forward_message(
+    pool: web::Data<PgPool>,
+    redis_pool: web::Data<RedisPool>,
+    message_id: web::Path<Uuid>,
+    body: web::Json<ForwardMessageRequest>,
+    req: HttpRequest,
+    ws_server: web::Data<actix::Addr<WsServer>>,
+) -> ApiResult<HttpResponse> {
+    let claims = req
+        .extensions()
+        .get::<TokenClaims>()
+        .cloned()
+        .ok_or_else(|| ApiError::Authentication("Missing authentication".to_string()))?;
+
+    // Validate that exactly one of channel_id or dm_id is provided
+    match (&body.channel_id, &body.dm_id) {
+        (Some(_), Some(_)) => {
+            return Err(ApiError::BadRequest(
+                "Cannot specify both channel_id and dm_id".to_string(),
+            ))
+        }
+        (None, None) => {
+            return Err(ApiError::BadRequest(
+                "Must specify either channel_id or dm_id".to_string(),
+            ))
+        }
+        _ => {}
+    }
+
+    // Get current user
+    let current_user = User::get_by_tv_user_id(pool.get_ref(), claims.user_id)
+        .await?
+        .ok_or_else(|| ApiError::NotFound("Current user not found".to_string()))?;
+
+    // Verify source message exists
+    let source_message = Message::get_by_id(pool.get_ref(), *message_id)
+        .await?
+        .ok_or_else(|| ApiError::NotFound("Source message not found".to_string()))?;
+
+    // Verify user has access to source message
+    if let Some(source_channel_id) = source_message.channel_id {
+        let is_member = ChannelMember::is_member(pool.get_ref(), source_channel_id, current_user.id).await?;
+        if !is_member {
+            return Err(ApiError::Authorization(
+                "You are not a member of the source channel".to_string(),
+            ));
+        }
+    }
+
+    // Resolve source channel name for attribution
+    let forwarded_from_channel_name = if let Some(source_channel_id) = source_message.channel_id {
+        Channel::get_by_id(pool.get_ref(), source_channel_id)
+            .await?
+            .map(|ch| ch.name)
+    } else {
+        None // DM source - no channel name
+    };
+
+    // Use comment as content if provided, otherwise use original message content
+    let content = body.comment
+        .as_deref()
+        .filter(|c| !c.trim().is_empty())
+        .unwrap_or(&source_message.content);
+
+    // Create forwarded message in the target
+    let forwarded_message = if let Some(target_channel_id) = body.channel_id {
+        // Verify target channel exists
+        Channel::get_by_id(pool.get_ref(), target_channel_id)
+            .await?
+            .ok_or_else(|| ApiError::NotFound("Target channel not found".to_string()))?;
+
+        // Verify user is a member of target channel
+        let is_member = ChannelMember::is_member(pool.get_ref(), target_channel_id, current_user.id).await?;
+        if !is_member {
+            return Err(ApiError::Authorization(
+                "You are not a member of the target channel".to_string(),
+            ));
+        }
+
+        Message::create_forwarded_channel_message(
+            pool.get_ref(),
+            target_channel_id,
+            current_user.id,
+            content,
+            source_message.id,
+            source_message.channel_id,
+        )
+        .await?
+    } else if let Some(target_dm_id) = body.dm_id {
+        Message::create_forwarded_dm_message(
+            pool.get_ref(),
+            target_dm_id,
+            current_user.id,
+            content,
+            source_message.id,
+            source_message.channel_id,
+        )
+        .await?
+    } else {
+        unreachable!()
+    };
+
+    // Invalidate cache
+    if let Some(channel_id) = forwarded_message.channel_id {
+        if let Err(e) = message_cache::invalidate_channel_messages_cache(redis_pool.get_ref(), current_user.org_id, channel_id).await {
+            tracing::warn!("Failed to invalidate channel messages cache: {}", e);
+        }
+    } else if let Some(dm_id) = forwarded_message.dm_id {
+        if let Err(e) = message_cache::invalidate_dm_messages_cache(redis_pool.get_ref(), current_user.org_id, dm_id).await {
+            tracing::warn!("Failed to invalidate DM messages cache: {}", e);
+        }
+    }
+
+    // Broadcast via WebSocket
+    ws_server.do_send(BroadcastMessage {
+        org_id: current_user.org_id,
+        channel_id: forwarded_message.channel_id,
+        message: ServerMessage::NewMessage {
+            id: forwarded_message.id,
+            channel_id: forwarded_message.channel_id,
+            dm_id: forwarded_message.dm_id,
+            user_id: forwarded_message.user_id,
+            user_name: current_user.display_name.clone(),
+            user_avatar: current_user.avatar_url.clone(),
+            content: forwarded_message.content.clone(),
+            parent_message_id: None,
+            created_at: forwarded_message.created_at.to_rfc3339(),
+            is_webhook: None,
+            forwarded_from_message_id: forwarded_message.forwarded_from_message_id,
+            forwarded_from_channel_id: forwarded_message.forwarded_from_channel_id,
+            forwarded_from_channel_name: forwarded_from_channel_name.clone(),
+        },
+    });
+
+    let mut response = MessageResponse::from(forwarded_message);
+    response.forwarded_from_channel_name = forwarded_from_channel_name;
+
+    Ok(HttpResponse::Created().json(response))
 }

@@ -3,6 +3,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiClient } from '@/lib/api';
+import { useFocusTrap } from '@/hooks/useFocusTrap';
 import type { Channel, User, ChannelMember } from '@/lib/types';
 
 interface AddMembersModalProps {
@@ -22,6 +23,7 @@ export default function AddMembersModal({
   const [error, setError] = useState<string | null>(null);
   const [addingUserId, setAddingUserId] = useState<string | null>(null);
   const queryClient = useQueryClient();
+  const trapRef = useFocusTrap(isOpen);
 
   // Fetch all org users
   const { data: allUsers = [], isLoading: loadingUsers } = useQuery({
@@ -125,10 +127,10 @@ export default function AddMembersModal({
   const isLoading = loadingUsers || loadingMembers;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
-      <div className="w-full max-w-lg rounded-lg bg-gray-900 p-6 shadow-xl">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 animate-fade-in">
+      <div ref={trapRef} role="dialog" aria-modal="true" aria-labelledby="add-members-modal-title" className="w-full max-w-lg rounded-lg bg-gray-900 p-6 shadow-xl animate-modal-in">
         <div className="mb-4 flex items-center justify-between">
-          <h2 className="text-xl font-semibold text-white">
+          <h2 id="add-members-modal-title" className="text-xl font-semibold text-white">
             Add Members to #{channel.name}
           </h2>
           <button

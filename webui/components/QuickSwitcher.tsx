@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { apiClient } from '@/lib/api';
+import { useFocusTrap } from '@/hooks/useFocusTrap';
 import type { Channel, DirectMessage } from '@/lib/types';
 
 interface QuickSwitcherProps {
@@ -16,6 +17,7 @@ export default function QuickSwitcher({ isOpen, onClose, onSelectChannel, onSele
   const [search, setSearch] = useState('');
   const [selectedIndex, setSelectedIndex] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
+  const trapRef = useFocusTrap(isOpen);
 
   // Fetch channels and DMs
   const { data: channels = [] } = useQuery({
@@ -82,13 +84,18 @@ export default function QuickSwitcher({ isOpen, onClose, onSelectChannel, onSele
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-start justify-center bg-black bg-opacity-50 pt-20"
+      className="fixed inset-0 z-50 flex items-start justify-center bg-black bg-opacity-50 pt-20 animate-fade-in"
       onClick={onClose}
     >
       <div
-        className="w-full max-w-2xl overflow-hidden rounded-lg bg-gray-900 shadow-xl"
+        ref={trapRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="quick-switcher-modal-title"
+        className="w-full max-w-2xl overflow-hidden rounded-lg bg-gray-900 shadow-xl animate-modal-in"
         onClick={(e) => e.stopPropagation()}
       >
+        <h2 id="quick-switcher-modal-title" className="sr-only">Quick Switcher</h2>
         {/* Search Input */}
         <div className="border-b border-gray-700 p-4">
           <input

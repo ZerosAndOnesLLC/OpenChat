@@ -174,6 +174,9 @@ pub async fn create_poll(
         parent_message_id: None,
         created_at: message.created_at.to_rfc3339(),
         is_webhook: None,
+        forwarded_from_message_id: None,
+        forwarded_from_channel_id: None,
+        forwarded_from_channel_name: None,
     };
 
     ws_server.do_send(BroadcastMessage {

@@ -16,6 +16,8 @@ pub struct Message {
     pub created_at: DateTime<Utc>,
     pub edited_at: Option<DateTime<Utc>>,
     pub deleted_at: Option<DateTime<Utc>>,
+    pub forwarded_from_message_id: Option<Uuid>,
+    pub forwarded_from_channel_id: Option<Uuid>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -72,6 +74,62 @@ impl Message {
         .bind(user_id)
         .bind(content)
         .bind(parent_message_id)
+        .fetch_one(pool)
+        .await?;
+
+        Ok(message)
+    }
+
+    /// Create a forwarded message in a channel
+    pub async fn create_forwarded_channel_message(
+        pool: &PgPool,
+        channel_id: Uuid,
+        user_id: Uuid,
+        content: &str,
+        forwarded_from_message_id: Uuid,
+        forwarded_from_channel_id: Option<Uuid>,
+    ) -> ApiResult<Message> {
+        let message = sqlx::query_as::<_, Message>(
+            r#"
+            INSERT INTO messages (id, channel_id, user_id, content, forwarded_from_message_id, forwarded_from_channel_id)
+            VALUES ($1, $2, $3, $4, $5, $6)
+            RETURNING *
+            "#,
+        )
+        .bind(Uuid::new_v4())
+        .bind(channel_id)
+        .bind(user_id)
+        .bind(content)
+        .bind(forwarded_from_message_id)
+        .bind(forwarded_from_channel_id)
+        .fetch_one(pool)
+        .await?;
+
+        Ok(message)
+    }
+
+    /// Create a forwarded message in a DM
+    pub async fn create_forwarded_dm_message(
+        pool: &PgPool,
+        dm_id: Uuid,
+        user_id: Uuid,
+        content: &str,
+        forwarded_from_message_id: Uuid,
+        forwarded_from_channel_id: Option<Uuid>,
+    ) -> ApiResult<Message> {
+        let message = sqlx::query_as::<_, Message>(
+            r#"
+            INSERT INTO messages (id, dm_id, user_id, content, forwarded_from_message_id, forwarded_from_channel_id)
+            VALUES ($1, $2, $3, $4, $5, $6)
+            RETURNING *
+            "#,
+        )
+        .bind(Uuid::new_v4())
+        .bind(dm_id)
+        .bind(user_id)
+        .bind(content)
+        .bind(forwarded_from_message_id)
+        .bind(forwarded_from_channel_id)
         .fetch_one(pool)
         .await?;
 
@@ -416,6 +474,9 @@ impl Message {
             created_at: DateTime<Utc>,
             edited_at: Option<DateTime<Utc>>,
             reply_count: i64,
+            forwarded_from_message_id: Option<Uuid>,
+            forwarded_from_channel_id: Option<Uuid>,
+            forwarded_from_channel_name: Option<String>,
         }
 
         let rows = sqlx::query_as::<_, MessageRow>(
@@ -434,9 +495,13 @@ impl Message {
                     (SELECT COUNT(*)::bigint FROM messages replies
                      WHERE replies.parent_message_id = m.id AND replies.deleted_at IS NULL),
                     0
-                ) as reply_count
+                ) as reply_count,
+                m.forwarded_from_message_id,
+                m.forwarded_from_channel_id,
+                fc.name as forwarded_from_channel_name
             FROM messages m
             LEFT JOIN users u ON m.user_id = u.id
+            LEFT JOIN channels fc ON m.forwarded_from_channel_id = fc.id
             WHERE m.channel_id = $1 AND m.deleted_at IS NULL
             ORDER BY m.created_at DESC
             LIMIT $2
@@ -460,6 +525,9 @@ impl Message {
                 created_at: row.created_at,
                 edited_at: row.edited_at,
                 reply_count: row.reply_count,
+                forwarded_from_message_id: row.forwarded_from_message_id,
+                forwarded_from_channel_id: row.forwarded_from_channel_id,
+                forwarded_from_channel_name: row.forwarded_from_channel_name,
             })
             .collect())
     }
@@ -483,6 +551,9 @@ impl Message {
             created_at: DateTime<Utc>,
             edited_at: Option<DateTime<Utc>>,
             reply_count: i64,
+            forwarded_from_message_id: Option<Uuid>,
+            forwarded_from_channel_id: Option<Uuid>,
+            forwarded_from_channel_name: Option<String>,
         }
 
         let rows = sqlx::query_as::<_, MessageRow>(
@@ -501,9 +572,13 @@ impl Message {
                     (SELECT COUNT(*)::bigint FROM messages replies
                      WHERE replies.parent_message_id = m.id AND replies.deleted_at IS NULL),
                     0
-                ) as reply_count
+                ) as reply_count,
+                m.forwarded_from_message_id,
+                m.forwarded_from_channel_id,
+                fc.name as forwarded_from_channel_name
             FROM messages m
             LEFT JOIN users u ON m.user_id = u.id
+            LEFT JOIN channels fc ON m.forwarded_from_channel_id = fc.id
             WHERE m.dm_id = $1 AND m.deleted_at IS NULL
             ORDER BY m.created_at DESC
             LIMIT $2
@@ -527,6 +602,9 @@ impl Message {
                 created_at: row.created_at,
                 edited_at: row.edited_at,
                 reply_count: row.reply_count,
+                forwarded_from_message_id: row.forwarded_from_message_id,
+                forwarded_from_channel_id: row.forwarded_from_channel_id,
+                forwarded_from_channel_name: row.forwarded_from_channel_name,
             })
             .collect())
     }

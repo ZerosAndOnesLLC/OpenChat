@@ -32,3 +32,101 @@ body {
 .animation-delay-400 {
   animation-delay: 400ms;
 }
+
+/* Animation keyframes */
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes modalIn {
+  from { opacity: 0; transform: scale(0.95); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+@keyframes slideUp {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes slideInRight {
+  from { opacity: 0; transform: translateX(16px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
+@keyframes slideInFromBottom {
+  from { opacity: 0; transform: translateY(100%); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes slideOutToBottom {
+  from { opacity: 1; transform: translateY(0); }
+  to { opacity: 0; transform: translateY(100%); }
+}
+
+/* Animation utility classes */
+.animate-fade-in {
+  animation: fadeIn 0.15s ease-out;
+}
+
+.animate-modal-in {
+  animation: modalIn 0.2s ease-out;
+}
+
+.animate-slide-up {
+  animation: slideUp 0.2s ease-out;
+}
+
+.animate-slide-in-right {
+  animation: slideInRight 0.2s ease-out;
+}
+
+.animate-toast-in {
+  animation: slideInFromBottom 0.3s ease-out;
+}
+
+.animate-toast-out {
+  animation: slideOutToBottom 0.3s ease-out forwards;
+}
+
+/* Respect reduced motion preferences */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* High contrast mode */
+@media (prefers-contrast: high) {
+  .border-gray-700, .border-gray-800 {
+    border-color: #9ca3af !important;
+  }
+
+  .text-gray-400, .text-gray-500 {
+    color: #d1d5db !important;
+  }
+
+  *:focus-visible {
+    outline: 2px solid #ffff00 !important;
+    outline-offset: 2px !important;
+  }
+
+  .bg-gray-800, .bg-gray-900 {
+    border: 1px solid #6b7280;
+  }
+}
+
+/* Screen reader only utility */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border-width: 0;
+}

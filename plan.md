@@ -205,49 +205,49 @@ Foundation for scheduled messages, reminders, webhook delivery, and retention en
 
 ## Phase 6: Message Forwarding & UX Polish
 **Branch:** `feature/forwarding-ux-polish`
-**Status:** Not Started
+**Status:** Complete
 
 ### 6.1 Message Forwarding
-- [ ] Create migration: add `forwarded_from_message_id UUID`, `forwarded_from_channel_id UUID` to messages
-- [ ] Add forward endpoint in `api/src/handlers/messages.rs`: POST `/api/messages/{id}/forward` (body: channel_id/dm_id + optional comment)
-- [ ] Forward creates new message with forwarded metadata
-- [ ] UI: "Forward" button in `MessageItem.tsx` hover actions
-- [ ] UI: `ForwardMessageModal.tsx` (new) — channel/DM picker with search + optional comment
-- [ ] UI: Forwarded messages render with "Forwarded from #channel" attribution bar
+- [x] Create migration: add `forwarded_from_message_id UUID`, `forwarded_from_channel_id UUID` to messages
+- [x] Add forward endpoint in `api/src/handlers/messages.rs`: POST `/api/messages/{id}/forward` (body: channel_id/dm_id + optional comment)
+- [x] Forward creates new message with forwarded metadata
+- [x] UI: "Forward" button in `MessageItem.tsx` hover actions
+- [x] UI: `ForwardMessageModal.tsx` (new) — channel/DM picker with search + optional comment
+- [x] UI: Forwarded messages render with "Forwarded from #channel" attribution bar
 
 ### 6.2 Animations & Transitions
-- [ ] CSS transitions on sidebar items (hover, selection)
-- [ ] Message appear animation (subtle slide-up + fade-in)
-- [ ] Modal open/close animation (scale + fade)
-- [ ] Sidebar collapse/expand animation
-- [ ] Toast slide-in/out in `ToastProvider.tsx`
-- [ ] Typing indicator bouncing dots animation
-- [ ] Thread panel slide-in animation
-- [ ] Respect `prefers-reduced-motion` media query
+- [x] CSS transitions on sidebar items (hover, selection)
+- [x] Message appear animation (subtle slide-up + fade-in)
+- [x] Modal open/close animation (scale + fade)
+- [x] Sidebar collapse/expand animation
+- [x] Toast slide-in/out in `ToastProvider.tsx`
+- [x] Typing indicator bouncing dots animation
+- [x] Thread panel slide-in animation
+- [x] Respect `prefers-reduced-motion` media query
 
 ### 6.3 Notification Sounds & Browser Integration
-- [ ] Multiple notification sound options in settings
-- [ ] Different sounds for mentions vs regular messages
-- [ ] Browser tab title badge: "(3) OpenChat"
-- [ ] Dynamic favicon with unread count
-- [ ] Browser Notification API for background tab alerts
-- [ ] Sound picker component in `webui/components/settings/`
+- [x] Multiple notification sound options in settings
+- [x] Different sounds for mentions vs regular messages
+- [x] Browser tab title badge: "(3) OpenChat"
+- [x] Dynamic favicon with unread count
+- [x] Browser Notification API for background tab alerts
+- [x] Sound picker component in `webui/components/settings/`
 
 ### 6.4 Accessibility
-- [ ] ARIA labels on all interactive elements
-- [ ] Keyboard navigation in message list (arrow keys)
-- [ ] Screen reader announcements for new messages (aria-live region)
-- [ ] Focus trap in all modals
-- [ ] High contrast CSS custom properties
+- [x] ARIA labels on all interactive elements
+- [x] Keyboard navigation in message list (arrow keys)
+- [x] Screen reader announcements for new messages (aria-live region)
+- [x] Focus trap in all modals
+- [x] High contrast CSS custom properties
 
 **Key files:** `api/src/handlers/messages.rs`, `api/src/models/message.rs`, `webui/components/ForwardMessageModal.tsx` (new), `webui/components/MessageItem.tsx`, `webui/app/globals.css`, `webui/hooks/useNotificationSound.ts`, `webui/components/settings/`
 
 ### Verification
-- [ ] Forward message to another channel, verify attribution renders
-- [ ] Test all animations (enable/disable reduced motion)
-- [ ] Verify browser notifications work when tab is background
-- [ ] Screen reader test on message list
-- [ ] `cargo check`, `eslint src/`
+- [x] Forward message to another channel, verify attribution renders
+- [x] Test all animations (enable/disable reduced motion)
+- [x] Verify browser notifications work when tab is background
+- [x] Screen reader test on message list
+- [x] `cargo check`, `eslint src/`
 
 ---
 

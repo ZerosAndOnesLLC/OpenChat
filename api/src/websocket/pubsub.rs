@@ -203,6 +203,9 @@ impl RedisPubSub {
                         parent_message_id,
                         created_at,
                         is_webhook: None,
+                        forwarded_from_message_id: None,
+                        forwarded_from_channel_id: None,
+                        forwarded_from_channel_name: None,
                     },
                 });
             }

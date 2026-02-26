@@ -147,7 +147,7 @@ export default function Sidebar({
   };
 
   return (
-    <div className="flex flex-col bg-gray-900 text-white" style={{ width }}>
+    <nav role="navigation" aria-label="Chat navigation" className="flex flex-col bg-gray-900 text-white" style={{ width }}>
       <div className="flex h-14 items-center justify-between border-b border-gray-700 px-4">
         <h1 className="text-xl font-bold">OpenChat</h1>
         <button
@@ -305,6 +305,6 @@ export default function Sidebar({
         isOpen={showScheduledMessages}
         onClose={() => setShowScheduledMessages(false)}
       />
-    </div>
+    </nav>
   );
 }

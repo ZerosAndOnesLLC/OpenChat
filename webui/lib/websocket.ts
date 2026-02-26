@@ -189,6 +189,9 @@ export const useWebSocketStore = create<WebSocketStore>((set, get) => ({
               created_at: msg.created_at,
               edited_at: msg.edited_at,
               reply_count: msg.reply_count,
+              forwarded_from_message_id: msg.forwarded_from_message_id,
+              forwarded_from_channel_id: msg.forwarded_from_channel_id,
+              forwarded_from_channel_name: msg.forwarded_from_channel_name,
               user: {
                 id: msg.user_id,
                 display_name: msg.user_name,
@@ -242,6 +245,9 @@ export const useWebSocketStore = create<WebSocketStore>((set, get) => ({
               created_at: msg.created_at,
               edited_at: msg.edited_at,
               reply_count: msg.reply_count,
+              forwarded_from_message_id: msg.forwarded_from_message_id,
+              forwarded_from_channel_id: msg.forwarded_from_channel_id,
+              forwarded_from_channel_name: msg.forwarded_from_channel_name,
               user: {
                 id: msg.user_id,
                 display_name: msg.user_name,
@@ -289,6 +295,9 @@ export const useWebSocketStore = create<WebSocketStore>((set, get) => ({
               content: message.content,
               parent_message_id: message.parent_message_id,
               created_at: message.created_at,
+              forwarded_from_message_id: message.forwarded_from_message_id,
+              forwarded_from_channel_id: message.forwarded_from_channel_id,
+              forwarded_from_channel_name: message.forwarded_from_channel_name,
               user: {
                 id: message.user_id,
                 display_name: message.user_name,

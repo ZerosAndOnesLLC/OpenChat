@@ -289,6 +289,7 @@ async fn main() -> std::io::Result<()> {
                     .route("/{id}/pin", web::delete().to(pin_handlers::unpin_message))
                     .route("/{id}/read", web::post().to(read_receipt_handlers::record_read_receipt))
                     .route("/{id}/receipts", web::get().to(read_receipt_handlers::get_message_receipts))
+                    .route("/{id}/forward", web::post().to(message_handlers::forward_message))
             )
             // Reminder routes - require "openchat" role
             .service(

@@ -4,6 +4,26 @@ import { useEffect, useRef, useState, useCallback } from 'react';
 import type { Message } from '@/lib/types';
 import MessageItem from './MessageItem';
 
+// Track the latest new message for screen reader announcement
+function useNewMessageAnnouncement(messages: Message[]) {
+  const [announcement, setAnnouncement] = useState('');
+  const prevCountRef = useRef(messages.length);
+
+  useEffect(() => {
+    if (messages.length > prevCountRef.current) {
+      const newest = messages[messages.length - 1];
+      if (newest) {
+        const name = newest.user?.display_name || 'Someone';
+        const preview = newest.content.length > 60 ? newest.content.slice(0, 60) + '...' : newest.content;
+        setAnnouncement(`${name}: ${preview}`);
+      }
+    }
+    prevCountRef.current = messages.length;
+  }, [messages]);
+
+  return announcement;
+}
+
 interface MessageListProps {
   messages: Message[];
   unreadCount?: number;
@@ -12,15 +32,44 @@ interface MessageListProps {
   onOpenThread?: (message: Message) => void;
   onPin?: (message: Message) => void;
   onBookmark?: (message: Message) => void;
+  onForward?: (message: Message) => void;
   pinnedMessageIds?: Set<string>;
   bookmarkedMessageIds?: Set<string>;
 }
 
-export default function MessageList({ messages, unreadCount = 0, lastReadMessageId, onReply, onOpenThread, onPin, onBookmark, pinnedMessageIds = new Set(), bookmarkedMessageIds = new Set() }: MessageListProps) {
+export default function MessageList({ messages, unreadCount = 0, lastReadMessageId, onReply, onOpenThread, onPin, onBookmark, onForward, pinnedMessageIds = new Set(), bookmarkedMessageIds = new Set() }: MessageListProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const unreadMarkerRef = useRef<HTMLDivElement>(null);
   const lastReadMessageRef = useRef<HTMLDivElement>(null);
   const [hasInitialScrolled, setHasInitialScrolled] = useState(false);
+  const announcement = useNewMessageAnnouncement(messages);
+
+  // Keyboard navigation for message list
+  const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
+    const target = e.target as HTMLElement;
+    if (!target.hasAttribute('data-message-idx')) return;
+
+    const idx = parseInt(target.getAttribute('data-message-idx') || '0', 10);
+
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      const next = scrollRef.current?.querySelector<HTMLElement>(`[data-message-idx="${idx + 1}"]`);
+      next?.focus();
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      const prev = scrollRef.current?.querySelector<HTMLElement>(`[data-message-idx="${idx - 1}"]`);
+      prev?.focus();
+    } else if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      if (idx >= 0 && idx < messages.length) {
+        onOpenThread?.(messages[idx]);
+      }
+    } else if (e.key === 'r' && !e.ctrlKey && !e.metaKey) {
+      if (idx >= 0 && idx < messages.length) {
+        onReply?.(messages[idx]);
+      }
+    }
+  }, [messages, onOpenThread, onReply]);
 
   // Calculate the index of the last read message and first unread message
   let lastReadIndex = -1;
@@ -117,12 +166,18 @@ export default function MessageList({ messages, unreadCount = 0, lastReadMessage
   }
 
   return (
-    <div ref={scrollRef} className="flex-1 overflow-y-auto px-6 py-4">
-      <div className="space-y-4">
+    <div ref={scrollRef} className="flex-1 overflow-y-auto px-6 py-4" onKeyDown={handleKeyDown}>
+      {/* Screen reader announcement for new messages */}
+      <div aria-live="polite" className="sr-only">{announcement}</div>
+      <div role="list" className="space-y-4">
         {messages.map((message, index) => (
           <div
             key={message.id}
+            role="listitem"
+            tabIndex={0}
+            data-message-idx={index}
             ref={index === lastReadIndex ? lastReadMessageRef : undefined}
+            className="focus-visible:outline-2 focus-visible:outline-blue-500 focus-visible:outline-offset-2 rounded"
           >
             {/* Show unread marker before the first unread message */}
             {index === firstUnreadIndex && (
@@ -143,6 +198,7 @@ export default function MessageList({ messages, unreadCount = 0, lastReadMessage
               onOpenThread={onOpenThread}
               onPin={onPin}
               onBookmark={onBookmark}
+              onForward={onForward}
               isPinned={pinnedMessageIds.has(message.id)}
               isBookmarked={bookmarkedMessageIds.has(message.id)}
             />

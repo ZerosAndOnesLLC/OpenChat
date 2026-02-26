@@ -26,11 +26,12 @@ interface MessageItemProps {
   onOpenThread?: (message: Message) => void;
   onPin?: (message: Message) => void;
   onBookmark?: (message: Message) => void;
+  onForward?: (message: Message) => void;
   isPinned?: boolean;
   isBookmarked?: boolean;
 }
 
-export default function MessageItem({ message, onReply, onOpenThread, onPin, onBookmark, isPinned = false, isBookmarked = false }: MessageItemProps) {
+export default function MessageItem({ message, onReply, onOpenThread, onPin, onBookmark, onForward, isPinned = false, isBookmarked = false }: MessageItemProps) {
   const { user } = useAuth();
   const { addReaction: addReactionToStore, removeReaction: removeReactionFromStore, wsAddReaction, wsRemoveReaction, wsEditMessage, wsDeleteMessage, updateMessage: updateMessageInStore, deleteMessage: deleteMessageFromStore } = useWebSocketStore();
   const [showReactionPicker, setShowReactionPicker] = useState(false);
@@ -155,7 +156,9 @@ export default function MessageItem({ message, onReply, onOpenThread, onPin, onB
 
   return (
     <div
-      className="group relative"
+      role="article"
+      aria-label={`Message from ${message.user?.display_name || 'Unknown User'} at ${formatTime(message.created_at)}`}
+      className="group relative animate-slide-up"
       onMouseEnter={handleMouseEnter}
       onMouseLeave={handleMouseLeave}
     >
@@ -179,6 +182,17 @@ export default function MessageItem({ message, onReply, onOpenThread, onPin, onB
               </button>
             )}
           </div>
+          {/* Forwarded attribution bar */}
+          {message.forwarded_from_message_id && (
+            <div className="mb-1 flex items-center gap-1 text-xs text-gray-400">
+              <svg className="h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" />
+              </svg>
+              <span>
+                Forwarded{message.forwarded_from_channel_name ? ` from #${message.forwarded_from_channel_name}` : ' from a direct message'}
+              </span>
+            </div>
+          )}
           {isEditing ? (
             <div className="mb-2">
               <input
@@ -249,6 +263,7 @@ export default function MessageItem({ message, onReply, onOpenThread, onPin, onB
                       handleAddReaction(emoji);
                     }
                   }}
+                  aria-label={`${hasReacted ? 'Remove' : 'Add'} reaction ${emoji}, ${data.count} ${data.count === 1 ? 'reaction' : 'reactions'}`}
                   className={`rounded-full border px-2 py-0.5 text-xs transition-colors ${
                     hasReacted
                       ? 'border-blue-500 bg-blue-900 text-white'
@@ -337,6 +352,7 @@ export default function MessageItem({ message, onReply, onOpenThread, onPin, onB
             onClick={() => onReply?.(message)}
             className="rounded p-1 hover:bg-gray-800"
             title="Reply in thread"
+            aria-label="Reply in thread"
           >
             <svg
               className="h-4 w-4 text-gray-300"
@@ -356,6 +372,7 @@ export default function MessageItem({ message, onReply, onOpenThread, onPin, onB
             onClick={() => onPin?.(message)}
             className="rounded p-1 hover:bg-gray-800"
             title={isPinned ? "Unpin message" : "Pin message"}
+            aria-label={isPinned ? "Unpin message" : "Pin message"}
           >
             <svg
               className={`h-4 w-4 ${isPinned ? 'text-yellow-400' : 'text-gray-300'}`}
@@ -375,6 +392,7 @@ export default function MessageItem({ message, onReply, onOpenThread, onPin, onB
             onClick={() => onBookmark?.(message)}
             className="rounded p-1 hover:bg-gray-800"
             title={isBookmarked ? "Remove bookmark" : "Bookmark message"}
+            aria-label={isBookmarked ? "Remove bookmark" : "Bookmark message"}
           >
             <svg
               className={`h-4 w-4 ${isBookmarked ? 'text-blue-400' : 'text-gray-300'}`}
@@ -387,6 +405,26 @@ export default function MessageItem({ message, onReply, onOpenThread, onPin, onB
                 strokeLinejoin="round"
                 strokeWidth={2}
                 d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z"
+              />
+            </svg>
+          </button>
+          <button
+            onClick={() => onForward?.(message)}
+            className="rounded p-1 hover:bg-gray-800"
+            title="Forward message"
+            aria-label="Forward message"
+          >
+            <svg
+              className="h-4 w-4 text-gray-300"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M13 7l5 5m0 0l-5 5m5-5H6"
               />
             </svg>
           </button>
@@ -422,6 +460,7 @@ export default function MessageItem({ message, onReply, onOpenThread, onPin, onB
                 onClick={() => setIsEditing(true)}
                 className="rounded p-1 hover:bg-gray-800"
                 title="Edit message"
+                aria-label="Edit message"
               >
                 <svg
                   className="h-4 w-4 text-gray-300"
@@ -441,6 +480,7 @@ export default function MessageItem({ message, onReply, onOpenThread, onPin, onB
                 onClick={handleDelete}
                 className="rounded p-1 hover:bg-gray-800"
                 title="Delete message"
+                aria-label="Delete message"
               >
                 <svg
                   className="h-4 w-4 text-red-400"

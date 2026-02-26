@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiClient } from '@/lib/api';
 import { useWebSocketStore } from '@/lib/websocket';
+import { useFocusTrap } from '@/hooks/useFocusTrap';
 import type { Channel } from '@/lib/types';
 
 interface EditChannelModalProps {
@@ -24,6 +25,7 @@ export default function EditChannelModal({
   const [error, setError] = useState<string | null>(null);
   const queryClient = useQueryClient();
   const updateChannelInStore = useWebSocketStore((state) => state.updateChannel);
+  const trapRef = useFocusTrap(isOpen);
 
   useEffect(() => {
     if (isOpen) {
@@ -66,10 +68,10 @@ export default function EditChannelModal({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
-      <div className="w-full max-w-md rounded-lg bg-gray-900 p-6 shadow-xl">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 animate-fade-in">
+      <div ref={trapRef} role="dialog" aria-modal="true" aria-labelledby="edit-channel-modal-title" className="w-full max-w-md rounded-lg bg-gray-900 p-6 shadow-xl animate-modal-in">
         <div className="mb-4 flex items-center justify-between">
-          <h2 className="text-xl font-semibold text-white">Edit Channel</h2>
+          <h2 id="edit-channel-modal-title" className="text-xl font-semibold text-white">Edit Channel</h2>
           <button
             onClick={onClose}
             className="rounded p-1 text-gray-400 hover:bg-gray-800 hover:text-white"

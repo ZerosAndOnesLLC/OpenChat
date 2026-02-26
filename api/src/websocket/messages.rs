@@ -135,6 +135,12 @@ pub struct MessageWithDetails {
     pub created_at: DateTime<Utc>,
     pub edited_at: Option<DateTime<Utc>>,
     pub reply_count: i64,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub forwarded_from_message_id: Option<Uuid>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub forwarded_from_channel_id: Option<Uuid>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub forwarded_from_channel_name: Option<String>,
 }
 
 /// Pinned message information for channel subscription
@@ -213,6 +219,12 @@ pub enum ServerMessage {
         /// Whether this message was sent via webhook
         #[serde(skip_serializing_if = "Option::is_none")]
         is_webhook: Option<bool>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        forwarded_from_message_id: Option<Uuid>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        forwarded_from_channel_id: Option<Uuid>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        forwarded_from_channel_name: Option<String>,
     },
     /// Message was edited
     MessageEdited {

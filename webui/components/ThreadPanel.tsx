@@ -40,7 +40,7 @@ export default function ThreadPanel({ messageId, onClose }: ThreadPanelProps) {
 
   if (isLoading) {
     return (
-      <div className="flex h-full w-96 flex-col border-l border-gray-800 bg-black">
+      <div className="flex h-full w-96 flex-col border-l border-gray-800 bg-black animate-slide-in-right">
         <div className="flex h-14 items-center justify-between border-b border-gray-800 px-4">
           <h2 className="text-lg font-semibold text-white">Thread</h2>
           <button
@@ -62,7 +62,7 @@ export default function ThreadPanel({ messageId, onClose }: ThreadPanelProps) {
 
   if (error) {
     return (
-      <div className="flex h-full w-96 flex-col border-l border-gray-800 bg-black">
+      <div className="flex h-full w-96 flex-col border-l border-gray-800 bg-black animate-slide-in-right">
         <div className="flex h-14 items-center justify-between border-b border-gray-800 px-4">
           <h2 className="text-lg font-semibold text-white">Thread</h2>
           <button
@@ -87,7 +87,7 @@ export default function ThreadPanel({ messageId, onClose }: ThreadPanelProps) {
   }
 
   return (
-    <div className="flex h-full w-96 flex-col border-l border-gray-800 bg-black">
+    <div className="flex h-full w-96 flex-col border-l border-gray-800 bg-black animate-slide-in-right">
       {/* Header */}
       <div className="flex h-14 flex-col justify-center border-b border-gray-800 px-4">
         <div className="flex items-center justify-between">

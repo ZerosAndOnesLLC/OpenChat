@@ -18,11 +18,11 @@ export default function ChannelMentionDialog({
   return (
     <>
       <div
-        className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center"
+        className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center animate-fade-in"
         onClick={onCancel}
       >
         <div
-          className="bg-white dark:bg-gray-800 rounded-lg p-6 max-w-md w-full mx-4 shadow-xl"
+          className="bg-white dark:bg-gray-800 rounded-lg p-6 max-w-md w-full mx-4 shadow-xl animate-modal-in"
           onClick={(e) => e.stopPropagation()}
         >
           <div className="mb-4">

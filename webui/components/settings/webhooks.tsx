@@ -322,8 +322,8 @@ export default function WebhookManagement() {
 
       {/* Delete Confirmation */}
       {showDeleteConfirm && (
-        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
-          <div className="bg-gray-900 border border-gray-800 rounded-2xl shadow-2xl max-w-md w-full p-6">
+        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4 animate-fade-in">
+          <div className="bg-gray-900 border border-gray-800 rounded-2xl shadow-2xl max-w-md w-full p-6 animate-modal-in">
             <div className="flex items-start gap-4 mb-6">
               <div className="p-3 bg-red-500/10 rounded-full">
                 <AlertCircle className="w-6 h-6 text-red-400" />
@@ -404,8 +404,8 @@ function WebhookFormModal({ channels, webhook, onClose, onSubmit, isLoading }: W
   };
 
   return (
-    <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
-      <div className="bg-gray-900 border border-gray-800 rounded-2xl shadow-2xl max-w-lg w-full p-6">
+    <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4 animate-fade-in">
+      <div className="bg-gray-900 border border-gray-800 rounded-2xl shadow-2xl max-w-lg w-full p-6 animate-modal-in">
         <h3 className="text-lg font-semibold text-white mb-6">
           {webhook ? 'Edit Webhook' : 'Create Incoming Webhook'}
         </h3>

@@ -612,6 +612,7 @@ export default function MessageInput({ channelId, dmId, replyTo, onClearReply }:
                 onBlur={handleBlur}
                 onKeyDown={handleKeyDown}
                 placeholder={replyTo ? "Type your reply..." : "Type a message..."}
+                aria-label={replyTo ? "Type your reply" : "Type a message"}
                 className="w-full min-h-[48px] max-h-[200px] bg-transparent pl-12 pr-14 py-3 text-sm text-white placeholder-gray-500 focus:outline-none resize-none overflow-y-auto leading-relaxed"
                 rows={2}
               />
@@ -627,6 +628,7 @@ export default function MessageInput({ channelId, dmId, replyTo, onClearReply }:
             onClick={() => fileInputRef.current?.click()}
             className="absolute left-2 top-2 p-2 text-gray-400 transition-colors hover:text-white z-10"
             title="Attach files"
+            aria-label="Attach files"
           >
             <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
@@ -638,6 +640,7 @@ export default function MessageInput({ channelId, dmId, replyTo, onClearReply }:
               onClick={() => setShowPollCreator(true)}
               className="rounded-md p-2 text-gray-400 transition-colors hover:text-white hover:bg-gray-800"
               title="Create poll"
+              aria-label="Create poll"
             >
               <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
@@ -649,6 +652,7 @@ export default function MessageInput({ channelId, dmId, replyTo, onClearReply }:
               disabled={!message.trim()}
               className="rounded-md p-2 text-gray-400 transition-colors hover:text-white hover:bg-gray-800 disabled:text-gray-600 disabled:cursor-not-allowed"
               title="Schedule message"
+              aria-label="Schedule message"
             >
               <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
@@ -658,6 +662,7 @@ export default function MessageInput({ channelId, dmId, replyTo, onClearReply }:
               type="submit"
               disabled={!message.trim() && selectedFiles.length === 0}
               className="rounded-md bg-blue-600 p-2 text-white transition-colors hover:bg-blue-700 disabled:bg-gray-700 disabled:text-gray-400 disabled:cursor-not-allowed"
+              aria-label="Send message"
             >
               <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />

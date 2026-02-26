@@ -83,13 +83,13 @@ export default function BrowseChannelsModal({
     <>
       {/* Backdrop */}
       <div
-        className="fixed inset-0 z-40 bg-black bg-opacity-50"
+        className="fixed inset-0 z-40 bg-black bg-opacity-50 animate-fade-in"
         onClick={onClose}
       />
 
       {/* Modal */}
       <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-        <div className="w-full max-w-2xl rounded-lg bg-gray-900 shadow-xl">
+        <div className="w-full max-w-2xl rounded-lg bg-gray-900 shadow-xl animate-modal-in">
           {/* Header */}
           <div className="flex items-center justify-between border-b border-gray-700 px-6 py-4">
             <h2 className="text-xl font-semibold text-white">Browse Channels</h2>

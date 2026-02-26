@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 
 interface ToastProps {
   message: string;
@@ -10,9 +10,12 @@ interface ToastProps {
 }
 
 export default function Toast({ message, type = 'info', onClose, duration = 3000 }: ToastProps) {
+  const [closing, setClosing] = useState(false);
+
   useEffect(() => {
     const timer = setTimeout(() => {
-      onClose();
+      setClosing(true);
+      setTimeout(onClose, 300);
     }, duration);
 
     return () => clearTimeout(timer);
@@ -49,10 +52,10 @@ export default function Toast({ message, type = 'info', onClose, duration = 3000
   }[type];
 
   return (
-    <div className={`flex items-center gap-3 rounded-lg ${bgColor} px-4 py-3 text-white shadow-lg min-w-80 max-w-md`}>
+    <div className={`flex items-center gap-3 rounded-lg ${bgColor} px-4 py-3 text-white shadow-lg min-w-80 max-w-md ${closing ? 'animate-toast-out' : 'animate-toast-in'}`}>
       {icon}
       <span className="text-sm font-medium flex-1">{message}</span>
-      <button onClick={onClose} className="ml-2 hover:opacity-80 flex-shrink-0">
+      <button onClick={() => { setClosing(true); setTimeout(onClose, 300); }} className="ml-2 hover:opacity-80 flex-shrink-0">
         <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
         </svg>

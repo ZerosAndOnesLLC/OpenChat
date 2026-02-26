@@ -80,8 +80,8 @@ export default function PollCreator({ isOpen, onClose, channelId, dmId }: PollCr
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
-      <div className="bg-gray-800 rounded-lg border border-gray-700 w-full max-w-md mx-4 max-h-[80vh] overflow-y-auto">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 animate-fade-in">
+      <div className="bg-gray-800 rounded-lg border border-gray-700 w-full max-w-md mx-4 max-h-[80vh] overflow-y-auto animate-modal-in">
         <div className="flex items-center justify-between p-4 border-b border-gray-700">
           <h2 className="text-lg font-semibold text-white">Create Poll</h2>
           <button onClick={onClose} className="text-gray-400 hover:text-white">

@@ -14,11 +14,11 @@ export default function KeyboardShortcutsHelp({ isOpen, onClose }: KeyboardShort
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 animate-fade-in"
       onClick={onClose}
     >
       <div
-        className="max-h-[80vh] w-full max-w-2xl overflow-y-auto rounded-lg bg-gray-900 shadow-xl"
+        className="max-h-[80vh] w-full max-w-2xl overflow-y-auto rounded-lg bg-gray-900 shadow-xl animate-modal-in"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}

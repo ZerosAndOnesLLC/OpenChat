@@ -156,7 +156,7 @@ export default function MessageItem({ message, onReply, onOpenThread, onPin, onB
 
   return (
     <div
-      className="group relative"
+      className="group relative animate-slide-up"
       onMouseEnter={handleMouseEnter}
       onMouseLeave={handleMouseLeave}
     >

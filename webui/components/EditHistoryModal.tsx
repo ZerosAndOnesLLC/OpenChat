@@ -101,9 +101,9 @@ export default function EditHistoryModal({ messageId, currentContent, isOpen, on
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50" onClick={onClose}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 animate-fade-in" onClick={onClose}>
       <div
-        className="w-full max-w-3xl rounded-lg bg-gray-900 p-6 shadow-xl"
+        className="w-full max-w-3xl rounded-lg bg-gray-900 p-6 shadow-xl animate-modal-in"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="mb-4 flex items-center justify-between">

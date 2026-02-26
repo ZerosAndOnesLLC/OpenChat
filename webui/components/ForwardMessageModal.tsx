@@ -54,8 +54,8 @@ export default function ForwardMessageModal({ message, isOpen, onClose, onSucces
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60" onClick={onClose}>
-      <div className="w-full max-w-md rounded-lg bg-gray-900 shadow-xl" onClick={e => e.stopPropagation()}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 animate-fade-in" onClick={onClose}>
+      <div className="w-full max-w-md rounded-lg bg-gray-900 shadow-xl animate-modal-in" onClick={e => e.stopPropagation()}>
         <div className="flex items-center justify-between border-b border-gray-700 px-4 py-3">
           <h3 className="text-lg font-semibold text-white">Forward Message</h3>
           <button onClick={onClose} className="text-gray-400 hover:text-white">

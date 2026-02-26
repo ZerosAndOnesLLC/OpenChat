@@ -126,7 +126,7 @@ function ChannelItem({
 
   return (
     <div
-      className={`group relative flex items-center rounded transition-colors ${
+      className={`group relative flex items-center rounded transition-colors duration-150 ${
         isActive
           ? 'bg-blue-600 text-white'
           : 'text-gray-300 hover:bg-gray-800'

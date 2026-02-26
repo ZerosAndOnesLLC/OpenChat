@@ -66,8 +66,8 @@ export default function EditChannelModal({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
-      <div className="w-full max-w-md rounded-lg bg-gray-900 p-6 shadow-xl">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 animate-fade-in">
+      <div className="w-full max-w-md rounded-lg bg-gray-900 p-6 shadow-xl animate-modal-in">
         <div className="mb-4 flex items-center justify-between">
           <h2 className="text-xl font-semibold text-white">Edit Channel</h2>
           <button

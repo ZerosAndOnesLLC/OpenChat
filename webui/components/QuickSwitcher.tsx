@@ -82,11 +82,11 @@ export default function QuickSwitcher({ isOpen, onClose, onSelectChannel, onSele
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-start justify-center bg-black bg-opacity-50 pt-20"
+      className="fixed inset-0 z-50 flex items-start justify-center bg-black bg-opacity-50 pt-20 animate-fade-in"
       onClick={onClose}
     >
       <div
-        className="w-full max-w-2xl overflow-hidden rounded-lg bg-gray-900 shadow-xl"
+        className="w-full max-w-2xl overflow-hidden rounded-lg bg-gray-900 shadow-xl animate-modal-in"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Search Input */}

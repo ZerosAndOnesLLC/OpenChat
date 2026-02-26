@@ -21,11 +21,11 @@ export default function GlobalSearchModal({ isOpen, onClose }: GlobalSearchModal
   return (
     <>
       <div
-        className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-start justify-center pt-20"
+        className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-start justify-center pt-20 animate-fade-in"
         onClick={onClose}
       >
         <div
-          className="bg-white dark:bg-gray-800 rounded-lg p-4 w-full max-w-2xl mx-4 shadow-xl"
+          className="bg-white dark:bg-gray-800 rounded-lg p-4 w-full max-w-2xl mx-4 shadow-xl animate-modal-in"
           onClick={(e) => e.stopPropagation()}
         >
           <SearchBar onSearch={handleSearch} autoFocus onClose={onClose} />

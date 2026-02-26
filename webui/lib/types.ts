@@ -451,6 +451,66 @@ export interface ScheduledMessage {
   created_at: string;
 }
 
+// Channel Section types
+export interface ChannelSection {
+  id: string;
+  user_id: string;
+  org_id: string;
+  name: string;
+  position: number;
+  collapsed: boolean;
+  created_at: string;
+  channel_ids: string[];
+}
+
+export interface CreateChannelSectionRequest {
+  name: string;
+}
+
+export interface UpdateChannelSectionRequest {
+  name?: string;
+  collapsed?: boolean;
+}
+
+export interface ReorderSectionRequest {
+  order: { id: string; position: number }[];
+}
+
+export interface ReorderSectionItemsRequest {
+  order: { channel_id: string; position: number }[];
+}
+
+// User Group types
+export interface UserGroup {
+  id: string;
+  org_id: string;
+  name: string;
+  handle: string;
+  description?: string;
+  created_by: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface UserGroupMember {
+  id: string;
+  group_id: string;
+  user_id: string;
+  added_at: string;
+}
+
+export interface CreateUserGroupRequest {
+  name: string;
+  handle: string;
+  description?: string;
+}
+
+export interface UpdateUserGroupRequest {
+  name?: string;
+  handle?: string;
+  description?: string;
+}
+
 // Reminder types
 export interface Reminder {
   id: string;

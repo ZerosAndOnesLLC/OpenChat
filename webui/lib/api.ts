@@ -1,8 +1,15 @@
 import type {
   Channel,
   ChannelMember,
+  ChannelSection,
   CreateChannelRequest,
+  CreateChannelSectionRequest,
+  CreateUserGroupRequest,
   UpdateChannelRequest,
+  UpdateChannelSectionRequest,
+  UpdateUserGroupRequest,
+  ReorderSectionRequest,
+  ReorderSectionItemsRequest,
   AddMemberRequest,
   DirectMessage,
   CreateDmRequest,
@@ -13,6 +20,8 @@ import type {
   ReactionCount,
   AddReactionRequest,
   User,
+  UserGroup,
+  UserGroupMember,
   UserStatus,
   UpdateUserRequest,
   UpdateUserStatusRequest,
@@ -734,6 +743,104 @@ class ApiClient {
 
   async deleteReminder(id: string): Promise<void> {
     return this.request<void>(`/api/reminders/${id}`, {
+      method: 'DELETE',
+    });
+  }
+
+  // Channel Section endpoints
+  async listChannelSections(): Promise<ChannelSection[]> {
+    return this.request<ChannelSection[]>('/api/channel-sections');
+  }
+
+  async createChannelSection(data: CreateChannelSectionRequest): Promise<ChannelSection> {
+    return this.request<ChannelSection>('/api/channel-sections', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async updateChannelSection(id: string, data: UpdateChannelSectionRequest): Promise<ChannelSection> {
+    return this.request<ChannelSection>(`/api/channel-sections/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async deleteChannelSection(id: string): Promise<void> {
+    return this.request<void>(`/api/channel-sections/${id}`, {
+      method: 'DELETE',
+    });
+  }
+
+  async addChannelToSection(sectionId: string, channelId: string, position?: number): Promise<void> {
+    return this.request<void>(`/api/channel-sections/${sectionId}/channels`, {
+      method: 'POST',
+      body: JSON.stringify({ channel_id: channelId, position }),
+    });
+  }
+
+  async removeChannelFromSection(sectionId: string, channelId: string): Promise<void> {
+    return this.request<void>(`/api/channel-sections/${sectionId}/channels/${channelId}`, {
+      method: 'DELETE',
+    });
+  }
+
+  async reorderSections(data: ReorderSectionRequest): Promise<void> {
+    return this.request<void>('/api/channel-sections/reorder', {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async reorderSectionItems(sectionId: string, data: ReorderSectionItemsRequest): Promise<void> {
+    return this.request<void>(`/api/channel-sections/${sectionId}/reorder`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+  }
+
+  // User Group endpoints
+  async listUserGroups(): Promise<UserGroup[]> {
+    return this.request<UserGroup[]>('/api/user-groups');
+  }
+
+  async createUserGroup(data: CreateUserGroupRequest): Promise<UserGroup> {
+    return this.request<UserGroup>('/api/user-groups', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async getUserGroup(id: string): Promise<UserGroup> {
+    return this.request<UserGroup>(`/api/user-groups/${id}`);
+  }
+
+  async updateUserGroup(id: string, data: UpdateUserGroupRequest): Promise<UserGroup> {
+    return this.request<UserGroup>(`/api/user-groups/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async deleteUserGroup(id: string): Promise<void> {
+    return this.request<void>(`/api/user-groups/${id}`, {
+      method: 'DELETE',
+    });
+  }
+
+  async getGroupMembers(groupId: string): Promise<UserGroupMember[]> {
+    return this.request<UserGroupMember[]>(`/api/user-groups/${groupId}/members`);
+  }
+
+  async addGroupMember(groupId: string, userId: string): Promise<UserGroupMember> {
+    return this.request<UserGroupMember>(`/api/user-groups/${groupId}/members`, {
+      method: 'POST',
+      body: JSON.stringify({ user_id: userId }),
+    });
+  }
+
+  async removeGroupMember(groupId: string, userId: string): Promise<void> {
+    return this.request<void>(`/api/user-groups/${groupId}/members/${userId}`, {
       method: 'DELETE',
     });
   }

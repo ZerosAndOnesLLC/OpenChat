@@ -16,6 +16,7 @@ use handlers::{
     attachment as attachment_handlers,
     audit_logs as audit_log_handlers,
     bookmarks as bookmark_handlers,
+    calls as call_handlers,
     channel_sections as channel_section_handlers,
     channels as channel_handlers,
     commands as command_handlers,
@@ -276,6 +277,8 @@ async fn main() -> std::io::Result<()> {
                     .route("/{id}/legal-hold", web::delete().to(retention_handlers::disable_legal_hold))
                     .route("/{id}/notifications", web::put().to(notification_pref_handlers::set_channel_notification_pref))
                     .route("/{id}/notifications", web::get().to(notification_pref_handlers::get_channel_notification_pref))
+                    .route("/{id}/huddle/join", web::post().to(call_handlers::join_huddle))
+                    .route("/{id}/huddle/leave", web::post().to(call_handlers::leave_huddle))
             )
             // Message routes - require "openchat" role
             .service(
@@ -557,6 +560,17 @@ async fn main() -> std::io::Result<()> {
                     .route("/{id}/vote", web::post().to(poll_handlers::vote))
                     .route("/{id}/vote", web::delete().to(poll_handlers::remove_vote))
                     .route("/{id}/close", web::post().to(poll_handlers::close_poll))
+            )
+            // Call routes - require "openchat" role
+            .service(
+                web::scope("/api/calls")
+                    .wrap(api_rate_limit.clone())
+                    .wrap(openchat_auth.clone())
+                    .route("/start", web::post().to(call_handlers::start_call))
+                    .route("/active", web::get().to(call_handlers::list_active_calls))
+                    .route("/{id}/join", web::post().to(call_handlers::join_call))
+                    .route("/{id}/leave", web::post().to(call_handlers::leave_call))
+                    .route("/{id}/end", web::post().to(call_handlers::end_call))
             )
             // Slash command routes - require "openchat" role
             .service(

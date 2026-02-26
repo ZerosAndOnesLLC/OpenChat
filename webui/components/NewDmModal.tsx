@@ -7,6 +7,7 @@ import type { DirectMessage, User } from '@/lib/types';
 import type { DmMetadata } from '@/lib/types';
 import { useAuth } from '@/lib/auth';
 import { useWebSocketStore } from '@/lib/websocket';
+import { useFocusTrap } from '@/hooks/useFocusTrap';
 
 interface NewDmModalProps {
   isOpen: boolean;
@@ -25,6 +26,7 @@ export default function NewDmModal({
   const [searchQuery, setSearchQuery] = useState('');
   const queryClient = useQueryClient();
   const addDm = useWebSocketStore((state) => state.addDm);
+  const trapRef = useFocusTrap(isOpen);
 
   const { data: users, isLoading } = useQuery({
     queryKey: ['users'],
@@ -115,10 +117,10 @@ export default function NewDmModal({
 
       {/* Modal */}
       <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-        <div className="w-full max-w-2xl rounded-lg bg-gray-900 shadow-xl animate-modal-in">
+        <div ref={trapRef} role="dialog" aria-modal="true" aria-labelledby="new-dm-modal-title" className="w-full max-w-2xl rounded-lg bg-gray-900 shadow-xl animate-modal-in">
           {/* Header */}
           <div className="flex items-center justify-between border-b border-gray-700 px-6 py-4">
-            <h2 className="text-xl font-semibold text-white">New Message</h2>
+            <h2 id="new-dm-modal-title" className="text-xl font-semibold text-white">New Message</h2>
             <button
               onClick={onClose}
               className="text-gray-400 hover:text-white"

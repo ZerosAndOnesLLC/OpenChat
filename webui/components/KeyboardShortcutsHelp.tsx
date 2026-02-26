@@ -1,6 +1,7 @@
 'use client';
 
 import { keyboardShortcutsManager } from '@/lib/keyboard-shortcuts';
+import { useFocusTrap } from '@/hooks/useFocusTrap';
 
 interface KeyboardShortcutsHelpProps {
   isOpen: boolean;
@@ -8,6 +9,8 @@ interface KeyboardShortcutsHelpProps {
 }
 
 export default function KeyboardShortcutsHelp({ isOpen, onClose }: KeyboardShortcutsHelpProps) {
+  const trapRef = useFocusTrap(isOpen);
+
   if (!isOpen) return null;
 
   const shortcutsByCategory = keyboardShortcutsManager.getShortcutsByCategory();
@@ -18,12 +21,16 @@ export default function KeyboardShortcutsHelp({ isOpen, onClose }: KeyboardShort
       onClick={onClose}
     >
       <div
+        ref={trapRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="keyboard-shortcuts-modal-title"
         className="max-h-[80vh] w-full max-w-2xl overflow-y-auto rounded-lg bg-gray-900 shadow-xl animate-modal-in"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
         <div className="flex items-center justify-between border-b border-gray-700 px-6 py-4">
-          <h2 className="text-xl font-semibold text-white">Keyboard Shortcuts</h2>
+          <h2 id="keyboard-shortcuts-modal-title" className="text-xl font-semibold text-white">Keyboard Shortcuts</h2>
           <button
             onClick={onClose}
             className="text-gray-400 transition-colors hover:text-white"

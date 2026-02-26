@@ -6,6 +6,7 @@ import { apiClient } from '@/lib/api';
 import type { Channel, ChannelMetadata } from '@/lib/types';
 import { useAuth } from '@/lib/auth';
 import { useWebSocketStore } from '@/lib/websocket';
+import { useFocusTrap } from '@/hooks/useFocusTrap';
 
 interface BrowseChannelsModalProps {
   isOpen: boolean;
@@ -24,6 +25,7 @@ export default function BrowseChannelsModal({
   const [searchQuery, setSearchQuery] = useState('');
   const queryClient = useQueryClient();
   const addChannel = useWebSocketStore((state) => state.addChannel);
+  const trapRef = useFocusTrap(isOpen);
 
   const { data: publicChannels, isLoading } = useQuery({
     queryKey: ['public-channels'],
@@ -89,10 +91,10 @@ export default function BrowseChannelsModal({
 
       {/* Modal */}
       <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-        <div className="w-full max-w-2xl rounded-lg bg-gray-900 shadow-xl animate-modal-in">
+        <div ref={trapRef} role="dialog" aria-modal="true" aria-labelledby="browse-channels-modal-title" className="w-full max-w-2xl rounded-lg bg-gray-900 shadow-xl animate-modal-in">
           {/* Header */}
           <div className="flex items-center justify-between border-b border-gray-700 px-6 py-4">
-            <h2 className="text-xl font-semibold text-white">Browse Channels</h2>
+            <h2 id="browse-channels-modal-title" className="text-xl font-semibold text-white">Browse Channels</h2>
             <button
               onClick={onClose}
               className="text-gray-400 hover:text-white"

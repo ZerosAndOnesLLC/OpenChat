@@ -2,6 +2,7 @@
 
 import { useRouter } from 'next/navigation';
 import SearchBar from './SearchBar';
+import { useFocusTrap } from '@/hooks/useFocusTrap';
 
 interface GlobalSearchModalProps {
   isOpen: boolean;
@@ -10,6 +11,7 @@ interface GlobalSearchModalProps {
 
 export default function GlobalSearchModal({ isOpen, onClose }: GlobalSearchModalProps) {
   const router = useRouter();
+  const trapRef = useFocusTrap(isOpen);
 
   if (!isOpen) return null;
 
@@ -25,9 +27,14 @@ export default function GlobalSearchModal({ isOpen, onClose }: GlobalSearchModal
         onClick={onClose}
       >
         <div
+          ref={trapRef}
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="global-search-modal-title"
           className="bg-white dark:bg-gray-800 rounded-lg p-4 w-full max-w-2xl mx-4 shadow-xl animate-modal-in"
           onClick={(e) => e.stopPropagation()}
         >
+          <h2 id="global-search-modal-title" className="sr-only">Search</h2>
           <SearchBar onSearch={handleSearch} autoFocus onClose={onClose} />
           <div className="mt-4 text-xs text-gray-500 dark:text-gray-400">
             <div className="flex items-center justify-between">

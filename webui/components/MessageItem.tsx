@@ -156,6 +156,8 @@ export default function MessageItem({ message, onReply, onOpenThread, onPin, onB
 
   return (
     <div
+      role="article"
+      aria-label={`Message from ${message.user?.display_name || 'Unknown User'} at ${formatTime(message.created_at)}`}
       className="group relative animate-slide-up"
       onMouseEnter={handleMouseEnter}
       onMouseLeave={handleMouseLeave}
@@ -261,6 +263,7 @@ export default function MessageItem({ message, onReply, onOpenThread, onPin, onB
                       handleAddReaction(emoji);
                     }
                   }}
+                  aria-label={`${hasReacted ? 'Remove' : 'Add'} reaction ${emoji}, ${data.count} ${data.count === 1 ? 'reaction' : 'reactions'}`}
                   className={`rounded-full border px-2 py-0.5 text-xs transition-colors ${
                     hasReacted
                       ? 'border-blue-500 bg-blue-900 text-white'
@@ -349,6 +352,7 @@ export default function MessageItem({ message, onReply, onOpenThread, onPin, onB
             onClick={() => onReply?.(message)}
             className="rounded p-1 hover:bg-gray-800"
             title="Reply in thread"
+            aria-label="Reply in thread"
           >
             <svg
               className="h-4 w-4 text-gray-300"
@@ -368,6 +372,7 @@ export default function MessageItem({ message, onReply, onOpenThread, onPin, onB
             onClick={() => onPin?.(message)}
             className="rounded p-1 hover:bg-gray-800"
             title={isPinned ? "Unpin message" : "Pin message"}
+            aria-label={isPinned ? "Unpin message" : "Pin message"}
           >
             <svg
               className={`h-4 w-4 ${isPinned ? 'text-yellow-400' : 'text-gray-300'}`}
@@ -387,6 +392,7 @@ export default function MessageItem({ message, onReply, onOpenThread, onPin, onB
             onClick={() => onBookmark?.(message)}
             className="rounded p-1 hover:bg-gray-800"
             title={isBookmarked ? "Remove bookmark" : "Bookmark message"}
+            aria-label={isBookmarked ? "Remove bookmark" : "Bookmark message"}
           >
             <svg
               className={`h-4 w-4 ${isBookmarked ? 'text-blue-400' : 'text-gray-300'}`}
@@ -406,6 +412,7 @@ export default function MessageItem({ message, onReply, onOpenThread, onPin, onB
             onClick={() => onForward?.(message)}
             className="rounded p-1 hover:bg-gray-800"
             title="Forward message"
+            aria-label="Forward message"
           >
             <svg
               className="h-4 w-4 text-gray-300"
@@ -453,6 +460,7 @@ export default function MessageItem({ message, onReply, onOpenThread, onPin, onB
                 onClick={() => setIsEditing(true)}
                 className="rounded p-1 hover:bg-gray-800"
                 title="Edit message"
+                aria-label="Edit message"
               >
                 <svg
                   className="h-4 w-4 text-gray-300"
@@ -472,6 +480,7 @@ export default function MessageItem({ message, onReply, onOpenThread, onPin, onB
                 onClick={handleDelete}
                 className="rounded p-1 hover:bg-gray-800"
                 title="Delete message"
+                aria-label="Delete message"
               >
                 <svg
                   className="h-4 w-4 text-red-400"

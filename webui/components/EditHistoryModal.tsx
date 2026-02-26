@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { apiClient } from '@/lib/api';
+import { useFocusTrap } from '@/hooks/useFocusTrap';
 import type { MessageEditWithUser } from '@/lib/types';
 import MarkdownRenderer from './MarkdownRenderer';
 
@@ -17,6 +18,7 @@ export default function EditHistoryModal({ messageId, currentContent, isOpen, on
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
+  const trapRef = useFocusTrap(isOpen);
 
   useEffect(() => {
     if (isOpen && messageId) {
@@ -103,11 +105,15 @@ export default function EditHistoryModal({ messageId, currentContent, isOpen, on
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 animate-fade-in" onClick={onClose}>
       <div
+        ref={trapRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="edit-history-modal-title"
         className="w-full max-w-3xl rounded-lg bg-gray-900 p-6 shadow-xl animate-modal-in"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="mb-4 flex items-center justify-between">
-          <h2 className="text-xl font-semibold text-white">Edit History</h2>
+          <h2 id="edit-history-modal-title" className="text-xl font-semibold text-white">Edit History</h2>
           <button
             onClick={onClose}
             className="text-gray-400 hover:text-white"

@@ -94,6 +94,7 @@ function DirectMessageItem({
       <button
         onClick={onSelect}
         className="flex-1 px-2 py-1.5 text-left text-sm"
+        aria-current={isActive ? 'page' : undefined}
       >
         <div className="flex items-center justify-between">
           <div className="flex items-center min-w-0 flex-1">

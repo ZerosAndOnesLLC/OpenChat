@@ -3,6 +3,7 @@
 import { useState, useMemo } from 'react';
 import { apiClient } from '@/lib/api';
 import { useWebSocketStore } from '@/lib/websocket';
+import { useFocusTrap } from '@/hooks/useFocusTrap';
 import type { Message } from '@/lib/types';
 
 interface ForwardMessageModalProps {
@@ -18,6 +19,7 @@ export default function ForwardMessageModal({ message, isOpen, onClose, onSucces
   const [comment, setComment] = useState('');
   const [sending, setSending] = useState(false);
   const [error, setError] = useState('');
+  const trapRef = useFocusTrap(isOpen);
 
   const filteredChannels = useMemo(() => {
     if (!search.trim()) return channels;
@@ -55,9 +57,9 @@ export default function ForwardMessageModal({ message, isOpen, onClose, onSucces
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 animate-fade-in" onClick={onClose}>
-      <div className="w-full max-w-md rounded-lg bg-gray-900 shadow-xl animate-modal-in" onClick={e => e.stopPropagation()}>
+      <div ref={trapRef} role="dialog" aria-modal="true" aria-labelledby="forward-modal-title" className="w-full max-w-md rounded-lg bg-gray-900 shadow-xl animate-modal-in" onClick={e => e.stopPropagation()}>
         <div className="flex items-center justify-between border-b border-gray-700 px-4 py-3">
-          <h3 className="text-lg font-semibold text-white">Forward Message</h3>
+          <h3 id="forward-modal-title" className="text-lg font-semibold text-white">Forward Message</h3>
           <button onClick={onClose} className="text-gray-400 hover:text-white">
             <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />

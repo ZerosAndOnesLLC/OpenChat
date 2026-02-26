@@ -20,6 +20,15 @@ pub struct Config {
     pub api_base_url: String,
     /// Base URL for the Web UI (used for desktop app redirects)
     pub webui_url: String,
+    /// LiveKit configuration for voice/video calling (optional)
+    pub livekit: Option<LiveKitConfig>,
+}
+
+#[derive(Debug, Clone)]
+pub struct LiveKitConfig {
+    pub url: String,
+    pub api_key: String,
+    pub api_secret: String,
 }
 
 #[derive(Debug, Clone)]
@@ -100,6 +109,8 @@ impl Config {
         let webui_url = env::var("WEBUI_URL")
             .unwrap_or_else(|_| "https://openchat.zerosandones.us".to_string());
 
+        let livekit = LiveKitConfig::from_env();
+
         Ok(Config {
             database_url: env::var("DATABASE_URL")?,
             redis_url: env::var("REDIS_URL")?,
@@ -117,6 +128,7 @@ impl Config {
             redis,
             api_base_url,
             webui_url,
+            livekit,
         })
     }
 }
@@ -206,5 +218,14 @@ impl WebSocketConfig {
                 .parse()
                 .unwrap_or(60),
         }
+    }
+}
+
+impl LiveKitConfig {
+    pub fn from_env() -> Option<Self> {
+        let url = env::var("LIVEKIT_URL").ok().filter(|s| !s.is_empty())?;
+        let api_key = env::var("LIVEKIT_API_KEY").ok().filter(|s| !s.is_empty())?;
+        let api_secret = env::var("LIVEKIT_API_SECRET").ok().filter(|s| !s.is_empty())?;
+        Some(Self { url, api_key, api_secret })
     }
 }

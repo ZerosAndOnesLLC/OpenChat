@@ -1,6 +1,6 @@
 [package]
 name = "openchat-api"
-version = "0.70.3"
+version = "0.71.0"
 edition = "2024"
 
 [[bin]]
@@ -87,3 +87,7 @@ image = "0.25"
 
 # Compression
 flate2 = "1.0"
+
+# LiveKit (Voice/Video Calling)
+livekit-api = "0.4"
+livekit-protocol = "0.3"

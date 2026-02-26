@@ -50,6 +50,7 @@ use handlers::{
 use middleware::auth::AuthMiddleware;
 use middleware::permissions::PermissionMiddleware;
 use middleware::rate_limit::RateLimitMiddleware;
+use services::livekit::LiveKitService;
 use services::tv_api::TvApiClient;
 use storage::StorageFactory;
 
@@ -179,6 +180,15 @@ async fn main() -> std::io::Result<()> {
     let storage_factory = Arc::new(StorageFactory::new(db_pool.clone(), local_storage_path));
     info!("Storage factory initialized");
 
+    // Initialize LiveKit service (optional — voice/video calling)
+    let livekit_service: Option<Arc<LiveKitService>> = config.livekit.as_ref().map(|lk_config| {
+        info!("LiveKit configured at {}", lk_config.url);
+        Arc::new(LiveKitService::new(lk_config.clone()))
+    });
+    if livekit_service.is_none() {
+        info!("LiveKit not configured — voice/video calling disabled");
+    }
+
     // Start background tasks
     info!("Starting background tasks...");
     tasks::start_background_tasks(db_pool.clone(), ws_server.clone());
@@ -220,6 +230,7 @@ async fn main() -> std::io::Result<()> {
             .app_data(web::Data::new(tv_api_client.clone()))
             .app_data(web::Data::new(storage_factory.clone()))
             .app_data(web::Data::new(config.clone()))
+            .app_data(web::Data::new(livekit_service.clone()))
             .route("/health", web::get().to(health_check))
             .route("/api/ws", web::get().to(websocket::ws_route))
             // User routes - require "openchat" role

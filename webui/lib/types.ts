@@ -61,6 +61,7 @@ export interface Message {
   reply_count?: number;
   first_reply?: Message;
   attachments?: Attachment[];
+  poll?: Poll;
 }
 
 // Attachment types
@@ -235,6 +236,8 @@ export type WSServerMessage =
   | { type: 'member_joined'; channel_id: string; user_id: string; user_name: string; role: string; joined_at: string }
   | { type: 'member_left'; channel_id: string; user_id: string; user_name: string }
   | { type: 'reminder_triggered'; reminder_id: string; message_id: string; channel_id?: string; dm_id?: string; message_preview: string; created_at: string }
+  | { type: 'ephemeral_message'; content: string; channel_id?: string; dm_id?: string }
+  | { type: 'poll_vote_updated'; poll_id: string; message_id: string; channel_id?: string; dm_id?: string; options: { index: number; text: string; votes: number }[]; total_votes: number; user_votes: number[] }
   | { type: 'connected'; user_id: string }
   | { type: 'error'; message: string }
   | { type: 'pong' };
@@ -528,4 +531,72 @@ export interface Reminder {
 export interface NotificationPref {
   preference: 'all' | 'mentions' | 'nothing';
   mute_until?: string | null;
+}
+
+// Slash Command types
+export interface SlashCommand {
+  name: string;
+  description: string;
+  usage_hint?: string;
+  handler_type: string;
+  id?: string;
+}
+
+export interface SlashCommandFull {
+  id: string;
+  org_id: string;
+  command_name: string;
+  description: string;
+  usage_hint?: string;
+  handler_type: string;
+  webhook_url?: string;
+  response_type: string;
+  created_by: string;
+  enabled: boolean;
+  created_at: string;
+}
+
+export interface ExecuteCommandRequest {
+  command: string;
+  text: string;
+  channel_id?: string;
+  dm_id?: string;
+}
+
+export interface ExecuteCommandResponse {
+  response_type: 'ephemeral' | 'in_channel';
+  content: string;
+  message_id?: string;
+}
+
+// Poll types
+export interface PollOption {
+  index: number;
+  text: string;
+  votes: number;
+}
+
+export interface Poll {
+  id: string;
+  message_id?: string;
+  question: string;
+  options: PollOption[];
+  poll_type: 'single' | 'multiple';
+  anonymous: boolean;
+  total_votes: number;
+  user_votes: number[];
+  closed: boolean;
+  expires_at?: string;
+  created_by: string;
+  created_at: string;
+}
+
+export interface CreatePollRequest {
+  channel_id?: string;
+  dm_id?: string;
+  question: string;
+  options: string[];
+  poll_type?: 'single' | 'multiple';
+  anonymous?: boolean;
+  expires_at?: string;
 }

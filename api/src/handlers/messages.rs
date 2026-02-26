@@ -128,6 +128,30 @@ pub struct MessageResponse {
     pub reply_count: i64,
     pub first_reply: Option<Box<MessageResponse>>,
     pub attachments: Vec<AttachmentResponse>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub poll: Option<PollResponseEmbed>,
+}
+
+#[derive(Debug, Serialize, Clone)]
+pub struct PollResponseEmbed {
+    pub id: Uuid,
+    pub question: String,
+    pub options: Vec<PollOptionEmbed>,
+    pub poll_type: String,
+    pub anonymous: bool,
+    pub total_votes: i64,
+    pub user_votes: Vec<i32>,
+    pub closed: bool,
+    pub expires_at: Option<String>,
+    pub created_by: Uuid,
+    pub created_at: String,
+}
+
+#[derive(Debug, Serialize, Clone)]
+pub struct PollOptionEmbed {
+    pub index: i32,
+    pub text: String,
+    pub votes: i64,
 }
 
 impl From<Message> for MessageResponse {
@@ -146,6 +170,7 @@ impl From<Message> for MessageResponse {
             reply_count: 0,
             first_reply: None,
             attachments: vec![],
+            poll: None,
         }
     }
 }
@@ -173,6 +198,11 @@ impl MessageResponse {
 
     pub fn with_attachments(mut self, attachments: Vec<Attachment>) -> Self {
         self.attachments = attachments.into_iter().map(AttachmentResponse::from).collect();
+        self
+    }
+
+    pub fn with_poll(mut self, poll_embed: PollResponseEmbed) -> Self {
+        self.poll = Some(poll_embed);
         self
     }
 }
@@ -770,7 +800,39 @@ pub async fn list_channel_messages(
             .push(attachment);
     }
 
-    // Enrich messages with user data, reactions, reply counts, first replies, and attachments
+    // Fetch polls for all messages
+    let polls = if !message_ids.is_empty() {
+        crate::models::poll::Poll::get_by_message_ids(pool.get_ref(), &message_ids).await?
+    } else {
+        vec![]
+    };
+
+    // Build poll results map (message_id -> PollResponseEmbed)
+    let mut poll_map: std::collections::HashMap<Uuid, PollResponseEmbed> = std::collections::HashMap::new();
+    for poll in &polls {
+        let results = crate::models::poll::Poll::get_results(pool.get_ref(), poll.id, current_user.id).await?;
+        let options: Vec<crate::models::poll::PollOptionInfo> = serde_json::from_value(poll.options.clone()).unwrap_or_default();
+        let _ = options; // used via results
+        poll_map.insert(poll.message_id, PollResponseEmbed {
+            id: poll.id,
+            question: results.question,
+            options: results.options.into_iter().map(|o| PollOptionEmbed {
+                index: o.index,
+                text: o.text,
+                votes: o.votes,
+            }).collect(),
+            poll_type: results.poll_type,
+            anonymous: results.anonymous,
+            total_votes: results.total_votes,
+            user_votes: results.user_votes,
+            closed: results.closed,
+            expires_at: poll.expires_at.map(|dt| dt.to_rfc3339()),
+            created_by: poll.created_by,
+            created_at: poll.created_at.to_rfc3339(),
+        });
+    }
+
+    // Enrich messages with user data, reactions, reply counts, first replies, attachments, and polls
     let messages_with_users: Vec<MessageResponse> = paginated.messages
         .into_iter()
         .map(|msg| {
@@ -796,6 +858,9 @@ pub async fn list_channel_messages(
             }
             if let Some(attachments) = attachment_map.get(&msg.id) {
                 response = response.with_attachments(attachments.clone());
+            }
+            if let Some(poll_embed) = poll_map.remove(&msg.id) {
+                response = response.with_poll(poll_embed);
             }
             response
         })

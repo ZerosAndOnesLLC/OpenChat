@@ -10,6 +10,8 @@ import type { Message } from '@/lib/types';
 import MarkdownToolbar from './MarkdownToolbar';
 import MarkdownRenderer from './MarkdownRenderer';
 import ScheduleSendModal from './ScheduleSendModal';
+import SlashCommandAutocomplete from './SlashCommandAutocomplete';
+import PollCreator from './PollCreator';
 import { toastManager } from '@/lib/toast';
 
 interface MessageInputProps {
@@ -33,6 +35,9 @@ export default function MessageInput({ channelId, dmId, replyTo, onClearReply }:
   const [selectedFiles, setSelectedFiles] = useState<SelectedFile[]>([]);
   const [isDragging, setIsDragging] = useState(false);
   const [showScheduleModal, setShowScheduleModal] = useState(false);
+  const [showPollCreator, setShowPollCreator] = useState(false);
+  const [cursorPosition, setCursorPosition] = useState(0);
+  const slashCommandOpenRef = useRef(false);
   const { sendMessage, sendTyping } = useWebSocketStore();
   const queryClient = useQueryClient();
   const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -45,6 +50,40 @@ export default function MessageInput({ channelId, dmId, replyTo, onClearReply }:
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!message.trim() && selectedFiles.length === 0) return;
+
+    // Detect slash command
+    const slashMatch = message.trim().match(/^\/(\w+)(?:\s([\s\S]*))?$/);
+    if (slashMatch && selectedFiles.length === 0) {
+      const command = slashMatch[1];
+      // Open poll creator for /poll command
+      if (command === 'poll') {
+        setShowPollCreator(true);
+        setMessage('');
+        return;
+      }
+      const text = slashMatch[2] || '';
+      try {
+        const result = await apiClient.executeCommand({
+          command,
+          text,
+          channel_id: channelId,
+          dm_id: dmId,
+        });
+        if (result.response_type === 'ephemeral') {
+          toastManager.info(result.content);
+        }
+        setMessage('');
+        const draftKey = channelId || dmId;
+        if (draftKey) {
+          try { await draftsManager.deleteDraft(draftKey); } catch {}
+        }
+        if (onClearReply) onClearReply();
+      } catch (error: any) {
+        const errMsg = error?.message || 'Command failed';
+        toastManager.error(errMsg);
+      }
+      return;
+    }
 
     try {
       if (selectedFiles.length > 0) {
@@ -256,6 +295,7 @@ export default function MessageInput({ channelId, dmId, replyTo, onClearReply }:
   const handleChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     const newValue = e.target.value;
     setMessage(newValue);
+    setCursorPosition(e.target.selectionStart || 0);
 
     // Send typing indicator
     if (typingTimeoutRef.current) {
@@ -377,6 +417,11 @@ export default function MessageInput({ channelId, dmId, replyTo, onClearReply }:
     loadDraft();
   }, [channelId, dmId]);
 
+  // Track whether slash command autocomplete is open
+  useEffect(() => {
+    slashCommandOpenRef.current = /^\/\w*$/.test(message);
+  }, [message]);
+
   // Cleanup timeouts on unmount
   useEffect(() => {
     return () => {
@@ -409,6 +454,11 @@ export default function MessageInput({ channelId, dmId, replyTo, onClearReply }:
 
   // Handle keyboard events in textarea
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    // Don't submit if slash command autocomplete is open
+    if (slashCommandOpenRef.current && ['Enter', 'Tab', 'ArrowUp', 'ArrowDown'].includes(e.key)) {
+      return; // Let the autocomplete handle it
+    }
+
     // Enter: Send message (without shift)
     // Shift+Enter: Insert newline
     if (e.key === 'Enter' && !e.shiftKey) {
@@ -536,6 +586,15 @@ export default function MessageInput({ channelId, dmId, replyTo, onClearReply }:
           accept="image/*,video/*,audio/*,.pdf,.doc,.docx,.xls,.xlsx,.txt"
         />
         <div className="relative mx-3 my-2 rounded-lg border border-gray-700 bg-gray-900">
+          <SlashCommandAutocomplete
+            cursorPosition={cursorPosition}
+            textValue={message}
+            onSelect={(text) => {
+              setMessage(text);
+              slashCommandOpenRef.current = false;
+              textareaRef.current?.focus();
+            }}
+          />
           <div className="flex flex-col">
             {showPreview ? (
               <div className="min-h-[48px] max-h-[200px] overflow-y-auto pl-12 pr-14 py-3 text-sm text-white">
@@ -576,6 +635,16 @@ export default function MessageInput({ channelId, dmId, replyTo, onClearReply }:
           <div className="absolute right-3 top-3 flex gap-1 z-20">
             <button
               type="button"
+              onClick={() => setShowPollCreator(true)}
+              className="rounded-md p-2 text-gray-400 transition-colors hover:text-white hover:bg-gray-800"
+              title="Create poll"
+            >
+              <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+              </svg>
+            </button>
+            <button
+              type="button"
               onClick={() => setShowScheduleModal(true)}
               disabled={!message.trim()}
               className="rounded-md p-2 text-gray-400 transition-colors hover:text-white hover:bg-gray-800 disabled:text-gray-600 disabled:cursor-not-allowed"
@@ -602,6 +671,13 @@ export default function MessageInput({ channelId, dmId, replyTo, onClearReply }:
         isOpen={showScheduleModal}
         onClose={() => setShowScheduleModal(false)}
         onSchedule={handleScheduleSend}
+      />
+
+      <PollCreator
+        isOpen={showPollCreator}
+        onClose={() => setShowPollCreator(false)}
+        channelId={channelId}
+        dmId={dmId}
       />
     </div>
   );

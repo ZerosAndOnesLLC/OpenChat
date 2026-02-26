@@ -46,6 +46,12 @@ import type {
   ScheduledMessage,
   Reminder,
   NotificationPref,
+  SlashCommand,
+  SlashCommandFull,
+  ExecuteCommandRequest,
+  ExecuteCommandResponse,
+  CreatePollRequest,
+  Poll,
 } from './types';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080';
@@ -866,6 +872,69 @@ class ApiClient {
     return this.request<NotificationPref>(`/api/dms/${dmId}/notifications`, {
       method: 'PUT',
       body: JSON.stringify(data),
+    });
+  }
+
+  // Slash Commands
+  async listCommands(): Promise<SlashCommand[]> {
+    return this.request<SlashCommand[]>('/api/commands');
+  }
+
+  async executeCommand(data: ExecuteCommandRequest): Promise<ExecuteCommandResponse> {
+    return this.request<ExecuteCommandResponse>('/api/commands/execute', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async createCommand(data: { command_name: string; description: string; usage_hint?: string; webhook_url: string; response_type?: string }): Promise<SlashCommandFull> {
+    return this.request<SlashCommandFull>('/api/commands', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async updateCommand(id: string, data: { description?: string; usage_hint?: string; webhook_url?: string; response_type?: string; enabled?: boolean }): Promise<SlashCommandFull> {
+    return this.request<SlashCommandFull>(`/api/commands/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async deleteCommand(id: string): Promise<void> {
+    return this.request<void>(`/api/commands/${id}`, {
+      method: 'DELETE',
+    });
+  }
+
+  // Polls
+  async createPoll(data: CreatePollRequest): Promise<Poll> {
+    return this.request<Poll>('/api/polls', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async getPoll(id: string): Promise<Poll> {
+    return this.request<Poll>(`/api/polls/${id}`);
+  }
+
+  async votePoll(id: string, optionIndex: number): Promise<Poll> {
+    return this.request<Poll>(`/api/polls/${id}/vote`, {
+      method: 'POST',
+      body: JSON.stringify({ option_index: optionIndex }),
+    });
+  }
+
+  async removePollVote(id: string): Promise<void> {
+    return this.request<void>(`/api/polls/${id}/vote`, {
+      method: 'DELETE',
+    });
+  }
+
+  async closePoll(id: string): Promise<Poll> {
+    return this.request<Poll>(`/api/polls/${id}/close`, {
+      method: 'POST',
     });
   }
 }

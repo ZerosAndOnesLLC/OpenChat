@@ -653,6 +653,40 @@ export const useWebSocketStore = create<WebSocketStore>((set, get) => ({
             break;
           }
 
+          case 'poll_vote_updated': {
+            // Update poll data in messages that contain this poll
+            set((state) => {
+              const newMessages = { ...state.messages };
+              for (const key of Object.keys(newMessages)) {
+                const msgs = newMessages[key];
+                const idx = msgs.findIndex((m: Message) => m.id === message.message_id);
+                if (idx !== -1 && msgs[idx].poll) {
+                  const updatedMsgs = [...msgs];
+                  updatedMsgs[idx] = {
+                    ...updatedMsgs[idx],
+                    poll: {
+                      ...updatedMsgs[idx].poll!,
+                      options: message.options,
+                      total_votes: message.total_votes,
+                      user_votes: message.user_votes,
+                    },
+                  };
+                  newMessages[key] = updatedMsgs;
+                }
+              }
+              return { messages: newMessages };
+            });
+            break;
+          }
+
+          case 'ephemeral_message': {
+            // Ephemeral messages are not persisted, just show a toast
+            if (typeof window !== 'undefined') {
+              console.log('Ephemeral message:', message.content);
+            }
+            break;
+          }
+
           default: {
             console.warn('Received unknown WebSocket message type:', message);
             break;

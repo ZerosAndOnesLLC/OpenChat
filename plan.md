@@ -162,44 +162,44 @@ Foundation for scheduled messages, reminders, webhook delivery, and retention en
 
 ## Phase 5: Slash Commands & Polls
 **Branch:** `feature/slash-commands-polls`
-**Status:** Not Started
+**Status:** Complete
 
 ### 5.1 Slash Commands
-- [ ] Create migration: `slash_commands` table (id, org_id, command_name, description, usage_hint, handler_type -- 'builtin'/'webhook', webhook_url, response_type -- 'ephemeral'/'in_channel', created_by, enabled, created_at)
-- [ ] Unique index on (org_id, command_name)
-- [ ] Model: `api/src/models/slash_command.rs`
-- [ ] Handler: `api/src/handlers/commands.rs`
-- [ ] API: POST `/api/commands/execute`, GET `/api/commands`, POST/PUT/DELETE CRUD (admin)
-- [ ] Command parser: detect `/command args` at message start
-- [ ] Built-in commands: `/shrug`, `/tableflip`, `/me` (action message), `/mute`, `/unmute`
-- [ ] Webhook commands: POST payload to external URL, display response
-- [ ] Ephemeral messages: new `ServerMessage::EphemeralMessage` variant (only sender sees it)
-- [ ] UI: `SlashCommandAutocomplete.tsx` (new) — triggers on `/` at start of input
-- [ ] UI: Command help panel
-- [ ] UI: Admin command management page
+- [x] Create migration: `slash_commands` table (id, org_id, command_name, description, usage_hint, handler_type -- 'builtin'/'webhook', webhook_url, response_type -- 'ephemeral'/'in_channel', created_by, enabled, created_at)
+- [x] Unique index on (org_id, command_name)
+- [x] Model: `api/src/models/slash_command.rs`
+- [x] Handler: `api/src/handlers/commands.rs`
+- [x] API: POST `/api/commands/execute`, GET `/api/commands`, POST/PUT/DELETE CRUD (admin)
+- [x] Command parser: detect `/command args` at message start
+- [x] Built-in commands: `/shrug`, `/tableflip`, `/me` (action message), `/mute`, `/unmute`
+- [x] Webhook commands: POST payload to external URL, display response
+- [x] Ephemeral messages: new `ServerMessage::EphemeralMessage` variant (only sender sees it)
+- [x] UI: `SlashCommandAutocomplete.tsx` (new) — triggers on `/` at start of input
+- [x] UI: Command help panel
+- [x] UI: Admin command management page
 
 ### 5.2 Polls
-- [ ] Create migration: `polls` table (id, message_id, org_id, question, options JSONB, poll_type -- 'single'/'multiple', anonymous BOOLEAN, expires_at, created_by, created_at)
-- [ ] Create migration: `poll_votes` table (id, poll_id, user_id, option_index INTEGER, voted_at)
-- [ ] Unique constraint for single-vote polls: (poll_id, user_id)
-- [ ] Model: `api/src/models/poll.rs`
-- [ ] Handler: `api/src/handlers/polls.rs`
-- [ ] API: POST `/api/polls`, POST `/api/polls/{id}/vote`, DELETE `/api/polls/{id}/vote`, GET `/api/polls/{id}/results`
-- [ ] WebSocket: `PollVoteUpdated` server message for real-time count updates
-- [ ] Slash command: `/poll "Question?" "Opt1" "Opt2" ...`
-- [ ] UI: `PollCreator.tsx` (new) — triggered by `/poll` or toolbar button
-- [ ] UI: `PollDisplay.tsx` (new) — embedded in `MessageItem.tsx`, progress bars, vote buttons
-- [ ] UI: Anonymous poll support (hide voter names)
-- [ ] UI: Real-time vote count updates
+- [x] Create migration: `polls` table (id, message_id, org_id, question, options JSONB, poll_type -- 'single'/'multiple', anonymous BOOLEAN, expires_at, created_by, created_at)
+- [x] Create migration: `poll_votes` table (id, poll_id, user_id, option_index INTEGER, voted_at)
+- [x] Unique constraint for single-vote polls: (poll_id, user_id)
+- [x] Model: `api/src/models/poll.rs`
+- [x] Handler: `api/src/handlers/polls.rs`
+- [x] API: POST `/api/polls`, POST `/api/polls/{id}/vote`, DELETE `/api/polls/{id}/vote`, GET `/api/polls/{id}/results`
+- [x] WebSocket: `PollVoteUpdated` server message for real-time count updates
+- [x] Slash command: `/poll "Question?" "Opt1" "Opt2" ...`
+- [x] UI: `PollCreator.tsx` (new) — triggered by `/poll` or toolbar button
+- [x] UI: `PollDisplay.tsx` (new) — embedded in `MessageItem.tsx`, progress bars, vote buttons
+- [x] UI: Anonymous poll support (hide voter names)
+- [x] UI: Real-time vote count updates
 
 **Key files:** `api/src/handlers/commands.rs` (new), `api/src/handlers/polls.rs` (new), `api/src/models/slash_command.rs` (new), `api/src/models/poll.rs` (new), `webui/components/SlashCommandAutocomplete.tsx` (new), `webui/components/PollCreator.tsx` (new), `webui/components/PollDisplay.tsx` (new), `webui/components/MessageItem.tsx`
 
 ### Verification
-- [ ] Type `/shrug` — verify appended to message
-- [ ] Create custom webhook command, verify external POST + response display
-- [ ] Create poll, vote, verify real-time updates across multiple users
-- [ ] Test anonymous poll — voter names hidden
-- [ ] `cargo check`, `eslint src/`
+- [x] Type `/shrug` — verify appended to message
+- [x] Create custom webhook command, verify external POST + response display
+- [x] Create poll, vote, verify real-time updates across multiple users
+- [x] Test anonymous poll — voter names hidden
+- [x] `cargo check`, `eslint src/`
 
 ---
 

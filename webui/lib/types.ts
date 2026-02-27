@@ -249,6 +249,8 @@ export type WSServerMessage =
   | { type: 'call_participant_joined'; call_id: string; channel_id?: string; dm_id?: string; user_id: string; user_name: string }
   | { type: 'call_participant_left'; call_id: string; channel_id?: string; dm_id?: string; user_id: string; user_name: string }
   | { type: 'call_ringing'; call_id: string; channel_id?: string; dm_id?: string; call_type: string; started_by: string; started_by_name: string }
+  | { type: 'workflow_execution_started'; workflow_id: string; execution_id: string; workflow_name: string; channel_id?: string }
+  | { type: 'workflow_execution_completed'; workflow_id: string; execution_id: string; workflow_name: string; status: string; error_message?: string }
   | { type: 'connected'; user_id: string }
   | { type: 'error'; message: string }
   | { type: 'pong' };
@@ -630,6 +632,85 @@ export interface ActiveCall {
   is_huddle: boolean;
   livekit_room_name: string;
   participant_count: number;
+}
+
+// Workflow types
+export type TriggerType = 'message_posted' | 'reaction_added' | 'channel_join' | 'scheduled' | 'webhook' | 'slash_command';
+export type ActionType = 'send_message' | 'create_form' | 'call_webhook' | 'add_reaction' | 'create_channel' | 'invite_to_channel' | 'update_channel_topic' | 'delay';
+export type ExecutionStatus = 'running' | 'completed' | 'failed';
+export type StepStatus = 'pending' | 'running' | 'completed' | 'failed';
+
+export interface Workflow {
+  id: string;
+  org_id: string;
+  name: string;
+  description?: string;
+  trigger_type: TriggerType;
+  trigger_config: Record<string, unknown>;
+  enabled: boolean;
+  created_by: string;
+  created_at: string;
+  updated_at: string;
+  steps?: WorkflowStep[];
+}
+
+export interface WorkflowStep {
+  id: string;
+  workflow_id: string;
+  step_order: number;
+  action_type: ActionType;
+  action_config: Record<string, unknown>;
+  created_at: string;
+}
+
+export interface WorkflowExecution {
+  id: string;
+  workflow_id: string;
+  trigger_data: Record<string, unknown>;
+  status: ExecutionStatus;
+  started_at: string;
+  completed_at?: string;
+  error_message?: string;
+  steps?: WorkflowExecutionStep[];
+}
+
+export interface WorkflowExecutionStep {
+  id: string;
+  execution_id: string;
+  step_id: string;
+  status: StepStatus;
+  input_data?: Record<string, unknown>;
+  output_data?: Record<string, unknown>;
+  started_at?: string;
+  completed_at?: string;
+  error_message?: string;
+}
+
+export interface CreateWorkflowRequest {
+  name: string;
+  description?: string;
+  trigger_type: TriggerType;
+  trigger_config: Record<string, unknown>;
+  steps: { action_type: ActionType; action_config: Record<string, unknown> }[];
+}
+
+export interface UpdateWorkflowRequest {
+  name?: string;
+  description?: string;
+  trigger_type?: TriggerType;
+  trigger_config?: Record<string, unknown>;
+  steps?: { action_type: ActionType; action_config: Record<string, unknown> }[];
+}
+
+export interface WorkflowListItem {
+  id: string;
+  name: string;
+  description?: string;
+  trigger_type: TriggerType;
+  enabled: boolean;
+  created_by: string;
+  created_at: string;
+  updated_at: string;
 }
 
 export interface StartCallRequest {

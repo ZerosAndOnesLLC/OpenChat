@@ -57,6 +57,11 @@ import type {
   StartCallResponse,
   JoinCallResponse,
   ActiveCall,
+  Workflow,
+  WorkflowListItem,
+  WorkflowExecution,
+  CreateWorkflowRequest,
+  UpdateWorkflowRequest,
 } from './types';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080';
@@ -988,6 +993,61 @@ class ApiClient {
 
   async leaveHuddle(channelId: string): Promise<void> {
     return this.request<void>(`/api/channels/${channelId}/huddle/leave`, {
+      method: 'POST',
+    });
+  }
+  // Workflow endpoints
+  async listWorkflows(): Promise<WorkflowListItem[]> {
+    return this.request<WorkflowListItem[]>('/api/workflows');
+  }
+
+  async createWorkflow(data: CreateWorkflowRequest): Promise<Workflow> {
+    return this.request<Workflow>('/api/workflows', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async getWorkflow(id: string): Promise<Workflow> {
+    return this.request<Workflow>(`/api/workflows/${id}`);
+  }
+
+  async updateWorkflow(id: string, data: UpdateWorkflowRequest): Promise<Workflow> {
+    return this.request<Workflow>(`/api/workflows/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async deleteWorkflow(id: string): Promise<void> {
+    return this.request<void>(`/api/workflows/${id}`, {
+      method: 'DELETE',
+    });
+  }
+
+  async enableWorkflow(id: string): Promise<WorkflowListItem> {
+    return this.request<WorkflowListItem>(`/api/workflows/${id}/enable`, {
+      method: 'POST',
+    });
+  }
+
+  async disableWorkflow(id: string): Promise<WorkflowListItem> {
+    return this.request<WorkflowListItem>(`/api/workflows/${id}/disable`, {
+      method: 'POST',
+    });
+  }
+
+  async listWorkflowExecutions(workflowId: string, limit = 20, offset = 0): Promise<WorkflowExecution[]> {
+    const params = new URLSearchParams({ limit: limit.toString(), offset: offset.toString() });
+    return this.request<WorkflowExecution[]>(`/api/workflows/${workflowId}/executions?${params}`);
+  }
+
+  async getWorkflowExecution(workflowId: string, executionId: string): Promise<WorkflowExecution> {
+    return this.request<WorkflowExecution>(`/api/workflows/${workflowId}/executions/${executionId}`);
+  }
+
+  async testWorkflow(id: string): Promise<{ message: string }> {
+    return this.request<{ message: string }>(`/api/workflows/${id}/test`, {
       method: 'POST',
     });
   }

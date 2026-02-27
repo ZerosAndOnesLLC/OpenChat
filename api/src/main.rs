@@ -48,6 +48,7 @@ use handlers::{
     scheduled_messages as scheduled_message_handlers,
     user_groups as user_group_handlers,
     workflows as workflow_handlers,
+    crypto as crypto_handlers,
 };
 use middleware::auth::AuthMiddleware;
 use middleware::permissions::PermissionMiddleware;
@@ -280,6 +281,22 @@ async fn main() -> std::io::Result<()> {
                     .route("/{id}/notifications", web::get().to(notification_pref_handlers::get_channel_notification_pref))
                     .route("/{id}/huddle/join", web::post().to(call_handlers::join_huddle))
                     .route("/{id}/huddle/leave", web::post().to(call_handlers::leave_huddle))
+                    .route("/{id}/encryption", web::post().to(crypto_handlers::enable_channel_encryption))
+                    .route("/{id}/encryption", web::get().to(crypto_handlers::get_channel_encryption))
+            )
+            // Crypto device and key routes - require "openchat" role
+            .service(
+                web::scope("/api/crypto")
+                    .wrap(api_rate_limit.clone())
+                    .wrap(openchat_auth.clone())
+                    .route("/devices", web::post().to(crypto_handlers::register_device))
+                    .route("/devices", web::get().to(crypto_handlers::list_my_devices))
+                    .route("/devices/{user_id}", web::get().to(crypto_handlers::list_user_devices))
+                    .route("/devices/{device_id}", web::delete().to(crypto_handlers::remove_device))
+                    .route("/devices/{device_id}/verify", web::post().to(crypto_handlers::verify_device))
+                    .route("/keys/upload", web::post().to(crypto_handlers::upload_keys))
+                    .route("/keys/claim", web::post().to(crypto_handlers::claim_keys))
+                    .route("/keys/query", web::post().to(crypto_handlers::query_keys))
             )
             // Message routes - require "openchat" role
             .service(

@@ -32,3 +32,5 @@ pub mod user_group;
 pub mod slash_command;
 pub mod user_status;
 pub mod workflow;
+pub mod crypto_device;
+pub mod encrypted_channel;

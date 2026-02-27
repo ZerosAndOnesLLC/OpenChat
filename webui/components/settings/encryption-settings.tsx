@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { Shield, Smartphone, Trash2, Check, Download, Upload, RefreshCw } from 'lucide-react';
 import { apiClient } from '@/lib/api';
 import type { CryptoDevice } from '@/lib/types';
-import { getDeviceId, exportKeys, importKeys, generateOneTimeKeys } from '@/lib/crypto';
+import { getDeviceId, generateOneTimeKeys } from '@/lib/crypto';
 import KeyBackupWizard from '../KeyBackupWizard';
 
 export default function EncryptionSettings() {

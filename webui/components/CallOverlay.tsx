@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { Mic, MicOff, Video, VideoOff, Monitor, PhoneOff, Minimize2, Maximize2 } from 'lucide-react';
-import { Room, RoomEvent, Track, RemoteTrack, RemoteTrackPublication, RemoteParticipant, LocalParticipant, Participant } from 'livekit-client';
+import { Room, RemoteTrack } from 'livekit-client';
 import { useWebSocketStore } from '@/lib/websocket';
 import { apiClient } from '@/lib/api';
 import { connectToRoom, formatCallDuration } from '@/lib/livekit';

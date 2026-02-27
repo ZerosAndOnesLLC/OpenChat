@@ -6,6 +6,7 @@ import { apiClient } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { useWebSocketStore } from '@/lib/websocket';
 import type { Channel, DirectMessage, Message } from '@/lib/types';
+import { Phone, Video, Headphones } from 'lucide-react';
 import MessageList from './MessageList';
 import MessageInput from './MessageInput';
 import TypingIndicator from './TypingIndicator';
@@ -14,6 +15,7 @@ import PinnedMessagesPanel from './PinnedMessagesPanel';
 import EditChannelModal from './EditChannelModal';
 import AddMembersModal from './AddMembersModal';
 import ForwardMessageModal from './ForwardMessageModal';
+import HuddleBar from './HuddleBar';
 import Toast from './Toast';
 
 interface MessageAreaProps {
@@ -24,7 +26,7 @@ interface MessageAreaProps {
 
 export default function MessageArea({ channel, dm, onLeaveChannel }: MessageAreaProps) {
   const { user } = useAuth();
-  const { messages, channelData, setMessages, subscribeChannel, unsubscribeChannel, subscribeDm, unsubscribeDm, typing, setLastReadMessageId, lastReadMessageIds, unreadCounts, setActiveChannel, markAsRead, pinMessage, unpinMessage, addBookmark, removeBookmark, notificationPrefs, setNotificationPref } =
+  const { messages, channelData, setMessages, subscribeChannel, unsubscribeChannel, subscribeDm, unsubscribeDm, typing, setLastReadMessageId, lastReadMessageIds, unreadCounts, setActiveChannel, markAsRead, pinMessage, unpinMessage, addBookmark, removeBookmark, notificationPrefs, setNotificationPref, setCurrentCall } =
     useWebSocketStore();
   const prevChannelRef = useRef<string | null>(null);
   const prevDmRef = useRef<string | null>(null);
@@ -49,6 +51,46 @@ export default function MessageArea({ channel, dm, onLeaveChannel }: MessageArea
   const currentNotifPref = currentKey ? notificationPrefs[currentKey] : undefined;
   const currentPreference = currentNotifPref?.preference || 'all';
   const isMuted = currentPreference === 'nothing' || (currentNotifPref?.mute_until && new Date(currentNotifPref.mute_until) > new Date());
+
+  const handleStartCall = async (callType: 'audio' | 'video') => {
+    try {
+      const resp = await apiClient.startCall({
+        channel_id: channel?.id,
+        dm_id: dm?.id,
+        call_type: callType,
+      });
+      setCurrentCall({
+        call_id: resp.call_id,
+        channel_id: channel?.id,
+        dm_id: dm?.id,
+        call_type: callType,
+        token: resp.token,
+        livekit_url: resp.livekit_url,
+        livekit_room_name: resp.livekit_room_name,
+        started_at: new Date().toISOString(),
+      });
+    } catch (err: any) {
+      setToast({ message: err.message || 'Failed to start call', type: 'error' });
+    }
+  };
+
+  const handleStartHuddle = async () => {
+    if (!channel) return;
+    try {
+      const resp = await apiClient.joinHuddle(channel.id);
+      setCurrentCall({
+        call_id: resp.call_id,
+        channel_id: channel.id,
+        call_type: 'audio',
+        token: resp.token,
+        livekit_url: resp.livekit_url,
+        livekit_room_name: resp.livekit_room_name,
+        started_at: new Date().toISOString(),
+      });
+    } catch (err: any) {
+      setToast({ message: err.message || 'Failed to start huddle', type: 'error' });
+    }
+  };
 
   // Close menus when clicking outside
   useEffect(() => {
@@ -381,6 +423,37 @@ export default function MessageArea({ channel, dm, onLeaveChannel }: MessageArea
               )}
             </div>
             <div className="flex items-center gap-1">
+              {/* Call buttons */}
+              {channel && (
+                <button
+                  onClick={handleStartHuddle}
+                  className="rounded p-2 text-gray-400 hover:bg-gray-800 hover:text-white"
+                  title="Start huddle"
+                  aria-label="Start huddle"
+                >
+                  <Headphones className="h-5 w-5" />
+                </button>
+              )}
+              {(channel || dm) && (
+                <button
+                  onClick={() => handleStartCall('audio')}
+                  className="rounded p-2 text-gray-400 hover:bg-gray-800 hover:text-white"
+                  title="Audio call"
+                  aria-label="Start audio call"
+                >
+                  <Phone className="h-5 w-5" />
+                </button>
+              )}
+              {(channel || dm) && (
+                <button
+                  onClick={() => handleStartCall('video')}
+                  className="rounded p-2 text-gray-400 hover:bg-gray-800 hover:text-white"
+                  title="Video call"
+                  aria-label="Start video call"
+                >
+                  <Video className="h-5 w-5" />
+                </button>
+              )}
               {/* Notification preference bell icon */}
               {(channel || dm) && (
                 <div className="relative" ref={notifMenuRef}>
@@ -582,6 +655,8 @@ export default function MessageArea({ channel, dm, onLeaveChannel }: MessageArea
               <TypingIndicator users={currentTyping.map((t) => t.userName)} />
             )}
           </div>
+
+          {channel && <HuddleBar channelId={channel.id} />}
 
           <MessageInput
             channelId={channel?.id}

@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
+import { Phone } from 'lucide-react';
 import { apiClient } from '@/lib/api';
 import { useWebSocketStore } from '@/lib/websocket';
 import type { Channel } from '@/lib/types';
@@ -35,7 +36,9 @@ function ChannelItem({
   const wsUnreadCount = useWebSocketStore((state) => state.unreadCounts[channel.id]);
   const initialStateLoaded = useWebSocketStore((state) => state.initialStateLoaded);
   const notifPref = useWebSocketStore((state) => state.notificationPrefs[channel.id]);
+  const activeCalls = useWebSocketStore((state) => state.activeCalls);
   const unreadCount = wsUnreadCount ?? 0;
+  const channelCall = Object.values(activeCalls).find((c) => c.channel_id === channel.id && c.status !== 'ended');
 
   const preference = notifPref?.preference || 'all';
   const isMuted = preference === 'nothing' || (notifPref?.mute_until ? new Date(notifPref.mute_until) > new Date() : false);
@@ -157,6 +160,12 @@ function ChannelItem({
               <svg className="ml-1 h-3 w-3 flex-shrink-0 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 12a4 4 0 10-8 0 4 4 0 008 0zm0 0v1.5a2.5 2.5 0 005 0V12a9 9 0 10-9 9m4.5-1.206a8.959 8.959 0 01-4.5 1.207" />
               </svg>
+            )}
+            {channelCall && (
+              <span className="ml-1.5 flex flex-shrink-0 items-center gap-0.5 text-green-400">
+                <Phone className="h-3 w-3" />
+                <span className="text-xs">{channelCall.participant_count}</span>
+              </span>
             )}
           </div>
           {hasUnread && !isActive && !isHovered && (

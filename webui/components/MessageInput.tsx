@@ -13,12 +13,14 @@ import ScheduleSendModal from './ScheduleSendModal';
 import SlashCommandAutocomplete from './SlashCommandAutocomplete';
 import PollCreator from './PollCreator';
 import { toastManager } from '@/lib/toast';
+import { Shield } from 'lucide-react';
 
 interface MessageInputProps {
   channelId?: string;
   dmId?: string;
   replyTo?: Message;
   onClearReply?: () => void;
+  encryptionEnabled?: boolean;
 }
 
 interface SelectedFile {
@@ -29,7 +31,7 @@ interface SelectedFile {
   error?: string;
 }
 
-export default function MessageInput({ channelId, dmId, replyTo, onClearReply }: MessageInputProps) {
+export default function MessageInput({ channelId, dmId, replyTo, onClearReply, encryptionEnabled }: MessageInputProps) {
   const [message, setMessage] = useState('');
   const [showPreview, setShowPreview] = useState(false);
   const [selectedFiles, setSelectedFiles] = useState<SelectedFile[]>([]);
@@ -576,6 +578,13 @@ export default function MessageInput({ channelId, dmId, replyTo, onClearReply }:
         </div>
       )}
 
+      {encryptionEnabled && (
+        <div className="mx-3 mt-2 flex items-center gap-1.5 text-xs text-green-400">
+          <Shield className="h-3 w-3" />
+          <span>End-to-end encrypted</span>
+        </div>
+      )}
+
       <form onSubmit={handleSubmit} className="flex flex-col">
         <input
           ref={fileInputRef}
@@ -611,8 +620,8 @@ export default function MessageInput({ channelId, dmId, replyTo, onClearReply }:
                 onChange={handleChange}
                 onBlur={handleBlur}
                 onKeyDown={handleKeyDown}
-                placeholder={replyTo ? "Type your reply..." : "Type a message..."}
-                aria-label={replyTo ? "Type your reply" : "Type a message"}
+                placeholder={replyTo ? "Type your reply..." : encryptionEnabled ? "Type an encrypted message..." : "Type a message..."}
+                aria-label={replyTo ? "Type your reply" : encryptionEnabled ? "Type an encrypted message" : "Type a message"}
                 className="w-full min-h-[48px] max-h-[200px] bg-transparent pl-12 pr-14 py-3 text-sm text-white placeholder-gray-500 focus:outline-none resize-none overflow-y-auto leading-relaxed"
                 rows={2}
               />

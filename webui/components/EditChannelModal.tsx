@@ -5,7 +5,9 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiClient } from '@/lib/api';
 import { useWebSocketStore } from '@/lib/websocket';
 import { useFocusTrap } from '@/hooks/useFocusTrap';
+import { useAuth } from '@/lib/auth';
 import type { Channel } from '@/lib/types';
+import { Shield, AlertTriangle } from 'lucide-react';
 
 interface EditChannelModalProps {
   channel: Channel;
@@ -20,11 +22,17 @@ export default function EditChannelModal({
   onClose,
   onSuccess,
 }: EditChannelModalProps) {
+  const { user } = useAuth();
   const [name, setName] = useState(channel.name);
   const [description, setDescription] = useState(channel.description || '');
   const [error, setError] = useState<string | null>(null);
+  const [showEncryptConfirm, setShowEncryptConfirm] = useState(false);
+  const [enablingEncryption, setEnablingEncryption] = useState(false);
   const queryClient = useQueryClient();
   const updateChannelInStore = useWebSocketStore((state) => state.updateChannel);
+  const wsChannels = useWebSocketStore((state) => state.channels);
+  const encryptionEnabled = wsChannels.find(ch => ch.id === channel.id)?.encryption_enabled;
+  const isCreator = user?.id === channel.created_by;
   const trapRef = useFocusTrap(isOpen);
 
   useEffect(() => {
@@ -112,6 +120,64 @@ export default function EditChannelModal({
               rows={3}
             />
           </div>
+
+          {/* Encryption Section */}
+          {isCreator && (
+            <div className="mb-4 rounded-lg border border-gray-700 bg-gray-800/50 p-3">
+              <div className="flex items-center gap-2 mb-2">
+                <Shield className="h-4 w-4 text-green-400" />
+                <span className="text-sm font-medium text-gray-300">End-to-End Encryption</span>
+              </div>
+              {encryptionEnabled ? (
+                <p className="text-xs text-green-400">Encryption is enabled for this channel.</p>
+              ) : showEncryptConfirm ? (
+                <div className="space-y-2">
+                  <div className="flex items-start gap-2 rounded bg-yellow-900/20 border border-yellow-700/30 p-2">
+                    <AlertTriangle className="h-4 w-4 flex-shrink-0 text-yellow-400 mt-0.5" />
+                    <p className="text-xs text-yellow-300">
+                      This action is irreversible. Once enabled, encryption cannot be disabled. Existing messages will remain unencrypted.
+                    </p>
+                  </div>
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      disabled={enablingEncryption}
+                      onClick={async () => {
+                        setEnablingEncryption(true);
+                        try {
+                          await apiClient.enableChannelEncryption(channel.id);
+                          updateChannelInStore(channel.id, { encryption_enabled: true });
+                          setShowEncryptConfirm(false);
+                        } catch (err) {
+                          setError('Failed to enable encryption');
+                        } finally {
+                          setEnablingEncryption(false);
+                        }
+                      }}
+                      className="rounded bg-green-600 px-3 py-1 text-xs font-medium text-white hover:bg-green-700 disabled:bg-gray-700"
+                    >
+                      {enablingEncryption ? 'Enabling...' : 'Confirm Enable'}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setShowEncryptConfirm(false)}
+                      className="rounded bg-gray-700 px-3 py-1 text-xs text-gray-300 hover:bg-gray-600"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => setShowEncryptConfirm(true)}
+                  className="rounded bg-gray-700 px-3 py-1.5 text-xs font-medium text-gray-300 hover:bg-gray-600"
+                >
+                  Enable Encryption
+                </button>
+              )}
+            </div>
+          )}
 
           {error && (
             <div className="mb-4 rounded-lg bg-red-900 bg-opacity-50 px-3 py-2 text-sm text-red-300">

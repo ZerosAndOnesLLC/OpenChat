@@ -47,6 +47,7 @@ use handlers::{
     reminders as reminder_handlers,
     scheduled_messages as scheduled_message_handlers,
     user_groups as user_group_handlers,
+    workflows as workflow_handlers,
 };
 use middleware::auth::AuthMiddleware;
 use middleware::permissions::PermissionMiddleware;
@@ -582,6 +583,28 @@ async fn main() -> std::io::Result<()> {
                     .route("", web::post().to(command_handlers::create_command))
                     .route("/{id}", web::put().to(command_handlers::update_command))
                     .route("/{id}", web::delete().to(command_handlers::delete_command))
+            )
+            // Workflow routes - require "openchat" role
+            .service(
+                web::scope("/api/workflows")
+                    .wrap(api_rate_limit.clone())
+                    .wrap(openchat_auth.clone())
+                    .route("", web::get().to(workflow_handlers::list_workflows))
+                    .route("", web::post().to(workflow_handlers::create_workflow))
+                    .route("/{id}", web::get().to(workflow_handlers::get_workflow))
+                    .route("/{id}", web::put().to(workflow_handlers::update_workflow))
+                    .route("/{id}", web::delete().to(workflow_handlers::delete_workflow))
+                    .route("/{id}/enable", web::post().to(workflow_handlers::enable_workflow))
+                    .route("/{id}/disable", web::post().to(workflow_handlers::disable_workflow))
+                    .route("/{id}/executions", web::get().to(workflow_handlers::list_executions))
+                    .route("/{id}/executions/{eid}", web::get().to(workflow_handlers::get_execution))
+                    .route("/{id}/test", web::post().to(workflow_handlers::test_workflow))
+            )
+            // Public workflow webhook endpoint - no auth (workflow_id in URL)
+            .service(
+                web::scope("/api/workflows/webhook")
+                    .wrap(api_rate_limit.clone())
+                    .route("/{workflow_id}", web::post().to(workflow_handlers::webhook_trigger))
             )
             // SSO routes - no auth required (they handle authentication themselves)
             .configure(routes::sso::configure)

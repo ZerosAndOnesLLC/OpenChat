@@ -433,4 +433,21 @@ pub enum ServerMessage {
         started_by: Uuid,
         started_by_name: String,
     },
+    /// A workflow execution started
+    WorkflowExecutionStarted {
+        workflow_id: Uuid,
+        execution_id: Uuid,
+        workflow_name: String,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        channel_id: Option<Uuid>,
+    },
+    /// A workflow execution completed or failed
+    WorkflowExecutionCompleted {
+        workflow_id: Uuid,
+        execution_id: Uuid,
+        workflow_name: String,
+        status: String,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        error_message: Option<String>,
+    },
 }

@@ -657,6 +657,26 @@ pub async fn send_message(
         }
     }
 
+    // Fire workflow triggers (fire-and-forget)
+    {
+        let pool = pool.clone();
+        let ws = ws_server.clone();
+        let org_id = current_user.org_id;
+        let trigger_data = serde_json::json!({
+            "user_id": current_user.id.to_string(),
+            "user_name": current_user.display_name.clone(),
+            "channel_id": message.channel_id.map(|id| id.to_string()),
+            "dm_id": message.dm_id.map(|id| id.to_string()),
+            "message_id": message.id.to_string(),
+            "content": message.content.clone(),
+        });
+        tokio::spawn(async move {
+            crate::services::workflow_engine::check_triggers(
+                pool.get_ref(), ws.get_ref(), org_id, "message_posted", trigger_data,
+            ).await;
+        });
+    }
+
     Ok(HttpResponse::Created().json(MessageResponse::from(message)))
 }
 

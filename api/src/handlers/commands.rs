@@ -216,6 +216,26 @@ pub async fn execute_command(
         _ => {}
     }
 
+    // Check if any workflow has a slash_command trigger for this command
+    {
+        let pool = pool.clone();
+        let ws = ws_server.clone();
+        let org_id = current_user.org_id;
+        let trigger_data = serde_json::json!({
+            "command_name": command_name.clone(),
+            "text": text.clone(),
+            "user_id": current_user.id.to_string(),
+            "user_name": current_user.display_name.clone(),
+            "channel_id": body.channel_id.map(|id| id.to_string()),
+            "dm_id": body.dm_id.map(|id| id.to_string()),
+        });
+        tokio::spawn(async move {
+            crate::services::workflow_engine::check_triggers(
+                pool.get_ref(), ws.get_ref(), org_id, "slash_command", trigger_data,
+            ).await;
+        });
+    }
+
     // Try custom webhook command
     let custom_cmd =
         SlashCommand::get_by_org_and_name(pool.get_ref(), current_user.org_id, &command_name)

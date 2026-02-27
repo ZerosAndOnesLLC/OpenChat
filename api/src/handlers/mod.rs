@@ -32,3 +32,4 @@ pub mod user_groups;
 pub mod user_status;
 pub mod users;
 pub mod webhooks;
+pub mod workflows;

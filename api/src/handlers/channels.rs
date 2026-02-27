@@ -410,6 +410,25 @@ pub async fn add_member(
         },
     });
 
+    // Fire workflow triggers (fire-and-forget)
+    {
+        let pool = pool.clone();
+        let ws = ws_server.clone();
+        let org_id = channel.org_id;
+        let trigger_data = serde_json::json!({
+            "user_id": user_to_add.id.to_string(),
+            "user_name": user_to_add.display_name.clone(),
+            "channel_id": channel_id.to_string(),
+            "channel_name": channel.name.clone(),
+            "added_by": current_user.id.to_string(),
+        });
+        tokio::spawn(async move {
+            crate::services::workflow_engine::check_triggers(
+                pool.get_ref(), ws.get_ref(), org_id, "channel_join", trigger_data,
+            ).await;
+        });
+    }
+
     Ok(HttpResponse::Created().json(member))
 }
 
@@ -587,6 +606,24 @@ pub async fn join_channel(
             joined_at: member.joined_at.to_rfc3339(),
         },
     });
+
+    // Fire workflow triggers (fire-and-forget)
+    {
+        let pool = pool.clone();
+        let ws = ws_server.clone();
+        let org_id = channel.org_id;
+        let trigger_data = serde_json::json!({
+            "user_id": current_user.id.to_string(),
+            "user_name": current_user.display_name.clone(),
+            "channel_id": channel_id.to_string(),
+            "channel_name": channel.name.clone(),
+        });
+        tokio::spawn(async move {
+            crate::services::workflow_engine::check_triggers(
+                pool.get_ref(), ws.get_ref(), org_id, "channel_join", trigger_data,
+            ).await;
+        });
+    }
 
     Ok(HttpResponse::Created().json(member))
 }

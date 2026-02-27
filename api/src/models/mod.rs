@@ -31,3 +31,4 @@ pub mod user;
 pub mod user_group;
 pub mod slash_command;
 pub mod user_status;
+pub mod workflow;

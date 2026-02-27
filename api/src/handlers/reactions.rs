@@ -59,6 +59,7 @@ impl From<ReactionCount> for ReactionCountResponse {
 /// POST /api/messages/:id/reactions - Add a reaction to a message
 pub async fn add_reaction(
     pool: web::Data<PgPool>,
+    ws_server: web::Data<actix::Addr<crate::websocket::server::WsServer>>,
     message_id: web::Path<Uuid>,
     body: web::Json<AddReactionRequest>,
     req: HttpRequest,
@@ -110,6 +111,26 @@ pub async fn add_reaction(
 
     // Add the reaction (ON CONFLICT will handle duplicates)
     let reaction = Reaction::add(pool.get_ref(), *message_id, current_user.id, &body.emoji).await?;
+
+    // Fire workflow triggers (fire-and-forget)
+    {
+        let pool = pool.clone();
+        let ws = ws_server.clone();
+        let org_id = current_user.org_id;
+        let trigger_data = serde_json::json!({
+            "user_id": current_user.id.to_string(),
+            "user_name": current_user.display_name.clone(),
+            "message_id": message_id.to_string(),
+            "emoji": body.emoji.clone(),
+            "channel_id": message.channel_id.map(|id| id.to_string()),
+            "dm_id": message.dm_id.map(|id| id.to_string()),
+        });
+        tokio::spawn(async move {
+            crate::services::workflow_engine::check_triggers(
+                pool.get_ref(), ws.get_ref(), org_id, "reaction_added", trigger_data,
+            ).await;
+        });
+    }
 
     Ok(HttpResponse::Created().json(ReactionResponse::from(reaction)))
 }

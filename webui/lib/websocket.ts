@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { Message, WSClientMessage, WSServerMessage, ChannelMetadata, DmMetadata, PinnedMessageInfo, ChannelMemberInfo, MessageWithDetails, NotificationPref } from './types';
+import type { Message, WSClientMessage, WSServerMessage, ChannelMetadata, DmMetadata, PinnedMessageInfo, ChannelMemberInfo, MessageWithDetails, NotificationPref, ActiveCall } from './types';
 import { apiClient } from './api';
 
 const WS_URL = process.env.NEXT_PUBLIC_WS_URL || 'ws://localhost:8080/api/ws';
@@ -49,6 +49,10 @@ interface WebSocketStore {
   notificationPrefs: Record<string, NotificationPref>; // channelId/dmId -> pref
   activeChannelId: string | null; // Currently active/viewed channel
   activeDmId: string | null; // Currently active/viewed DM
+  // Call state
+  activeCalls: Record<string, ActiveCall>; // callId -> ActiveCall
+  incomingCall: { call_id: string; channel_id?: string; dm_id?: string; call_type: string; started_by: string; started_by_name: string } | null;
+  currentCall: { call_id: string; channel_id?: string; dm_id?: string; call_type: string; token: string; livekit_url: string; livekit_room_name: string; started_at: string } | null;
 
   connect: (token: string) => void;
   disconnect: () => void;
@@ -87,6 +91,10 @@ interface WebSocketStore {
   subscribeThread: (messageId: string) => void;
   unsubscribeThread: (messageId: string) => void;
   setNotificationPref: (key: string, pref: NotificationPref) => void;
+  // Call actions
+  setCurrentCall: (call: WebSocketStore['currentCall']) => void;
+  dismissIncomingCall: () => void;
+  setActiveCalls: (calls: ActiveCall[]) => void;
 }
 
 export const useWebSocketStore = create<WebSocketStore>((set, get) => ({
@@ -108,6 +116,9 @@ export const useWebSocketStore = create<WebSocketStore>((set, get) => ({
   notificationPrefs: {},
   activeChannelId: null,
   activeDmId: null,
+  activeCalls: {},
+  incomingCall: null,
+  currentCall: null,
 
   connect: (token: string) => {
     const ws = new WebSocket(`${WS_URL}?token=${token}`);
@@ -696,6 +707,97 @@ export const useWebSocketStore = create<WebSocketStore>((set, get) => ({
             break;
           }
 
+          case 'call_started': {
+            const activeCall: ActiveCall = {
+              id: message.call_id,
+              channel_id: message.channel_id,
+              dm_id: message.dm_id,
+              call_type: message.call_type as 'audio' | 'video',
+              status: 'ringing',
+              started_by: message.started_by,
+              started_at: new Date().toISOString(),
+              is_huddle: message.is_huddle,
+              livekit_room_name: '',
+              participant_count: 1,
+            };
+            set((state) => ({
+              activeCalls: { ...state.activeCalls, [message.call_id]: activeCall },
+            }));
+            break;
+          }
+
+          case 'call_ended': {
+            set((state) => {
+              const newCalls = { ...state.activeCalls };
+              delete newCalls[message.call_id];
+              return {
+                activeCalls: newCalls,
+                // Clear current call if it's the one that ended
+                currentCall: state.currentCall?.call_id === message.call_id ? null : state.currentCall,
+                // Clear incoming call if it's the one that ended
+                incomingCall: state.incomingCall?.call_id === message.call_id ? null : state.incomingCall,
+              };
+            });
+            break;
+          }
+
+          case 'call_participant_joined': {
+            set((state) => {
+              const call = state.activeCalls[message.call_id];
+              if (call) {
+                return {
+                  activeCalls: {
+                    ...state.activeCalls,
+                    [message.call_id]: {
+                      ...call,
+                      status: 'active',
+                      participant_count: call.participant_count + 1,
+                    },
+                  },
+                };
+              }
+              return state;
+            });
+            break;
+          }
+
+          case 'call_participant_left': {
+            set((state) => {
+              const call = state.activeCalls[message.call_id];
+              if (call) {
+                return {
+                  activeCalls: {
+                    ...state.activeCalls,
+                    [message.call_id]: {
+                      ...call,
+                      participant_count: Math.max(0, call.participant_count - 1),
+                    },
+                  },
+                };
+              }
+              return state;
+            });
+            break;
+          }
+
+          case 'call_ringing': {
+            const myUserId = get().currentUserId;
+            // Don't ring for yourself
+            if (myUserId && message.started_by !== myUserId) {
+              set({
+                incomingCall: {
+                  call_id: message.call_id,
+                  channel_id: message.channel_id,
+                  dm_id: message.dm_id,
+                  call_type: message.call_type,
+                  started_by: message.started_by,
+                  started_by_name: message.started_by_name,
+                },
+              });
+            }
+            break;
+          }
+
           default: {
             console.warn('Received unknown WebSocket message type:', message);
             break;
@@ -1119,5 +1221,21 @@ export const useWebSocketStore = create<WebSocketStore>((set, get) => ({
         [key]: pref,
       },
     }));
+  },
+
+  setCurrentCall: (call) => {
+    set({ currentCall: call });
+  },
+
+  dismissIncomingCall: () => {
+    set({ incomingCall: null });
+  },
+
+  setActiveCalls: (calls) => {
+    const callMap: Record<string, ActiveCall> = {};
+    for (const call of calls) {
+      callMap[call.id] = call;
+    }
+    set({ activeCalls: callMap });
   },
 }));

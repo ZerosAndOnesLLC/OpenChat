@@ -517,6 +517,8 @@ async fn send_in_channel_message(
         forwarded_from_message_id: None,
         forwarded_from_channel_id: None,
         forwarded_from_channel_name: None,
+        encrypted_content: None,
+        encryption_metadata: None,
     };
 
     ws_server.do_send(BroadcastMessage {

@@ -14,6 +14,10 @@ pub enum ClientMessage {
         dm_id: Option<Uuid>,
         content: String,
         parent_message_id: Option<Uuid>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        encrypted_content: Option<String>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        encryption_metadata: Option<serde_json::Value>,
     },
     /// User is typing in a channel or DM
     Typing {
@@ -78,6 +82,10 @@ pub enum ClientMessage {
     EditMessage {
         message_id: Uuid,
         content: String,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        encrypted_content: Option<String>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        encryption_metadata: Option<serde_json::Value>,
     },
     /// Delete a message
     DeleteMessage {
@@ -103,6 +111,9 @@ pub struct ChannelMetadata {
     pub unread_count: i32,
     pub last_message_preview: Option<String>,
     pub last_message_at: Option<DateTime<Utc>>,
+    #[serde(default)]
+    #[sqlx(default)]
+    pub encryption_enabled: bool,
 }
 
 /// Direct message metadata for initial state
@@ -143,6 +154,10 @@ pub struct MessageWithDetails {
     pub forwarded_from_channel_id: Option<Uuid>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub forwarded_from_channel_name: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub encrypted_content: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub encryption_metadata: Option<serde_json::Value>,
 }
 
 /// Pinned message information for channel subscription
@@ -229,12 +244,20 @@ pub enum ServerMessage {
         forwarded_from_channel_id: Option<Uuid>,
         #[serde(skip_serializing_if = "Option::is_none")]
         forwarded_from_channel_name: Option<String>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        encrypted_content: Option<String>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        encryption_metadata: Option<serde_json::Value>,
     },
     /// Message was edited
     MessageEdited {
         message_id: Uuid,
         content: String,
         edited_at: String,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        encrypted_content: Option<String>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        encryption_metadata: Option<serde_json::Value>,
     },
     /// Message was deleted
     MessageDeleted {

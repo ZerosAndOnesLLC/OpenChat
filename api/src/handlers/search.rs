@@ -247,7 +247,7 @@ async fn search_in_channel(
         r#"
         SELECT m.* FROM messages m
         LEFT JOIN users u ON m.user_id = u.id
-        WHERE m.channel_id = $1 AND m.deleted_at IS NULL
+        WHERE m.channel_id = $1 AND m.deleted_at IS NULL AND m.encrypted_content IS NULL
         "#,
     );
 
@@ -255,7 +255,7 @@ async fn search_in_channel(
         r#"
         SELECT COUNT(*) FROM messages m
         LEFT JOIN users u ON m.user_id = u.id
-        WHERE m.channel_id = $1 AND m.deleted_at IS NULL
+        WHERE m.channel_id = $1 AND m.deleted_at IS NULL AND m.encrypted_content IS NULL
         "#,
     );
 
@@ -351,7 +351,7 @@ async fn search_in_dm(
         r#"
         SELECT m.* FROM messages m
         LEFT JOIN users u ON m.user_id = u.id
-        WHERE m.dm_id = $1 AND m.deleted_at IS NULL
+        WHERE m.dm_id = $1 AND m.deleted_at IS NULL AND m.encrypted_content IS NULL
         "#,
     );
 
@@ -359,7 +359,7 @@ async fn search_in_dm(
         r#"
         SELECT COUNT(*) FROM messages m
         LEFT JOIN users u ON m.user_id = u.id
-        WHERE m.dm_id = $1 AND m.deleted_at IS NULL
+        WHERE m.dm_id = $1 AND m.deleted_at IS NULL AND m.encrypted_content IS NULL
         "#,
     );
 
@@ -441,6 +441,7 @@ async fn search_all(
         LEFT JOIN users u ON m.user_id = u.id
         WHERE (c.org_id = $1 OR dm.org_id = $1)
             AND m.deleted_at IS NULL
+            AND m.encrypted_content IS NULL
         "#,
     );
 
@@ -452,6 +453,7 @@ async fn search_all(
         LEFT JOIN users u ON m.user_id = u.id
         WHERE (c.org_id = $1 OR dm.org_id = $1)
             AND m.deleted_at IS NULL
+            AND m.encrypted_content IS NULL
         "#,
     );
 

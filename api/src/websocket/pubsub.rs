@@ -206,6 +206,8 @@ impl RedisPubSub {
                         forwarded_from_message_id: None,
                         forwarded_from_channel_id: None,
                         forwarded_from_channel_name: None,
+                        encrypted_content: None,
+                        encryption_metadata: None,
                     },
                 });
             }
@@ -222,6 +224,8 @@ impl RedisPubSub {
                         message_id,
                         content,
                         edited_at,
+                        encrypted_content: None,
+                        encryption_metadata: None,
                     },
                 });
             }

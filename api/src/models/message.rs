@@ -18,6 +18,8 @@ pub struct Message {
     pub deleted_at: Option<DateTime<Utc>>,
     pub forwarded_from_message_id: Option<Uuid>,
     pub forwarded_from_channel_id: Option<Uuid>,
+    pub encrypted_content: Option<Vec<u8>>,
+    pub encryption_metadata: Option<serde_json::Value>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -77,6 +79,105 @@ impl Message {
         .fetch_one(pool)
         .await?;
 
+        Ok(message)
+    }
+
+    /// Create an encrypted message in a channel
+    pub async fn create_encrypted_channel_message(
+        pool: &PgPool,
+        channel_id: Uuid,
+        user_id: Uuid,
+        content: &str,
+        encrypted_content: &[u8],
+        encryption_metadata: serde_json::Value,
+        parent_message_id: Option<Uuid>,
+    ) -> ApiResult<Message> {
+        let message = sqlx::query_as::<_, Message>(
+            r#"
+            INSERT INTO messages (id, channel_id, user_id, content, encrypted_content, encryption_metadata, parent_message_id)
+            VALUES ($1, $2, $3, $4, $5, $6, $7)
+            RETURNING *
+            "#,
+        )
+        .bind(Uuid::new_v4())
+        .bind(channel_id)
+        .bind(user_id)
+        .bind(content)
+        .bind(encrypted_content)
+        .bind(&encryption_metadata)
+        .bind(parent_message_id)
+        .fetch_one(pool)
+        .await?;
+
+        Ok(message)
+    }
+
+    /// Create an encrypted message in a DM
+    pub async fn create_encrypted_dm_message(
+        pool: &PgPool,
+        dm_id: Uuid,
+        user_id: Uuid,
+        content: &str,
+        encrypted_content: &[u8],
+        encryption_metadata: serde_json::Value,
+        parent_message_id: Option<Uuid>,
+    ) -> ApiResult<Message> {
+        let message = sqlx::query_as::<_, Message>(
+            r#"
+            INSERT INTO messages (id, dm_id, user_id, content, encrypted_content, encryption_metadata, parent_message_id)
+            VALUES ($1, $2, $3, $4, $5, $6, $7)
+            RETURNING *
+            "#,
+        )
+        .bind(Uuid::new_v4())
+        .bind(dm_id)
+        .bind(user_id)
+        .bind(content)
+        .bind(encrypted_content)
+        .bind(&encryption_metadata)
+        .bind(parent_message_id)
+        .fetch_one(pool)
+        .await?;
+
+        Ok(message)
+    }
+
+    /// Update a message with encrypted content
+    pub async fn update_encrypted(pool: &PgPool, id: Uuid, content: &str, encrypted_content: &[u8], encryption_metadata: serde_json::Value, user_id: Uuid) -> ApiResult<Message> {
+        let mut tx = pool.begin().await?;
+
+        let old_message = sqlx::query_as::<_, Message>(
+            r#"SELECT * FROM messages WHERE id = $1 AND deleted_at IS NULL"#,
+        )
+        .bind(id)
+        .fetch_one(&mut *tx)
+        .await?;
+
+        sqlx::query(
+            r#"INSERT INTO message_edits (message_id, old_content, edited_by) VALUES ($1, $2, $3)"#,
+        )
+        .bind(id)
+        .bind(&old_message.content)
+        .bind(user_id)
+        .execute(&mut *tx)
+        .await?;
+
+        let message = sqlx::query_as::<_, Message>(
+            r#"
+            UPDATE messages
+            SET content = $1, encrypted_content = $2, encryption_metadata = $3, edited_at = NOW()
+            WHERE id = $4 AND deleted_at IS NULL
+            RETURNING *
+            "#,
+        )
+        .bind(content)
+        .bind(encrypted_content)
+        .bind(&encryption_metadata)
+        .bind(id)
+        .fetch_one(&mut *tx)
+        .await?;
+
+        tx.commit().await?;
         Ok(message)
     }
 
@@ -477,6 +578,8 @@ impl Message {
             forwarded_from_message_id: Option<Uuid>,
             forwarded_from_channel_id: Option<Uuid>,
             forwarded_from_channel_name: Option<String>,
+            encrypted_content: Option<Vec<u8>>,
+            encryption_metadata: Option<serde_json::Value>,
         }
 
         let rows = sqlx::query_as::<_, MessageRow>(
@@ -498,7 +601,9 @@ impl Message {
                 ) as reply_count,
                 m.forwarded_from_message_id,
                 m.forwarded_from_channel_id,
-                fc.name as forwarded_from_channel_name
+                fc.name as forwarded_from_channel_name,
+                m.encrypted_content,
+                m.encryption_metadata
             FROM messages m
             LEFT JOIN users u ON m.user_id = u.id
             LEFT JOIN channels fc ON m.forwarded_from_channel_id = fc.id
@@ -514,20 +619,25 @@ impl Message {
 
         Ok(rows
             .into_iter()
-            .map(|row| crate::websocket::messages::MessageWithDetails {
-                id: row.id,
-                channel_id: row.channel_id,
-                dm_id: row.dm_id,
-                user_id: row.user_id,
-                user_name: row.user_name,
-                content: row.content,
-                parent_message_id: row.parent_message_id,
-                created_at: row.created_at,
-                edited_at: row.edited_at,
-                reply_count: row.reply_count,
-                forwarded_from_message_id: row.forwarded_from_message_id,
-                forwarded_from_channel_id: row.forwarded_from_channel_id,
-                forwarded_from_channel_name: row.forwarded_from_channel_name,
+            .map(|row| {
+                use base64::Engine;
+                crate::websocket::messages::MessageWithDetails {
+                    id: row.id,
+                    channel_id: row.channel_id,
+                    dm_id: row.dm_id,
+                    user_id: row.user_id,
+                    user_name: row.user_name,
+                    content: row.content,
+                    parent_message_id: row.parent_message_id,
+                    created_at: row.created_at,
+                    edited_at: row.edited_at,
+                    reply_count: row.reply_count,
+                    forwarded_from_message_id: row.forwarded_from_message_id,
+                    forwarded_from_channel_id: row.forwarded_from_channel_id,
+                    forwarded_from_channel_name: row.forwarded_from_channel_name,
+                    encrypted_content: row.encrypted_content.map(|b| base64::engine::general_purpose::STANDARD.encode(&b)),
+                    encryption_metadata: row.encryption_metadata,
+                }
             })
             .collect())
     }
@@ -554,6 +664,8 @@ impl Message {
             forwarded_from_message_id: Option<Uuid>,
             forwarded_from_channel_id: Option<Uuid>,
             forwarded_from_channel_name: Option<String>,
+            encrypted_content: Option<Vec<u8>>,
+            encryption_metadata: Option<serde_json::Value>,
         }
 
         let rows = sqlx::query_as::<_, MessageRow>(
@@ -575,7 +687,9 @@ impl Message {
                 ) as reply_count,
                 m.forwarded_from_message_id,
                 m.forwarded_from_channel_id,
-                fc.name as forwarded_from_channel_name
+                fc.name as forwarded_from_channel_name,
+                m.encrypted_content,
+                m.encryption_metadata
             FROM messages m
             LEFT JOIN users u ON m.user_id = u.id
             LEFT JOIN channels fc ON m.forwarded_from_channel_id = fc.id
@@ -591,20 +705,25 @@ impl Message {
 
         Ok(rows
             .into_iter()
-            .map(|row| crate::websocket::messages::MessageWithDetails {
-                id: row.id,
-                channel_id: row.channel_id,
-                dm_id: row.dm_id,
-                user_id: row.user_id,
-                user_name: row.user_name,
-                content: row.content,
-                parent_message_id: row.parent_message_id,
-                created_at: row.created_at,
-                edited_at: row.edited_at,
-                reply_count: row.reply_count,
-                forwarded_from_message_id: row.forwarded_from_message_id,
-                forwarded_from_channel_id: row.forwarded_from_channel_id,
-                forwarded_from_channel_name: row.forwarded_from_channel_name,
+            .map(|row| {
+                use base64::Engine;
+                crate::websocket::messages::MessageWithDetails {
+                    id: row.id,
+                    channel_id: row.channel_id,
+                    dm_id: row.dm_id,
+                    user_id: row.user_id,
+                    user_name: row.user_name,
+                    content: row.content,
+                    parent_message_id: row.parent_message_id,
+                    created_at: row.created_at,
+                    edited_at: row.edited_at,
+                    reply_count: row.reply_count,
+                    forwarded_from_message_id: row.forwarded_from_message_id,
+                    forwarded_from_channel_id: row.forwarded_from_channel_id,
+                    forwarded_from_channel_name: row.forwarded_from_channel_name,
+                    encrypted_content: row.encrypted_content.map(|b| base64::engine::general_purpose::STANDARD.encode(&b)),
+                    encryption_metadata: row.encryption_metadata,
+                }
             })
             .collect())
     }

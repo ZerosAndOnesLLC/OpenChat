@@ -253,43 +253,48 @@ Foundation for scheduled messages, reminders, webhook delivery, and retention en
 
 ## Phase 7: Voice/Video Calling (LiveKit)
 **Branch:** `feature/voice-video-livekit`
-**Status:** Not Started
+**Status:** Complete
 
 ### 7.1 Infrastructure
-- [ ] Add LiveKit server to infra (Docker/ECS — open-source Go binary)
-- [ ] Terraform: ECS service for LiveKit, ALB listener, security groups
-- [ ] Env vars: `LIVEKIT_URL`, `LIVEKIT_API_KEY`, `LIVEKIT_API_SECRET`
-- [ ] Add `livekit-api` crate to `api/Cargo.toml`
+- [x] Add LiveKit server to infra (Docker/ECS — open-source Go binary)
+- [x] Terraform: ECS service for LiveKit, ALB listener, security groups
+- [x] Env vars: `LIVEKIT_URL`, `LIVEKIT_API_KEY`, `LIVEKIT_API_SECRET`
+- [x] Add `livekit-api` crate to `api/Cargo.toml`
 
 ### 7.2 Calling API
-- [ ] Create migration: `calls` table (id, org_id, channel_id, dm_id, call_type -- 'audio'/'video', status -- 'ringing'/'active'/'ended', started_by, started_at, ended_at, livekit_room_name)
-- [ ] Create migration: `call_participants` table (id, call_id, user_id, joined_at, left_at, muted, video_off)
-- [ ] Model: `api/src/models/call.rs`
-- [ ] Handler: `api/src/handlers/calls.rs`
-- [ ] Service: `api/src/services/livekit.rs` — room creation, token generation
-- [ ] API: POST `/api/calls/start` (creates LiveKit room, returns join token)
-- [ ] API: POST `/api/calls/{id}/join` (returns LiveKit token)
-- [ ] API: POST `/api/calls/{id}/leave`, POST `/api/calls/{id}/end`
-- [ ] API: GET `/api/calls/active` (active calls in user's channels)
-- [ ] WebSocket events: `CallStarted`, `CallEnded`, `CallParticipantJoined`, `CallParticipantLeft`, `CallRinging`
+- [x] Create migration: `calls` table (id, org_id, channel_id, dm_id, call_type -- 'audio'/'video', status -- 'ringing'/'active'/'ended', started_by, started_at, ended_at, livekit_room_name)
+- [x] Create migration: `call_participants` table (id, call_id, user_id, joined_at, left_at, muted, video_off)
+- [x] Model: `api/src/models/call.rs`
+- [x] Handler: `api/src/handlers/calls.rs`
+- [x] Service: `api/src/services/livekit.rs` — room creation, token generation
+- [x] API: POST `/api/calls/start` (creates LiveKit room, returns join token)
+- [x] API: POST `/api/calls/{id}/join` (returns LiveKit token)
+- [x] API: POST `/api/calls/{id}/leave`, POST `/api/calls/{id}/end`
+- [x] API: GET `/api/calls/active` (active calls in user's channels)
+- [x] WebSocket events: `CallStarted`, `CallEnded`, `CallParticipantJoined`, `CallParticipantLeft`, `CallRinging`
 
 ### 7.3 Call UI
-- [ ] Add `livekit-client` npm package to webui
-- [ ] Call buttons (phone + video) in channel/DM header in `MessageArea.tsx`
-- [ ] `IncomingCallBanner.tsx` (new) — accept/decline with ringtone
-- [ ] `CallOverlay.tsx` (new) — participant tiles, controls (mute, video toggle, screen share, end)
-- [ ] Active call indicator in sidebar (green phone icon on channel)
-- [ ] Picture-in-picture when navigating away from call channel
-- [ ] Call duration timer
-- [ ] Screen sharing via LiveKit track publishing
+- [x] Add `livekit-client` npm package to webui
+- [x] Call buttons (phone + video) in channel/DM header in `MessageArea.tsx`
+- [x] `IncomingCallBanner.tsx` (new) — accept/decline with ringtone
+- [x] `CallOverlay.tsx` (new) — participant tiles, controls (mute, video toggle, screen share, end)
+- [x] Active call indicator in sidebar (green phone icon on channel)
+- [x] Picture-in-picture when navigating away from call channel
+- [x] Call duration timer
+- [x] Screen sharing via LiveKit track publishing
 
 ### 7.4 Huddles
-- [ ] API: POST `/api/channels/{id}/huddle/start`, `/join`, `/leave`
-- [ ] Huddles = persistent audio-only rooms, no ringing, join/leave at will
-- [ ] UI: Headphone icon in channel header
-- [ ] `HuddleBar.tsx` (new) — bottom bar showing active participants, click to join/leave
+- [x] API: POST `/api/channels/{id}/huddle/join`, `/leave`
+- [x] Huddles = persistent audio-only rooms, no ringing, join/leave at will
+- [x] UI: Headphone icon in channel header
+- [x] `HuddleBar.tsx` (new) — bottom bar showing active participants, click to join/leave
 
-**Key files:** `api/src/handlers/calls.rs` (new), `api/src/models/call.rs` (new), `api/src/services/livekit.rs` (new), `api/src/websocket/messages.rs`, `webui/components/CallOverlay.tsx` (new), `webui/components/IncomingCallBanner.tsx` (new), `webui/components/HuddleBar.tsx` (new), `webui/lib/livekit.ts` (new)
+### 7.5 Stale Call Cleanup
+- [x] Background task: end calls stuck in 'ringing' for >60s
+- [x] Background task: end 'active' calls with 0 participants for >30s
+- [x] Active calls included in WebSocket InitialState for sidebar indicators
+
+**Key files:** `api/src/handlers/calls.rs` (new), `api/src/models/call.rs` (new), `api/src/services/livekit.rs` (new), `api/src/tasks/call_cleanup.rs` (new), `api/src/websocket/messages.rs`, `webui/components/CallOverlay.tsx` (new), `webui/components/IncomingCallBanner.tsx` (new), `webui/components/HuddleBar.tsx` (new), `webui/lib/livekit.ts` (new)
 
 ### Verification
 - [ ] Start audio call in a channel, second user joins — verify audio works

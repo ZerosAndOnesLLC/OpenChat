@@ -65,6 +65,29 @@ export interface Message {
   forwarded_from_message_id?: string;
   forwarded_from_channel_id?: string;
   forwarded_from_channel_name?: string;
+  encrypted_content?: string;
+  encryption_metadata?: EncryptionMetadata;
+}
+
+export interface EncryptionMetadata {
+  algorithm: string;
+  sender_device_id: string;
+  session_id: string;
+  iv: string;
+}
+
+export interface CryptoDevice {
+  id: string;
+  user_id: string;
+  device_id: string;
+  display_name?: string;
+  identity_key: string;
+  signing_key: string;
+  one_time_key_count: number;
+  has_fallback_key: boolean;
+  verified: boolean;
+  last_seen_at: string;
+  created_at: string;
 }
 
 // Attachment types
@@ -149,6 +172,7 @@ export interface ChannelMetadata {
   unread_count: number;
   last_message_preview?: string;
   last_message_at?: string;
+  encryption_enabled?: boolean;
 }
 
 export interface DmMetadata {
@@ -175,6 +199,8 @@ export interface MessageWithDetails {
   forwarded_from_message_id?: string;
   forwarded_from_channel_id?: string;
   forwarded_from_channel_name?: string;
+  encrypted_content?: string;
+  encryption_metadata?: EncryptionMetadata;
 }
 
 export interface PinnedMessageInfo {
@@ -200,7 +226,7 @@ export interface UnreadInfo {
 
 // WebSocket message types
 export type WSClientMessage =
-  | { type: 'send_message'; channel_id?: string; dm_id?: string; content: string; parent_message_id?: string }
+  | { type: 'send_message'; channel_id?: string; dm_id?: string; content: string; parent_message_id?: string; encrypted_content?: string; encryption_metadata?: EncryptionMetadata }
   | { type: 'typing'; channel_id?: string; dm_id?: string }
   | { type: 'subscribe_channel'; channel_id: string }
   | { type: 'unsubscribe_channel'; channel_id: string }
@@ -214,7 +240,7 @@ export type WSClientMessage =
   | { type: 'unpin_message'; message_id: string }
   | { type: 'add_bookmark'; message_id: string }
   | { type: 'remove_bookmark'; message_id: string }
-  | { type: 'edit_message'; message_id: string; content: string }
+  | { type: 'edit_message'; message_id: string; content: string; encrypted_content?: string; encryption_metadata?: EncryptionMetadata }
   | { type: 'delete_message'; message_id: string }
   | { type: 'subscribe_thread'; message_id: string }
   | { type: 'unsubscribe_thread'; message_id: string };
@@ -223,8 +249,8 @@ export type WSServerMessage =
   | { type: 'initial_state'; user_id: string; channels: ChannelMetadata[]; dms: DmMetadata[]; notification_preferences: { channel_id?: string; dm_id?: string; preference: string; mute_until?: string | null }[]; active_calls?: ActiveCall[] }
   | { type: 'channel_data'; channel_id: string; messages: MessageWithDetails[]; pins: PinnedMessageInfo[]; members: ChannelMemberInfo[]; unread_info: UnreadInfo }
   | { type: 'dm_data'; dm_id: string; messages: MessageWithDetails[]; unread_info: UnreadInfo }
-  | { type: 'new_message'; id: string; channel_id?: string; dm_id?: string; user_id: string; user_name: string; content: string; parent_message_id?: string; created_at: string; forwarded_from_message_id?: string; forwarded_from_channel_id?: string; forwarded_from_channel_name?: string }
-  | { type: 'message_edited'; message_id: string; content: string; edited_at: string }
+  | { type: 'new_message'; id: string; channel_id?: string; dm_id?: string; user_id: string; user_name: string; content: string; parent_message_id?: string; created_at: string; forwarded_from_message_id?: string; forwarded_from_channel_id?: string; forwarded_from_channel_name?: string; encrypted_content?: string; encryption_metadata?: EncryptionMetadata }
+  | { type: 'message_edited'; message_id: string; content: string; edited_at: string; encrypted_content?: string; encryption_metadata?: EncryptionMetadata }
   | { type: 'message_deleted'; message_id: string }
   | { type: 'user_typing'; user_id: string; channel_id?: string; dm_id?: string; user_name: string }
   | { type: 'user_status'; user_id: string; status: 'online' | 'offline' | 'away' }
@@ -282,10 +308,14 @@ export interface SendMessageRequest {
   dm_id?: string;
   content: string;
   parent_message_id?: string;
+  encrypted_content?: string;
+  encryption_metadata?: EncryptionMetadata;
 }
 
 export interface UpdateMessageRequest {
   content: string;
+  encrypted_content?: string;
+  encryption_metadata?: EncryptionMetadata;
 }
 
 export interface AddReactionRequest {

@@ -64,6 +64,7 @@ import type {
   UpdateWorkflowRequest,
   WorkflowForm,
   SubmitFormRequest,
+  CryptoDevice,
 } from './types';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080';
@@ -1068,6 +1069,60 @@ class ApiClient {
       method: 'POST',
       body: JSON.stringify(data),
     });
+  }
+
+  // Crypto device and key management
+  async registerCryptoDevice(data: { device_id: string; identity_key: string; signing_key: string; one_time_keys?: Record<string, string>; display_name?: string }): Promise<CryptoDevice> {
+    return this.request<CryptoDevice>('/api/crypto/devices', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async listMyCryptoDevices(): Promise<CryptoDevice[]> {
+    return this.request<CryptoDevice[]>('/api/crypto/devices');
+  }
+
+  async listUserCryptoDevices(userId: string): Promise<CryptoDevice[]> {
+    return this.request<CryptoDevice[]>(`/api/crypto/devices/${userId}`);
+  }
+
+  async removeCryptoDevice(deviceId: string): Promise<void> {
+    return this.request<void>(`/api/crypto/devices/${deviceId}`, { method: 'DELETE' });
+  }
+
+  async verifyCryptoDevice(deviceId: string): Promise<CryptoDevice> {
+    return this.request<CryptoDevice>(`/api/crypto/devices/${deviceId}/verify`, { method: 'POST' });
+  }
+
+  async uploadOneTimeKeys(deviceId: string, keys: Record<string, string>): Promise<CryptoDevice> {
+    return this.request<CryptoDevice>('/api/crypto/keys/upload', {
+      method: 'POST',
+      headers: { 'X-Device-Id': deviceId },
+      body: JSON.stringify({ one_time_keys: keys }),
+    });
+  }
+
+  async claimOneTimeKeys(devices: { user_id: string; device_id: string }[]): Promise<{ one_time_keys: { user_id: string; device_id: string; key_id: string; key: unknown }[] }> {
+    return this.request('/api/crypto/keys/claim', {
+      method: 'POST',
+      body: JSON.stringify({ devices }),
+    });
+  }
+
+  async queryDeviceKeys(userIds: string[]): Promise<{ device_keys: { user_id: string; device_id: string; identity_key: string; signing_key: string; one_time_key_count: number; verified: boolean }[] }> {
+    return this.request('/api/crypto/keys/query', {
+      method: 'POST',
+      body: JSON.stringify({ user_ids: userIds }),
+    });
+  }
+
+  async enableChannelEncryption(channelId: string): Promise<{ encryption_enabled: boolean; algorithm?: string }> {
+    return this.request(`/api/channels/${channelId}/encryption`, { method: 'POST' });
+  }
+
+  async getChannelEncryption(channelId: string): Promise<{ encryption_enabled: boolean; algorithm?: string }> {
+    return this.request(`/api/channels/${channelId}/encryption`);
   }
 }
 

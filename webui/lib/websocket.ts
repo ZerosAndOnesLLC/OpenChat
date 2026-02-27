@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { Message, WSClientMessage, WSServerMessage, ChannelMetadata, DmMetadata, PinnedMessageInfo, ChannelMemberInfo, MessageWithDetails, NotificationPref, ActiveCall, WorkflowForm, FormFieldDefinition } from './types';
+import type { Message, WSClientMessage, WSServerMessage, ChannelMetadata, DmMetadata, PinnedMessageInfo, ChannelMemberInfo, MessageWithDetails, NotificationPref, ActiveCall, WorkflowForm, FormFieldDefinition, EncryptionMetadata } from './types';
 import { apiClient } from './api';
 
 const WS_URL = process.env.NEXT_PUBLIC_WS_URL || 'ws://localhost:8080/api/ws';
@@ -58,7 +58,7 @@ interface WebSocketStore {
 
   connect: (token: string) => void;
   disconnect: () => void;
-  sendMessage: (channelId: string | undefined, dmId: string | undefined, content: string, parentMessageId?: string) => void;
+  sendMessage: (channelId: string | undefined, dmId: string | undefined, content: string, parentMessageId?: string, encryptedContent?: string, encryptionMetadata?: EncryptionMetadata) => void;
   sendTyping: (channelId: string | undefined, dmId: string | undefined) => void;
   subscribeChannel: (channelId: string) => void;
   unsubscribeChannel: (channelId: string) => void;
@@ -66,7 +66,7 @@ interface WebSocketStore {
   unsubscribeDm: (dmId: string) => void;
   updateStatus: (status: 'online' | 'offline' | 'away') => void;
   addMessage: (key: string, message: Message) => void;
-  updateMessage: (messageId: string, content: string, editedAt: string) => void;
+  updateMessage: (messageId: string, content: string, editedAt: string, encryptedContent?: string, encryptionMetadata?: EncryptionMetadata) => void;
   deleteMessage: (messageId: string) => void;
   addReaction: (messageId: string, userId: string, emoji: string) => void;
   removeReaction: (messageId: string, userId: string, emoji: string) => void;
@@ -217,6 +217,8 @@ export const useWebSocketStore = create<WebSocketStore>((set, get) => ({
               forwarded_from_message_id: msg.forwarded_from_message_id,
               forwarded_from_channel_id: msg.forwarded_from_channel_id,
               forwarded_from_channel_name: msg.forwarded_from_channel_name,
+              encrypted_content: msg.encrypted_content,
+              encryption_metadata: msg.encryption_metadata,
               user: {
                 id: msg.user_id,
                 display_name: msg.user_name,
@@ -273,6 +275,8 @@ export const useWebSocketStore = create<WebSocketStore>((set, get) => ({
               forwarded_from_message_id: msg.forwarded_from_message_id,
               forwarded_from_channel_id: msg.forwarded_from_channel_id,
               forwarded_from_channel_name: msg.forwarded_from_channel_name,
+              encrypted_content: msg.encrypted_content,
+              encryption_metadata: msg.encryption_metadata,
               user: {
                 id: msg.user_id,
                 display_name: msg.user_name,
@@ -323,6 +327,8 @@ export const useWebSocketStore = create<WebSocketStore>((set, get) => ({
               forwarded_from_message_id: message.forwarded_from_message_id,
               forwarded_from_channel_id: message.forwarded_from_channel_id,
               forwarded_from_channel_name: message.forwarded_from_channel_name,
+              encrypted_content: message.encrypted_content,
+              encryption_metadata: message.encryption_metadata,
               user: {
                 id: message.user_id,
                 display_name: message.user_name,
@@ -363,7 +369,7 @@ export const useWebSocketStore = create<WebSocketStore>((set, get) => ({
               console.error('Received message_edited with missing data:', message);
               break;
             }
-            get().updateMessage(message.message_id, message.content, message.edited_at);
+            get().updateMessage(message.message_id, message.content, message.edited_at, message.encrypted_content, message.encryption_metadata);
             break;
           }
 
@@ -847,7 +853,7 @@ export const useWebSocketStore = create<WebSocketStore>((set, get) => ({
     }
   },
 
-  sendMessage: (channelId, dmId, content, parentMessageId) => {
+  sendMessage: (channelId, dmId, content, parentMessageId, encryptedContent, encryptionMetadata) => {
     const { ws } = get();
     if (ws && ws.readyState === WebSocket.OPEN) {
       const message: WSClientMessage = {
@@ -856,6 +862,8 @@ export const useWebSocketStore = create<WebSocketStore>((set, get) => ({
         ...(channelId ? { channel_id: channelId } : {}),
         ...(dmId ? { dm_id: dmId } : {}),
         ...(parentMessageId ? { parent_message_id: parentMessageId } : {}),
+        ...(encryptedContent ? { encrypted_content: encryptedContent } : {}),
+        ...(encryptionMetadata ? { encryption_metadata: encryptionMetadata } : {}),
       };
       ws.send(JSON.stringify(message));
     }
@@ -937,12 +945,12 @@ export const useWebSocketStore = create<WebSocketStore>((set, get) => ({
     }));
   },
 
-  updateMessage: (messageId, content, editedAt) => {
+  updateMessage: (messageId, content, editedAt, encryptedContent, encryptionMetadata) => {
     set((state) => {
       const newMessages = { ...state.messages };
       Object.keys(newMessages).forEach((key) => {
         newMessages[key] = newMessages[key].map((msg) =>
-          msg.id === messageId ? { ...msg, content, edited_at: editedAt } : msg
+          msg.id === messageId ? { ...msg, content, edited_at: editedAt, ...(encryptedContent ? { encrypted_content: encryptedContent, encryption_metadata: encryptionMetadata } : {}) } : msg
         );
       });
       return { messages: newMessages };

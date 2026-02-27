@@ -16,6 +16,7 @@ use handlers::{
     attachment as attachment_handlers,
     audit_logs as audit_log_handlers,
     bookmarks as bookmark_handlers,
+    calls as call_handlers,
     channel_sections as channel_section_handlers,
     channels as channel_handlers,
     commands as command_handlers,
@@ -50,6 +51,7 @@ use handlers::{
 use middleware::auth::AuthMiddleware;
 use middleware::permissions::PermissionMiddleware;
 use middleware::rate_limit::RateLimitMiddleware;
+use services::livekit::LiveKitService;
 use services::tv_api::TvApiClient;
 use storage::StorageFactory;
 
@@ -179,9 +181,18 @@ async fn main() -> std::io::Result<()> {
     let storage_factory = Arc::new(StorageFactory::new(db_pool.clone(), local_storage_path));
     info!("Storage factory initialized");
 
+    // Initialize LiveKit service (optional — voice/video calling)
+    let livekit_service: Option<Arc<LiveKitService>> = config.livekit.as_ref().map(|lk_config| {
+        info!("LiveKit configured at {}", lk_config.url);
+        Arc::new(LiveKitService::new(lk_config.clone()))
+    });
+    if livekit_service.is_none() {
+        info!("LiveKit not configured — voice/video calling disabled");
+    }
+
     // Start background tasks
     info!("Starting background tasks...");
-    tasks::start_background_tasks(db_pool.clone(), ws_server.clone());
+    tasks::start_background_tasks(db_pool.clone(), ws_server.clone(), livekit_service.clone());
     info!("Background tasks started");
 
     // Clone config values needed after the closure
@@ -220,6 +231,7 @@ async fn main() -> std::io::Result<()> {
             .app_data(web::Data::new(tv_api_client.clone()))
             .app_data(web::Data::new(storage_factory.clone()))
             .app_data(web::Data::new(config.clone()))
+            .app_data(web::Data::new(livekit_service.clone()))
             .route("/health", web::get().to(health_check))
             .route("/api/ws", web::get().to(websocket::ws_route))
             // User routes - require "openchat" role
@@ -265,6 +277,8 @@ async fn main() -> std::io::Result<()> {
                     .route("/{id}/legal-hold", web::delete().to(retention_handlers::disable_legal_hold))
                     .route("/{id}/notifications", web::put().to(notification_pref_handlers::set_channel_notification_pref))
                     .route("/{id}/notifications", web::get().to(notification_pref_handlers::get_channel_notification_pref))
+                    .route("/{id}/huddle/join", web::post().to(call_handlers::join_huddle))
+                    .route("/{id}/huddle/leave", web::post().to(call_handlers::leave_huddle))
             )
             // Message routes - require "openchat" role
             .service(
@@ -546,6 +560,17 @@ async fn main() -> std::io::Result<()> {
                     .route("/{id}/vote", web::post().to(poll_handlers::vote))
                     .route("/{id}/vote", web::delete().to(poll_handlers::remove_vote))
                     .route("/{id}/close", web::post().to(poll_handlers::close_poll))
+            )
+            // Call routes - require "openchat" role
+            .service(
+                web::scope("/api/calls")
+                    .wrap(api_rate_limit.clone())
+                    .wrap(openchat_auth.clone())
+                    .route("/start", web::post().to(call_handlers::start_call))
+                    .route("/active", web::get().to(call_handlers::list_active_calls))
+                    .route("/{id}/join", web::post().to(call_handlers::join_call))
+                    .route("/{id}/leave", web::post().to(call_handlers::leave_call))
+                    .route("/{id}/end", web::post().to(call_handlers::end_call))
             )
             // Slash command routes - require "openchat" role
             .service(

@@ -53,6 +53,10 @@ import type {
   ExecuteCommandResponse,
   CreatePollRequest,
   Poll,
+  StartCallRequest,
+  StartCallResponse,
+  JoinCallResponse,
+  ActiveCall,
 } from './types';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080';
@@ -942,6 +946,48 @@ class ApiClient {
 
   async closePoll(id: string): Promise<Poll> {
     return this.request<Poll>(`/api/polls/${id}/close`, {
+      method: 'POST',
+    });
+  }
+
+  // Call endpoints
+  async startCall(data: StartCallRequest): Promise<StartCallResponse> {
+    return this.request<StartCallResponse>('/api/calls/start', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async joinCall(callId: string): Promise<JoinCallResponse> {
+    return this.request<JoinCallResponse>(`/api/calls/${callId}/join`, {
+      method: 'POST',
+    });
+  }
+
+  async leaveCall(callId: string): Promise<void> {
+    return this.request<void>(`/api/calls/${callId}/leave`, {
+      method: 'POST',
+    });
+  }
+
+  async endCall(callId: string): Promise<void> {
+    return this.request<void>(`/api/calls/${callId}/end`, {
+      method: 'POST',
+    });
+  }
+
+  async getActiveCalls(): Promise<ActiveCall[]> {
+    return this.request<ActiveCall[]>('/api/calls/active');
+  }
+
+  async joinHuddle(channelId: string): Promise<JoinCallResponse> {
+    return this.request<JoinCallResponse>(`/api/channels/${channelId}/huddle/join`, {
+      method: 'POST',
+    });
+  }
+
+  async leaveHuddle(channelId: string): Promise<void> {
+    return this.request<void>(`/api/channels/${channelId}/huddle/leave`, {
       method: 'POST',
     });
   }

@@ -220,7 +220,7 @@ export type WSClientMessage =
   | { type: 'unsubscribe_thread'; message_id: string };
 
 export type WSServerMessage =
-  | { type: 'initial_state'; user_id: string; channels: ChannelMetadata[]; dms: DmMetadata[]; notification_preferences: { channel_id?: string; dm_id?: string; preference: string; mute_until?: string | null }[] }
+  | { type: 'initial_state'; user_id: string; channels: ChannelMetadata[]; dms: DmMetadata[]; notification_preferences: { channel_id?: string; dm_id?: string; preference: string; mute_until?: string | null }[]; active_calls?: ActiveCall[] }
   | { type: 'channel_data'; channel_id: string; messages: MessageWithDetails[]; pins: PinnedMessageInfo[]; members: ChannelMemberInfo[]; unread_info: UnreadInfo }
   | { type: 'dm_data'; dm_id: string; messages: MessageWithDetails[]; unread_info: UnreadInfo }
   | { type: 'new_message'; id: string; channel_id?: string; dm_id?: string; user_id: string; user_name: string; content: string; parent_message_id?: string; created_at: string; forwarded_from_message_id?: string; forwarded_from_channel_id?: string; forwarded_from_channel_name?: string }
@@ -244,6 +244,11 @@ export type WSServerMessage =
   | { type: 'reminder_triggered'; reminder_id: string; message_id: string; channel_id?: string; dm_id?: string; message_preview: string; created_at: string }
   | { type: 'ephemeral_message'; content: string; channel_id?: string; dm_id?: string }
   | { type: 'poll_vote_updated'; poll_id: string; message_id: string; channel_id?: string; dm_id?: string; options: { index: number; text: string; votes: number }[]; total_votes: number; user_votes: number[] }
+  | { type: 'call_started'; call_id: string; channel_id?: string; dm_id?: string; call_type: string; started_by: string; started_by_name: string; is_huddle: boolean }
+  | { type: 'call_ended'; call_id: string; channel_id?: string; dm_id?: string }
+  | { type: 'call_participant_joined'; call_id: string; channel_id?: string; dm_id?: string; user_id: string; user_name: string }
+  | { type: 'call_participant_left'; call_id: string; channel_id?: string; dm_id?: string; user_id: string; user_name: string }
+  | { type: 'call_ringing'; call_id: string; channel_id?: string; dm_id?: string; call_type: string; started_by: string; started_by_name: string }
   | { type: 'connected'; user_id: string }
   | { type: 'error'; message: string }
   | { type: 'pong' };
@@ -611,4 +616,38 @@ export interface CreatePollRequest {
   poll_type?: 'single' | 'multiple';
   anonymous?: boolean;
   expires_at?: string;
+}
+
+// Call types
+export interface ActiveCall {
+  id: string;
+  channel_id?: string;
+  dm_id?: string;
+  call_type: 'audio' | 'video';
+  status: 'ringing' | 'active' | 'ended';
+  started_by: string;
+  started_at: string;
+  is_huddle: boolean;
+  livekit_room_name: string;
+  participant_count: number;
+}
+
+export interface StartCallRequest {
+  channel_id?: string;
+  dm_id?: string;
+  call_type?: 'audio' | 'video';
+}
+
+export interface StartCallResponse {
+  call_id: string;
+  token: string;
+  livekit_url: string;
+  livekit_room_name: string;
+}
+
+export interface JoinCallResponse {
+  call_id: string;
+  token: string;
+  livekit_url: string;
+  livekit_room_name: string;
 }

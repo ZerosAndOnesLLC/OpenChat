@@ -1,6 +1,7 @@
 pub mod attachment;
 pub mod audit_logs;
 pub mod bookmarks;
+pub mod calls;
 pub mod channel_sections;
 pub mod channels;
 pub mod commands;

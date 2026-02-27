@@ -6,7 +6,10 @@ import Sidebar from './Sidebar';
 import MessageArea from './MessageArea';
 import KeyboardShortcutsHelp from './KeyboardShortcutsHelp';
 import QuickSwitcher from './QuickSwitcher';
+import IncomingCallBanner from './IncomingCallBanner';
+import CallOverlay from './CallOverlay';
 import { keyboardShortcutsManager, SHORTCUT_CATEGORIES } from '@/lib/keyboard-shortcuts';
+import { useWebSocketStore } from '@/lib/websocket';
 import type { Channel, DirectMessage } from '@/lib/types';
 
 const SIDEBAR_MIN_WIDTH = 180;
@@ -16,6 +19,7 @@ const SIDEBAR_WIDTH_KEY = 'openchat-sidebar-width';
 
 export default function ChatLayout() {
   const router = useRouter();
+  const { currentCall } = useWebSocketStore();
   const [activeChannel, setActiveChannel] = useState<Channel | null>(null);
   const [activeDm, setActiveDm] = useState<DirectMessage | null>(null);
   const [showShortcutsHelp, setShowShortcutsHelp] = useState(false);
@@ -168,6 +172,10 @@ export default function ChatLayout() {
         dm={activeDm}
         onLeaveChannel={handleLeaveChannel}
       />
+
+      {/* Call components */}
+      <IncomingCallBanner />
+      {currentCall && <CallOverlay />}
 
       {/* Modals */}
       <KeyboardShortcutsHelp

@@ -2,6 +2,8 @@ use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
+pub use crate::models::call::ActiveCallInfo;
+
 /// Messages sent from client to server
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
@@ -189,6 +191,8 @@ pub enum ServerMessage {
         channels: Vec<ChannelMetadata>,
         dms: Vec<DmMetadata>,
         notification_preferences: Vec<NotificationPrefInfo>,
+        #[serde(skip_serializing_if = "Vec::is_empty")]
+        active_calls: Vec<ActiveCallInfo>,
     },
     /// Complete channel data sent when subscribing to a channel
     ChannelData {
@@ -377,5 +381,56 @@ pub enum ServerMessage {
         options: Vec<PollOptionResult>,
         total_votes: i64,
         user_votes: Vec<i32>,
+    },
+    /// A call was started in a channel or DM
+    CallStarted {
+        call_id: Uuid,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        channel_id: Option<Uuid>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        dm_id: Option<Uuid>,
+        call_type: String,
+        started_by: Uuid,
+        started_by_name: String,
+        is_huddle: bool,
+    },
+    /// A call ended
+    CallEnded {
+        call_id: Uuid,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        channel_id: Option<Uuid>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        dm_id: Option<Uuid>,
+    },
+    /// A participant joined a call
+    CallParticipantJoined {
+        call_id: Uuid,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        channel_id: Option<Uuid>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        dm_id: Option<Uuid>,
+        user_id: Uuid,
+        user_name: String,
+    },
+    /// A participant left a call
+    CallParticipantLeft {
+        call_id: Uuid,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        channel_id: Option<Uuid>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        dm_id: Option<Uuid>,
+        user_id: Uuid,
+        user_name: String,
+    },
+    /// Incoming call ringing notification (sent to target users)
+    CallRinging {
+        call_id: Uuid,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        channel_id: Option<Uuid>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        dm_id: Option<Uuid>,
+        call_type: String,
+        started_by: Uuid,
+        started_by_name: String,
     },
 }

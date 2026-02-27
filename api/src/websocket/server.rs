@@ -361,6 +361,8 @@ pub struct SendMessage {
     pub dm_id: Option<Uuid>,
     pub content: String,
     pub parent_message_id: Option<Uuid>,
+    pub encrypted_content: Option<String>,
+    pub encryption_metadata: Option<serde_json::Value>,
 }
 
 impl Handler<SendMessage> for WsServer {
@@ -375,14 +377,38 @@ impl Handler<SendMessage> for WsServer {
         let content = msg.content.clone();
         let parent_message_id = msg.parent_message_id;
         let org_id = msg.org_id;
+        let encrypted_content = msg.encrypted_content.clone();
+        let encryption_metadata = msg.encryption_metadata.clone();
 
         // Save message to database, then broadcast
         let fut = async move {
+            // Decode encrypted content if present
+            let encrypted_bytes = if let Some(ref ec) = encrypted_content {
+                use base64::Engine;
+                match base64::engine::general_purpose::STANDARD.decode(ec) {
+                    Ok(bytes) => Some(bytes),
+                    Err(e) => {
+                        tracing::error!("Failed to decode encrypted content: {}", e);
+                        return None;
+                    }
+                }
+            } else {
+                None
+            };
+
             // Save to database
             let db_message = if let Some(cid) = channel_id {
-                DbMessage::create_channel_message(&db_pool, cid, user_id, &content, parent_message_id).await
+                if let (Some(enc_bytes), Some(enc_meta)) = (&encrypted_bytes, &encryption_metadata) {
+                    DbMessage::create_encrypted_channel_message(&db_pool, cid, user_id, &content, enc_bytes, enc_meta.clone(), parent_message_id).await
+                } else {
+                    DbMessage::create_channel_message(&db_pool, cid, user_id, &content, parent_message_id).await
+                }
             } else if let Some(did) = dm_id {
-                DbMessage::create_dm_message(&db_pool, did, user_id, &content, parent_message_id).await
+                if let (Some(enc_bytes), Some(enc_meta)) = (&encrypted_bytes, &encryption_metadata) {
+                    DbMessage::create_encrypted_dm_message(&db_pool, did, user_id, &content, enc_bytes, enc_meta.clone(), parent_message_id).await
+                } else {
+                    DbMessage::create_dm_message(&db_pool, did, user_id, &content, parent_message_id).await
+                }
             } else {
                 tracing::error!("Message has neither channel_id nor dm_id");
                 return None;
@@ -406,6 +432,8 @@ impl Handler<SendMessage> for WsServer {
                             forwarded_from_message_id: message.forwarded_from_message_id,
                             forwarded_from_channel_id: message.forwarded_from_channel_id,
                             forwarded_from_channel_name: None,
+                            encrypted_content,
+                            encryption_metadata,
                         },
                         channel_id,
                         org_id,
@@ -1343,6 +1371,8 @@ pub struct EditMessage {
     pub org_id: Uuid,
     pub message_id: Uuid,
     pub content: String,
+    pub encrypted_content: Option<String>,
+    pub encryption_metadata: Option<serde_json::Value>,
 }
 
 impl Handler<EditMessage> for WsServer {
@@ -1354,6 +1384,8 @@ impl Handler<EditMessage> for WsServer {
         let user_id = msg.user_id;
         let org_id = msg.org_id;
         let content = msg.content.clone();
+        let encrypted_content = msg.encrypted_content.clone();
+        let encryption_metadata = msg.encryption_metadata.clone();
 
         let fut = async move {
             use crate::models::message::Message as DbMessage;
@@ -1377,12 +1409,31 @@ impl Handler<EditMessage> for WsServer {
                 return None;
             }
 
-            // Update the message
-            let updated = match DbMessage::update(&db_pool, message_id, &content, user_id).await {
-                Ok(m) => m,
-                Err(e) => {
-                    tracing::error!("Failed to update message: {}", e);
-                    return None;
+            // Update the message (encrypted or plaintext)
+            let updated = if let (Some(ec), Some(em)) = (&encrypted_content, &encryption_metadata) {
+                use base64::Engine;
+                match base64::engine::general_purpose::STANDARD.decode(ec) {
+                    Ok(enc_bytes) => {
+                        match DbMessage::update_encrypted(&db_pool, message_id, &content, &enc_bytes, em.clone(), user_id).await {
+                            Ok(m) => m,
+                            Err(e) => {
+                                tracing::error!("Failed to update encrypted message: {}", e);
+                                return None;
+                            }
+                        }
+                    }
+                    Err(e) => {
+                        tracing::error!("Failed to decode encrypted content for edit: {}", e);
+                        return None;
+                    }
+                }
+            } else {
+                match DbMessage::update(&db_pool, message_id, &content, user_id).await {
+                    Ok(m) => m,
+                    Err(e) => {
+                        tracing::error!("Failed to update message: {}", e);
+                        return None;
+                    }
                 }
             };
 
@@ -1393,6 +1444,8 @@ impl Handler<EditMessage> for WsServer {
                     message_id,
                     content,
                     edited_at,
+                    encrypted_content,
+                    encryption_metadata,
                 },
                 message.channel_id,
                 message.dm_id,

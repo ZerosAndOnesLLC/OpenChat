@@ -209,7 +209,10 @@ impl Channel {
                     0
                 ) as unread_count,
                 (
-                    SELECT content
+                    SELECT CASE
+                        WHEN encrypted_content IS NOT NULL THEN '[Encrypted message]'
+                        ELSE content
+                    END
                     FROM messages
                     WHERE channel_id = c.id
                     ORDER BY created_at DESC
@@ -221,9 +224,11 @@ impl Channel {
                     WHERE channel_id = c.id
                     ORDER BY created_at DESC
                     LIMIT 1
-                ) as last_message_at
+                ) as last_message_at,
+                COALESCE(ec.encryption_enabled, FALSE) as encryption_enabled
             FROM channels c
             INNER JOIN channel_members cm ON c.id = cm.channel_id
+            LEFT JOIN encrypted_channels ec ON c.id = ec.channel_id
             WHERE c.org_id = $1 AND cm.user_id = $2 AND c.archived = FALSE
             ORDER BY c.created_at DESC
             "#,

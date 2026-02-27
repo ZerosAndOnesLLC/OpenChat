@@ -29,11 +29,15 @@ pub struct SendMessageRequest {
     pub dm_id: Option<Uuid>,
     pub content: String,
     pub parent_message_id: Option<Uuid>,
+    pub encrypted_content: Option<String>,
+    pub encryption_metadata: Option<serde_json::Value>,
 }
 
 #[derive(Debug, Deserialize)]
 pub struct UpdateMessageRequest {
     pub content: String,
+    pub encrypted_content: Option<String>,
+    pub encryption_metadata: Option<serde_json::Value>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -136,6 +140,10 @@ pub struct MessageResponse {
     pub forwarded_from_channel_id: Option<Uuid>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub forwarded_from_channel_name: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub encrypted_content: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub encryption_metadata: Option<serde_json::Value>,
 }
 
 #[derive(Debug, Serialize, Clone)]
@@ -162,6 +170,8 @@ pub struct PollOptionEmbed {
 
 impl From<Message> for MessageResponse {
     fn from(message: Message) -> Self {
+        use base64::Engine;
+        let encrypted_content = message.encrypted_content.map(|b| base64::engine::general_purpose::STANDARD.encode(&b));
         Self {
             id: message.id,
             channel_id: message.channel_id,
@@ -180,6 +190,8 @@ impl From<Message> for MessageResponse {
             forwarded_from_message_id: message.forwarded_from_message_id,
             forwarded_from_channel_id: message.forwarded_from_channel_id,
             forwarded_from_channel_name: None,
+            encrypted_content,
+            encryption_metadata: message.encryption_metadata,
         }
     }
 }
@@ -277,6 +289,15 @@ pub async fn send_message(
         .await?
         .ok_or_else(|| ApiError::NotFound("Current user not found".to_string()))?;
 
+    // Decode encrypted content if present
+    let encrypted_bytes = if let Some(ref ec) = body.encrypted_content {
+        use base64::Engine;
+        Some(base64::engine::general_purpose::STANDARD.decode(ec)
+            .map_err(|_| ApiError::BadRequest("Invalid base64 in encrypted_content".to_string()))?)
+    } else {
+        None
+    };
+
     let message = if let Some(channel_id) = body.channel_id {
         // Verify channel exists
         Channel::get_by_id(pool.get_ref(), channel_id)
@@ -291,26 +312,56 @@ pub async fn send_message(
             ));
         }
 
-        // Create channel message
-        Message::create_channel_message(
-            pool.get_ref(),
-            channel_id,
-            current_user.id,
-            &body.content,
-            body.parent_message_id,
-        )
-        .await?
+        // Check if channel requires encryption
+        let channel_encrypted = crate::models::encrypted_channel::EncryptedChannel::is_encrypted(pool.get_ref(), channel_id).await?;
+        if channel_encrypted && encrypted_bytes.is_none() {
+            return Err(ApiError::BadRequest("This channel requires encrypted messages".to_string()));
+        }
+
+        // Create channel message (encrypted or plaintext)
+        if let (Some(enc_bytes), Some(enc_meta)) = (&encrypted_bytes, &body.encryption_metadata) {
+            Message::create_encrypted_channel_message(
+                pool.get_ref(),
+                channel_id,
+                current_user.id,
+                &body.content,
+                enc_bytes,
+                enc_meta.clone(),
+                body.parent_message_id,
+            )
+            .await?
+        } else {
+            Message::create_channel_message(
+                pool.get_ref(),
+                channel_id,
+                current_user.id,
+                &body.content,
+                body.parent_message_id,
+            )
+            .await?
+        }
     } else if let Some(dm_id) = body.dm_id {
-        // For now, we'll implement DM verification in Phase 7
-        // Just create the message if dm_id is provided
-        Message::create_dm_message(
-            pool.get_ref(),
-            dm_id,
-            current_user.id,
-            &body.content,
-            body.parent_message_id,
-        )
-        .await?
+        if let (Some(enc_bytes), Some(enc_meta)) = (&encrypted_bytes, &body.encryption_metadata) {
+            Message::create_encrypted_dm_message(
+                pool.get_ref(),
+                dm_id,
+                current_user.id,
+                &body.content,
+                enc_bytes,
+                enc_meta.clone(),
+                body.parent_message_id,
+            )
+            .await?
+        } else {
+            Message::create_dm_message(
+                pool.get_ref(),
+                dm_id,
+                current_user.id,
+                &body.content,
+                body.parent_message_id,
+            )
+            .await?
+        }
     } else {
         unreachable!() // Already validated above
     };
@@ -596,6 +647,8 @@ pub async fn send_message(
             forwarded_from_message_id: None,
             forwarded_from_channel_id: None,
             forwarded_from_channel_name: None,
+            encrypted_content: body.encrypted_content.clone(),
+            encryption_metadata: body.encryption_metadata.clone(),
         },
     });
 
@@ -655,6 +708,26 @@ pub async fn send_message(
                 }
             }
         }
+    }
+
+    // Fire workflow triggers (fire-and-forget)
+    {
+        let pool = pool.clone();
+        let ws = ws_server.clone();
+        let org_id = current_user.org_id;
+        let trigger_data = serde_json::json!({
+            "user_id": current_user.id.to_string(),
+            "user_name": current_user.display_name.clone(),
+            "channel_id": message.channel_id.map(|id| id.to_string()),
+            "dm_id": message.dm_id.map(|id| id.to_string()),
+            "message_id": message.id.to_string(),
+            "content": message.content.clone(),
+        });
+        tokio::spawn(async move {
+            crate::services::workflow_engine::check_triggers(
+                pool.get_ref(), ws.get_ref(), org_id, "message_posted", trigger_data,
+            ).await;
+        });
     }
 
     Ok(HttpResponse::Created().json(MessageResponse::from(message)))
@@ -950,8 +1023,15 @@ pub async fn update_message(
         ));
     }
 
-    // Update the message
-    let updated_message = Message::update(pool.get_ref(), *message_id, &body.content, current_user.id).await?;
+    // Update the message (encrypted or plaintext)
+    let updated_message = if let (Some(ec), Some(em)) = (&body.encrypted_content, &body.encryption_metadata) {
+        use base64::Engine;
+        let enc_bytes = base64::engine::general_purpose::STANDARD.decode(ec)
+            .map_err(|_| ApiError::BadRequest("Invalid base64 in encrypted_content".to_string()))?;
+        Message::update_encrypted(pool.get_ref(), *message_id, &body.content, &enc_bytes, em.clone(), current_user.id).await?
+    } else {
+        Message::update(pool.get_ref(), *message_id, &body.content, current_user.id).await?
+    };
 
     // Invalidate message cache after updating
 
@@ -1336,6 +1416,8 @@ pub async fn forward_message(
             forwarded_from_message_id: forwarded_message.forwarded_from_message_id,
             forwarded_from_channel_id: forwarded_message.forwarded_from_channel_id,
             forwarded_from_channel_name: forwarded_from_channel_name.clone(),
+            encrypted_content: None,
+            encryption_metadata: None,
         },
     });
 

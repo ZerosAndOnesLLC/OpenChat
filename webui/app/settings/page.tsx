@@ -10,6 +10,7 @@ import DeviceManagement from '@/components/settings/devices';
 import DesktopAppSettings from '@/components/settings/desktop-app-settings';
 import WebhookManagement from '@/components/settings/webhooks';
 import NotificationSoundSettings from '@/components/settings/notification-sound-settings';
+import EncryptionSettings from '@/components/settings/encryption-settings';
 import AboutSettings from '@/components/settings/about-settings';
 import packageJson from '../../package.json';
 import {
@@ -22,6 +23,7 @@ import {
   Info,
   ChevronLeft,
   RefreshCw,
+  Lock,
 } from 'lucide-react';
 
 function SettingsContent() {
@@ -72,6 +74,19 @@ function SettingsContent() {
           label: 'Desktop App',
           icon: <Monitor className="w-4 h-4" />,
           component: <DesktopAppSettings />,
+        },
+      ],
+    },
+    {
+      id: 'security',
+      label: 'Security',
+      icon: <Lock className="w-4 h-4" />,
+      items: [
+        {
+          id: 'encryption',
+          label: 'Encryption',
+          icon: <Lock className="w-4 h-4" />,
+          component: <EncryptionSettings />,
         },
       ],
     },

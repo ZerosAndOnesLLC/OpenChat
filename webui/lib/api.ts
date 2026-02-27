@@ -57,6 +57,14 @@ import type {
   StartCallResponse,
   JoinCallResponse,
   ActiveCall,
+  Workflow,
+  WorkflowListItem,
+  WorkflowExecution,
+  CreateWorkflowRequest,
+  UpdateWorkflowRequest,
+  WorkflowForm,
+  SubmitFormRequest,
+  CryptoDevice,
 } from './types';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080';
@@ -990,6 +998,131 @@ class ApiClient {
     return this.request<void>(`/api/channels/${channelId}/huddle/leave`, {
       method: 'POST',
     });
+  }
+  // Workflow endpoints
+  async listWorkflows(): Promise<WorkflowListItem[]> {
+    return this.request<WorkflowListItem[]>('/api/workflows');
+  }
+
+  async createWorkflow(data: CreateWorkflowRequest): Promise<Workflow> {
+    return this.request<Workflow>('/api/workflows', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async getWorkflow(id: string): Promise<Workflow> {
+    return this.request<Workflow>(`/api/workflows/${id}`);
+  }
+
+  async updateWorkflow(id: string, data: UpdateWorkflowRequest): Promise<Workflow> {
+    return this.request<Workflow>(`/api/workflows/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async deleteWorkflow(id: string): Promise<void> {
+    return this.request<void>(`/api/workflows/${id}`, {
+      method: 'DELETE',
+    });
+  }
+
+  async enableWorkflow(id: string): Promise<WorkflowListItem> {
+    return this.request<WorkflowListItem>(`/api/workflows/${id}/enable`, {
+      method: 'POST',
+    });
+  }
+
+  async disableWorkflow(id: string): Promise<WorkflowListItem> {
+    return this.request<WorkflowListItem>(`/api/workflows/${id}/disable`, {
+      method: 'POST',
+    });
+  }
+
+  async listWorkflowExecutions(workflowId: string, limit = 20, offset = 0): Promise<WorkflowExecution[]> {
+    const params = new URLSearchParams({ limit: limit.toString(), offset: offset.toString() });
+    return this.request<WorkflowExecution[]>(`/api/workflows/${workflowId}/executions?${params}`);
+  }
+
+  async getWorkflowExecution(workflowId: string, executionId: string): Promise<WorkflowExecution> {
+    return this.request<WorkflowExecution>(`/api/workflows/${workflowId}/executions/${executionId}`);
+  }
+
+  async testWorkflow(id: string): Promise<{ message: string }> {
+    return this.request<{ message: string }>(`/api/workflows/${id}/test`, {
+      method: 'POST',
+    });
+  }
+
+  // Form endpoints
+  async listPendingForms(): Promise<WorkflowForm[]> {
+    return this.request<WorkflowForm[]>('/api/forms/pending');
+  }
+
+  async getForm(id: string): Promise<WorkflowForm> {
+    return this.request<WorkflowForm>(`/api/forms/${id}`);
+  }
+
+  async submitForm(id: string, data: SubmitFormRequest): Promise<WorkflowForm> {
+    return this.request<WorkflowForm>(`/api/forms/${id}/submit`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  // Crypto device and key management
+  async registerCryptoDevice(data: { device_id: string; identity_key: string; signing_key: string; one_time_keys?: Record<string, string>; display_name?: string }): Promise<CryptoDevice> {
+    return this.request<CryptoDevice>('/api/crypto/devices', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async listMyCryptoDevices(): Promise<CryptoDevice[]> {
+    return this.request<CryptoDevice[]>('/api/crypto/devices');
+  }
+
+  async listUserCryptoDevices(userId: string): Promise<CryptoDevice[]> {
+    return this.request<CryptoDevice[]>(`/api/crypto/devices/${userId}`);
+  }
+
+  async removeCryptoDevice(deviceId: string): Promise<void> {
+    return this.request<void>(`/api/crypto/devices/${deviceId}`, { method: 'DELETE' });
+  }
+
+  async verifyCryptoDevice(deviceId: string): Promise<CryptoDevice> {
+    return this.request<CryptoDevice>(`/api/crypto/devices/${deviceId}/verify`, { method: 'POST' });
+  }
+
+  async uploadOneTimeKeys(deviceId: string, keys: Record<string, string>): Promise<CryptoDevice> {
+    return this.request<CryptoDevice>('/api/crypto/keys/upload', {
+      method: 'POST',
+      headers: { 'X-Device-Id': deviceId },
+      body: JSON.stringify({ one_time_keys: keys }),
+    });
+  }
+
+  async claimOneTimeKeys(devices: { user_id: string; device_id: string }[]): Promise<{ one_time_keys: { user_id: string; device_id: string; key_id: string; key: unknown }[] }> {
+    return this.request('/api/crypto/keys/claim', {
+      method: 'POST',
+      body: JSON.stringify({ devices }),
+    });
+  }
+
+  async queryDeviceKeys(userIds: string[]): Promise<{ device_keys: { user_id: string; device_id: string; identity_key: string; signing_key: string; one_time_key_count: number; verified: boolean }[] }> {
+    return this.request('/api/crypto/keys/query', {
+      method: 'POST',
+      body: JSON.stringify({ user_ids: userIds }),
+    });
+  }
+
+  async enableChannelEncryption(channelId: string): Promise<{ encryption_enabled: boolean; algorithm?: string }> {
+    return this.request(`/api/channels/${channelId}/encryption`, { method: 'POST' });
+  }
+
+  async getChannelEncryption(channelId: string): Promise<{ encryption_enabled: boolean; algorithm?: string }> {
+    return this.request(`/api/channels/${channelId}/encryption`);
   }
 }
 

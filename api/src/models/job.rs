@@ -11,6 +11,7 @@ pub enum JobType {
     ScheduledMessage,
     Reminder,
     EmailNotification,
+    WorkflowExecution,
 }
 
 impl fmt::Display for JobType {
@@ -21,6 +22,7 @@ impl fmt::Display for JobType {
             JobType::ScheduledMessage => write!(f, "scheduled_message"),
             JobType::Reminder => write!(f, "reminder"),
             JobType::EmailNotification => write!(f, "email_notification"),
+            JobType::WorkflowExecution => write!(f, "workflow_execution"),
         }
     }
 }
@@ -35,6 +37,7 @@ impl std::str::FromStr for JobType {
             "scheduled_message" => Ok(JobType::ScheduledMessage),
             "reminder" => Ok(JobType::Reminder),
             "email_notification" => Ok(JobType::EmailNotification),
+            "workflow_execution" => Ok(JobType::WorkflowExecution),
             _ => Err(format!("Unknown job type: {}", s)),
         }
     }

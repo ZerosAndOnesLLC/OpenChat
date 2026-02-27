@@ -13,6 +13,7 @@ import ReadReceiptModal from './ReadReceiptModal';
 import EditHistoryModal from './EditHistoryModal';
 import ReminderPickerModal from './ReminderPickerModal';
 import PollDisplay from './PollDisplay';
+import { Shield } from 'lucide-react';
 
 // Dynamically import EmojiPicker to avoid SSR issues
 const EmojiPicker = dynamic(() => import('emoji-picker-react'), { ssr: false });
@@ -172,6 +173,11 @@ export default function MessageItem({ message, onReply, onOpenThread, onPin, onB
               {message.user?.display_name || 'Unknown User'}
             </span>
             <span className="text-xs text-gray-400">{formatTime(message.created_at)}</span>
+            {message.encrypted_content && (
+              <span title="Encrypted">
+                <Shield className="h-3 w-3 text-green-400" />
+              </span>
+            )}
             {message.edited_at && (
               <button
                 onClick={() => setShowEditHistoryModal(true)}
@@ -226,6 +232,11 @@ export default function MessageItem({ message, onReply, onOpenThread, onPin, onB
                   Cancel
                 </button>
               </div>
+            </div>
+          ) : message.encrypted_content && message.content === '[Encrypted message]' ? (
+            <div className="flex items-center gap-1.5 text-sm text-gray-500 italic">
+              <Shield className="h-3.5 w-3.5" />
+              <span>[Unable to decrypt]</span>
             </div>
           ) : (
             <div className="text-sm">

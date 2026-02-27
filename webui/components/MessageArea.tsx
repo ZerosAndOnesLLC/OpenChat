@@ -16,6 +16,7 @@ import EditChannelModal from './EditChannelModal';
 import AddMembersModal from './AddMembersModal';
 import ForwardMessageModal from './ForwardMessageModal';
 import HuddleBar from './HuddleBar';
+import EncryptionBanner from './EncryptionBanner';
 import Toast from './Toast';
 
 interface MessageAreaProps {
@@ -48,6 +49,8 @@ export default function MessageArea({ channel, dm, onLeaveChannel }: MessageArea
 
   // Current notification pref for this channel/DM
   const currentKey = channel?.id || dm?.id || '';
+  const wsChannels = useWebSocketStore((state) => state.channels);
+  const encryptionEnabled = channel ? wsChannels.find(ch => ch.id === channel.id)?.encryption_enabled : false;
   const currentNotifPref = currentKey ? notificationPrefs[currentKey] : undefined;
   const currentPreference = currentNotifPref?.preference || 'all';
   const isMuted = currentPreference === 'nothing' || (currentNotifPref?.mute_until && new Date(currentNotifPref.mute_until) > new Date());
@@ -637,6 +640,8 @@ export default function MessageArea({ channel, dm, onLeaveChannel }: MessageArea
           {/* Pinned messages panel - only show for channels */}
           {channel && <PinnedMessagesPanel channelId={channel.id} onUnpin={handleUnpinFromPanel} />}
 
+          {encryptionEnabled && <EncryptionBanner />}
+
           <div className="flex flex-1 flex-col overflow-hidden">
             <MessageList
               key={currentKey}
@@ -663,6 +668,7 @@ export default function MessageArea({ channel, dm, onLeaveChannel }: MessageArea
             dmId={dm?.id}
             replyTo={replyTo}
             onClearReply={handleClearReply}
+            encryptionEnabled={!!encryptionEnabled}
           />
         </div>
 

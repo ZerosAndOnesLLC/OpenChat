@@ -54,6 +54,8 @@ impl WsSessionData {
                 dm_id,
                 content,
                 parent_message_id,
+                encrypted_content,
+                encryption_metadata,
             } => {
                 self.server.do_send(server::SendMessage {
                     user_id: self.user_id,
@@ -63,6 +65,8 @@ impl WsSessionData {
                     dm_id,
                     content,
                     parent_message_id,
+                    encrypted_content,
+                    encryption_metadata,
                 });
             }
             ClientMessage::Typing { channel_id, dm_id } => {
@@ -170,12 +174,14 @@ impl WsSessionData {
                     message_id,
                 });
             }
-            ClientMessage::EditMessage { message_id, content } => {
+            ClientMessage::EditMessage { message_id, content, encrypted_content, encryption_metadata } => {
                 self.server.do_send(server::EditMessage {
                     user_id: self.user_id,
                     org_id: self.org_id,
                     message_id,
                     content,
+                    encrypted_content,
+                    encryption_metadata,
                 });
             }
             ClientMessage::DeleteMessage { message_id } => {

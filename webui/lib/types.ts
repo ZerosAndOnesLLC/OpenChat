@@ -65,6 +65,29 @@ export interface Message {
   forwarded_from_message_id?: string;
   forwarded_from_channel_id?: string;
   forwarded_from_channel_name?: string;
+  encrypted_content?: string;
+  encryption_metadata?: EncryptionMetadata;
+}
+
+export interface EncryptionMetadata {
+  algorithm: string;
+  sender_device_id: string;
+  session_id: string;
+  iv: string;
+}
+
+export interface CryptoDevice {
+  id: string;
+  user_id: string;
+  device_id: string;
+  display_name?: string;
+  identity_key: string;
+  signing_key: string;
+  one_time_key_count: number;
+  has_fallback_key: boolean;
+  verified: boolean;
+  last_seen_at: string;
+  created_at: string;
 }
 
 // Attachment types
@@ -149,6 +172,7 @@ export interface ChannelMetadata {
   unread_count: number;
   last_message_preview?: string;
   last_message_at?: string;
+  encryption_enabled?: boolean;
 }
 
 export interface DmMetadata {
@@ -175,6 +199,8 @@ export interface MessageWithDetails {
   forwarded_from_message_id?: string;
   forwarded_from_channel_id?: string;
   forwarded_from_channel_name?: string;
+  encrypted_content?: string;
+  encryption_metadata?: EncryptionMetadata;
 }
 
 export interface PinnedMessageInfo {
@@ -200,7 +226,7 @@ export interface UnreadInfo {
 
 // WebSocket message types
 export type WSClientMessage =
-  | { type: 'send_message'; channel_id?: string; dm_id?: string; content: string; parent_message_id?: string }
+  | { type: 'send_message'; channel_id?: string; dm_id?: string; content: string; parent_message_id?: string; encrypted_content?: string; encryption_metadata?: EncryptionMetadata }
   | { type: 'typing'; channel_id?: string; dm_id?: string }
   | { type: 'subscribe_channel'; channel_id: string }
   | { type: 'unsubscribe_channel'; channel_id: string }
@@ -214,7 +240,7 @@ export type WSClientMessage =
   | { type: 'unpin_message'; message_id: string }
   | { type: 'add_bookmark'; message_id: string }
   | { type: 'remove_bookmark'; message_id: string }
-  | { type: 'edit_message'; message_id: string; content: string }
+  | { type: 'edit_message'; message_id: string; content: string; encrypted_content?: string; encryption_metadata?: EncryptionMetadata }
   | { type: 'delete_message'; message_id: string }
   | { type: 'subscribe_thread'; message_id: string }
   | { type: 'unsubscribe_thread'; message_id: string };
@@ -223,8 +249,8 @@ export type WSServerMessage =
   | { type: 'initial_state'; user_id: string; channels: ChannelMetadata[]; dms: DmMetadata[]; notification_preferences: { channel_id?: string; dm_id?: string; preference: string; mute_until?: string | null }[]; active_calls?: ActiveCall[] }
   | { type: 'channel_data'; channel_id: string; messages: MessageWithDetails[]; pins: PinnedMessageInfo[]; members: ChannelMemberInfo[]; unread_info: UnreadInfo }
   | { type: 'dm_data'; dm_id: string; messages: MessageWithDetails[]; unread_info: UnreadInfo }
-  | { type: 'new_message'; id: string; channel_id?: string; dm_id?: string; user_id: string; user_name: string; content: string; parent_message_id?: string; created_at: string; forwarded_from_message_id?: string; forwarded_from_channel_id?: string; forwarded_from_channel_name?: string }
-  | { type: 'message_edited'; message_id: string; content: string; edited_at: string }
+  | { type: 'new_message'; id: string; channel_id?: string; dm_id?: string; user_id: string; user_name: string; content: string; parent_message_id?: string; created_at: string; forwarded_from_message_id?: string; forwarded_from_channel_id?: string; forwarded_from_channel_name?: string; encrypted_content?: string; encryption_metadata?: EncryptionMetadata }
+  | { type: 'message_edited'; message_id: string; content: string; edited_at: string; encrypted_content?: string; encryption_metadata?: EncryptionMetadata }
   | { type: 'message_deleted'; message_id: string }
   | { type: 'user_typing'; user_id: string; channel_id?: string; dm_id?: string; user_name: string }
   | { type: 'user_status'; user_id: string; status: 'online' | 'offline' | 'away' }
@@ -249,6 +275,9 @@ export type WSServerMessage =
   | { type: 'call_participant_joined'; call_id: string; channel_id?: string; dm_id?: string; user_id: string; user_name: string }
   | { type: 'call_participant_left'; call_id: string; channel_id?: string; dm_id?: string; user_id: string; user_name: string }
   | { type: 'call_ringing'; call_id: string; channel_id?: string; dm_id?: string; call_type: string; started_by: string; started_by_name: string }
+  | { type: 'workflow_execution_started'; workflow_id: string; execution_id: string; workflow_name: string; channel_id?: string }
+  | { type: 'form_requested'; form_id: string; workflow_name: string; title: string; fields: FormFieldDefinition[] }
+  | { type: 'workflow_execution_completed'; workflow_id: string; execution_id: string; workflow_name: string; status: string; error_message?: string }
   | { type: 'connected'; user_id: string }
   | { type: 'error'; message: string }
   | { type: 'pong' };
@@ -279,10 +308,14 @@ export interface SendMessageRequest {
   dm_id?: string;
   content: string;
   parent_message_id?: string;
+  encrypted_content?: string;
+  encryption_metadata?: EncryptionMetadata;
 }
 
 export interface UpdateMessageRequest {
   content: string;
+  encrypted_content?: string;
+  encryption_metadata?: EncryptionMetadata;
 }
 
 export interface AddReactionRequest {
@@ -630,6 +663,111 @@ export interface ActiveCall {
   is_huddle: boolean;
   livekit_room_name: string;
   participant_count: number;
+}
+
+// Workflow types
+export type TriggerType = 'message_posted' | 'reaction_added' | 'channel_join' | 'scheduled' | 'webhook' | 'slash_command';
+export type ActionType = 'send_message' | 'create_form' | 'call_webhook' | 'add_reaction' | 'create_channel' | 'invite_to_channel' | 'update_channel_topic' | 'delay';
+export type ExecutionStatus = 'running' | 'completed' | 'failed';
+export type StepStatus = 'pending' | 'running' | 'completed' | 'failed';
+
+export interface Workflow {
+  id: string;
+  org_id: string;
+  name: string;
+  description?: string;
+  trigger_type: TriggerType;
+  trigger_config: Record<string, unknown>;
+  enabled: boolean;
+  created_by: string;
+  created_at: string;
+  updated_at: string;
+  steps?: WorkflowStep[];
+}
+
+export interface WorkflowStep {
+  id: string;
+  workflow_id: string;
+  step_order: number;
+  action_type: ActionType;
+  action_config: Record<string, unknown>;
+  created_at: string;
+}
+
+export interface WorkflowExecution {
+  id: string;
+  workflow_id: string;
+  trigger_data: Record<string, unknown>;
+  status: ExecutionStatus;
+  started_at: string;
+  completed_at?: string;
+  error_message?: string;
+  steps?: WorkflowExecutionStep[];
+}
+
+export interface WorkflowExecutionStep {
+  id: string;
+  execution_id: string;
+  step_id: string;
+  status: StepStatus;
+  input_data?: Record<string, unknown>;
+  output_data?: Record<string, unknown>;
+  started_at?: string;
+  completed_at?: string;
+  error_message?: string;
+}
+
+export interface CreateWorkflowRequest {
+  name: string;
+  description?: string;
+  trigger_type: TriggerType;
+  trigger_config: Record<string, unknown>;
+  steps: { action_type: ActionType; action_config: Record<string, unknown> }[];
+}
+
+export interface UpdateWorkflowRequest {
+  name?: string;
+  description?: string;
+  trigger_type?: TriggerType;
+  trigger_config?: Record<string, unknown>;
+  steps?: { action_type: ActionType; action_config: Record<string, unknown> }[];
+}
+
+export interface WorkflowListItem {
+  id: string;
+  name: string;
+  description?: string;
+  trigger_type: TriggerType;
+  enabled: boolean;
+  created_by: string;
+  created_at: string;
+  updated_at: string;
+}
+
+// Workflow Form types
+export type FormFieldType = 'text' | 'textarea' | 'select' | 'multi_select' | 'date' | 'user_picker' | 'channel_picker';
+
+export interface FormFieldDefinition {
+  label: string;
+  name: string;
+  type: FormFieldType;
+  required?: boolean;
+  placeholder?: string;
+  options?: string[]; // For select / multi_select
+}
+
+export interface WorkflowForm {
+  id: string;
+  workflow_id: string;
+  title: string;
+  fields: FormFieldDefinition[];
+  status: 'pending' | 'submitted';
+  created_at: string;
+  submitted_at?: string;
+}
+
+export interface SubmitFormRequest {
+  data: Record<string, unknown>;
 }
 
 export interface StartCallRequest {

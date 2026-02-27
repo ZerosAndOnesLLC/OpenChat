@@ -360,14 +360,15 @@ async fn load_initial_state(
     org_id: Uuid,
     user_id: Uuid,
 ) -> Result<ServerMessage, Box<dyn std::error::Error>> {
-    use crate::models::{channel::Channel, direct_message::DirectMessage, notification_pref::NotificationPref};
+    use crate::models::{call::Call, channel::Channel, direct_message::DirectMessage, notification_pref::NotificationPref};
     use crate::websocket::messages::NotificationPrefInfo;
 
-    // Fetch channels, DMs, and notification preferences in parallel
-    let (channels, dms, prefs) = tokio::try_join!(
+    // Fetch channels, DMs, notification preferences, and active calls in parallel
+    let (channels, dms, prefs, active_calls) = tokio::try_join!(
         Channel::get_metadata_for_user(pool, org_id, user_id),
         DirectMessage::get_metadata_for_user(pool, user_id),
         NotificationPref::list_by_user(pool, user_id),
+        Call::list_active_for_user(pool, user_id),
     )?;
 
     let notification_preferences: Vec<NotificationPrefInfo> = prefs
@@ -385,5 +386,6 @@ async fn load_initial_state(
         channels,
         dms,
         notification_preferences,
+        active_calls,
     })
 }

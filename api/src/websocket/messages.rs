@@ -2,6 +2,8 @@ use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
+pub use crate::models::call::ActiveCallInfo;
+
 /// Messages sent from client to server
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
@@ -189,6 +191,8 @@ pub enum ServerMessage {
         channels: Vec<ChannelMetadata>,
         dms: Vec<DmMetadata>,
         notification_preferences: Vec<NotificationPrefInfo>,
+        #[serde(skip_serializing_if = "Vec::is_empty")]
+        active_calls: Vec<ActiveCallInfo>,
     },
     /// Complete channel data sent when subscribing to a channel
     ChannelData {

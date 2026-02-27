@@ -176,11 +176,20 @@ export const useWebSocketStore = create<WebSocketStore>((set, get) => ({
               }
             }
 
+            // Parse active calls
+            const newActiveCalls: Record<string, ActiveCall> = {};
+            if (message.active_calls) {
+              for (const call of message.active_calls) {
+                newActiveCalls[call.id] = call;
+              }
+            }
+
             set({
               channels: message.channels,
               dms: message.dms,
               unreadCounts: newUnreadCounts,
               notificationPrefs: newNotificationPrefs,
+              activeCalls: newActiveCalls,
               initialStateLoaded: true,
             });
             break;

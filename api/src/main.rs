@@ -192,7 +192,7 @@ async fn main() -> std::io::Result<()> {
 
     // Start background tasks
     info!("Starting background tasks...");
-    tasks::start_background_tasks(db_pool.clone(), ws_server.clone());
+    tasks::start_background_tasks(db_pool.clone(), ws_server.clone(), livekit_service.clone());
     info!("Background tasks started");
 
     // Clone config values needed after the closure

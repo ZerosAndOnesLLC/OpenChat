@@ -250,6 +250,7 @@ export type WSServerMessage =
   | { type: 'call_participant_left'; call_id: string; channel_id?: string; dm_id?: string; user_id: string; user_name: string }
   | { type: 'call_ringing'; call_id: string; channel_id?: string; dm_id?: string; call_type: string; started_by: string; started_by_name: string }
   | { type: 'workflow_execution_started'; workflow_id: string; execution_id: string; workflow_name: string; channel_id?: string }
+  | { type: 'form_requested'; form_id: string; workflow_name: string; title: string; fields: FormFieldDefinition[] }
   | { type: 'workflow_execution_completed'; workflow_id: string; execution_id: string; workflow_name: string; status: string; error_message?: string }
   | { type: 'connected'; user_id: string }
   | { type: 'error'; message: string }
@@ -711,6 +712,32 @@ export interface WorkflowListItem {
   created_by: string;
   created_at: string;
   updated_at: string;
+}
+
+// Workflow Form types
+export type FormFieldType = 'text' | 'textarea' | 'select' | 'multi_select' | 'date' | 'user_picker' | 'channel_picker';
+
+export interface FormFieldDefinition {
+  label: string;
+  name: string;
+  type: FormFieldType;
+  required?: boolean;
+  placeholder?: string;
+  options?: string[]; // For select / multi_select
+}
+
+export interface WorkflowForm {
+  id: string;
+  workflow_id: string;
+  title: string;
+  fields: FormFieldDefinition[];
+  status: 'pending' | 'submitted';
+  created_at: string;
+  submitted_at?: string;
+}
+
+export interface SubmitFormRequest {
+  data: Record<string, unknown>;
 }
 
 export interface StartCallRequest {

@@ -441,6 +441,13 @@ pub enum ServerMessage {
         #[serde(skip_serializing_if = "Option::is_none")]
         channel_id: Option<Uuid>,
     },
+    /// A workflow form was requested from a user
+    FormRequested {
+        form_id: Uuid,
+        workflow_name: String,
+        title: String,
+        fields: serde_json::Value,
+    },
     /// A workflow execution completed or failed
     WorkflowExecutionCompleted {
         workflow_id: Uuid,

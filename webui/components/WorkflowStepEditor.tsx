@@ -1,6 +1,8 @@
 'use client';
 
 import { useState } from 'react';
+import type { FormFieldDefinition } from '@/lib/types';
+import WorkflowFormFieldEditor from './WorkflowFormFieldEditor';
 
 interface WorkflowStepEditorProps {
   step: { action_type: string; action_config: Record<string, unknown> };
@@ -277,11 +279,23 @@ function ConfigFields({ actionType, config, onChange }: ConfigFieldsProps) {
               onChange={(e) => set('title', e.target.value)}
             />
           </div>
-          <div className="rounded-lg border border-dashed border-gray-700 bg-gray-900 px-4 py-5 text-center">
-            <p className="text-sm text-gray-400">Form field editor coming in Phase 8.3.</p>
-            <p className="mt-1 text-xs text-gray-600">
-              Fields, validation, and submission handling will be configurable here.
-            </p>
+          <div>
+            <label className={labelClass()}>Target User ID</label>
+            <input
+              type="text"
+              className={inputClass()}
+              placeholder="e.g. {{trigger.user_id}} or a specific user ID"
+              value={str('target_user_id')}
+              onChange={(e) => set('target_user_id', e.target.value)}
+            />
+            <p className={hintClass()}>Leave blank to default to the triggering user.</p>
+          </div>
+          <div>
+            <label className={labelClass()}>Form Fields</label>
+            <WorkflowFormFieldEditor
+              fields={(config.fields as FormFieldDefinition[]) || []}
+              onChange={(fields) => set('fields', fields)}
+            />
           </div>
         </div>
       );

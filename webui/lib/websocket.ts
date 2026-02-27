@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { Message, WSClientMessage, WSServerMessage, ChannelMetadata, DmMetadata, PinnedMessageInfo, ChannelMemberInfo, MessageWithDetails, NotificationPref, ActiveCall } from './types';
+import type { Message, WSClientMessage, WSServerMessage, ChannelMetadata, DmMetadata, PinnedMessageInfo, ChannelMemberInfo, MessageWithDetails, NotificationPref, ActiveCall, WorkflowForm, FormFieldDefinition } from './types';
 import { apiClient } from './api';
 
 const WS_URL = process.env.NEXT_PUBLIC_WS_URL || 'ws://localhost:8080/api/ws';
@@ -53,6 +53,8 @@ interface WebSocketStore {
   activeCalls: Record<string, ActiveCall>; // callId -> ActiveCall
   incomingCall: { call_id: string; channel_id?: string; dm_id?: string; call_type: string; started_by: string; started_by_name: string } | null;
   currentCall: { call_id: string; channel_id?: string; dm_id?: string; call_type: string; token: string; livekit_url: string; livekit_room_name: string; started_at: string } | null;
+  // Workflow form state
+  pendingForm: WorkflowForm | null;
 
   connect: (token: string) => void;
   disconnect: () => void;
@@ -95,6 +97,8 @@ interface WebSocketStore {
   setCurrentCall: (call: WebSocketStore['currentCall']) => void;
   dismissIncomingCall: () => void;
   setActiveCalls: (calls: ActiveCall[]) => void;
+  // Form actions
+  setPendingForm: (form: WorkflowForm | null) => void;
 }
 
 export const useWebSocketStore = create<WebSocketStore>((set, get) => ({
@@ -119,6 +123,7 @@ export const useWebSocketStore = create<WebSocketStore>((set, get) => ({
   activeCalls: {},
   incomingCall: null,
   currentCall: null,
+  pendingForm: null,
 
   connect: (token: string) => {
     const ws = new WebSocket(`${WS_URL}?token=${token}`);
@@ -807,6 +812,20 @@ export const useWebSocketStore = create<WebSocketStore>((set, get) => ({
             break;
           }
 
+          case 'form_requested': {
+            console.log('Form requested:', message.form_id, message.title);
+            const pendingForm: WorkflowForm = {
+              id: message.form_id,
+              workflow_id: '',
+              title: message.title,
+              fields: message.fields as FormFieldDefinition[],
+              status: 'pending',
+              created_at: new Date().toISOString(),
+            };
+            set({ pendingForm });
+            break;
+          }
+
           default: {
             console.warn('Received unknown WebSocket message type:', message);
             break;
@@ -1246,5 +1265,9 @@ export const useWebSocketStore = create<WebSocketStore>((set, get) => ({
       callMap[call.id] = call;
     }
     set({ activeCalls: callMap });
+  },
+
+  setPendingForm: (form) => {
+    set({ pendingForm: form });
   },
 }));

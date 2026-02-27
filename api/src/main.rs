@@ -600,6 +600,15 @@ async fn main() -> std::io::Result<()> {
                     .route("/{id}/executions/{eid}", web::get().to(workflow_handlers::get_execution))
                     .route("/{id}/test", web::post().to(workflow_handlers::test_workflow))
             )
+            // Workflow form endpoints - require "openchat" role
+            .service(
+                web::scope("/api/forms")
+                    .wrap(api_rate_limit.clone())
+                    .wrap(openchat_auth.clone())
+                    .route("/pending", web::get().to(workflow_handlers::list_pending_forms))
+                    .route("/{id}", web::get().to(workflow_handlers::get_form))
+                    .route("/{id}/submit", web::post().to(workflow_handlers::submit_form))
+            )
             // Public workflow webhook endpoint - no auth (workflow_id in URL)
             .service(
                 web::scope("/api/workflows/webhook")

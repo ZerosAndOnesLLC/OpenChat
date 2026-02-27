@@ -7,9 +7,9 @@ use crate::models::channel::{Channel, ChannelMember};
 use crate::models::message::Message;
 use crate::models::reaction::Reaction;
 use crate::models::user::User;
-use crate::models::workflow::{Workflow, WorkflowExecution, WorkflowExecutionStep, WorkflowStep};
+use crate::models::workflow::{Workflow, WorkflowExecution, WorkflowExecutionStep, WorkflowForm, WorkflowStep};
 use crate::websocket::messages::ServerMessage;
-use crate::websocket::server::{BroadcastMessage, WsServer};
+use crate::websocket::server::{BroadcastMessage, BroadcastToUser, WsServer};
 
 /// Check if any enabled workflows match the given trigger and execute them.
 pub async fn check_triggers(
@@ -145,35 +145,14 @@ async fn execute_workflow(
         "steps": {},
     });
 
-    // Execute steps sequentially
-    for (i, (step, exec_step)) in steps.iter().zip(exec_steps.iter()).enumerate() {
-        let input = serde_json::json!({
-            "action_type": step.action_type,
-            "action_config": step.action_config,
-            "context": context,
-        });
-
-        WorkflowExecutionStep::set_running(pool, exec_step.id, &input)
-            .await
-            .map_err(|e| format!("Failed to set step running: {}", e))?;
-
-        // Interpolate config values
-        let interpolated_config = interpolate_config(&step.action_config, &context);
-
-        match execute_step_action(pool, ws_server, workflow.org_id, &step.action_type, &interpolated_config).await {
-            Ok(output) => {
-                WorkflowExecutionStep::set_completed(pool, exec_step.id, &output)
+    // Execute steps sequentially (starting from step 0)
+    match run_steps_from(pool, ws_server, workflow, &execution, &steps, &exec_steps, &mut context, 0).await {
+        Ok(paused) => {
+            if !paused {
+                WorkflowExecution::set_completed(pool, execution.id)
                     .await
-                    .map_err(|e| format!("Failed to set step completed: {}", e))?;
+                    .map_err(|e| format!("Failed to set execution completed: {}", e))?;
 
-                // Add output to context
-                context["steps"][i.to_string()] = output;
-            }
-            Err(err) => {
-                let _ = WorkflowExecutionStep::set_failed(pool, exec_step.id, &err).await;
-                let _ = WorkflowExecution::set_failed(pool, execution.id, &err).await;
-
-                // Broadcast execution failed
                 ws_server.do_send(BroadcastMessage {
                     org_id: workflow.org_id,
                     channel_id: None,
@@ -181,21 +160,103 @@ async fn execute_workflow(
                         workflow_id: workflow.id,
                         execution_id: execution.id,
                         workflow_name: workflow.name.clone(),
-                        status: "failed".to_string(),
-                        error_message: Some(err.clone()),
+                        status: "completed".to_string(),
+                        error_message: None,
                     },
                 });
 
+                info!(
+                    workflow_id = %workflow.id,
+                    execution_id = %execution.id,
+                    "Workflow execution completed successfully"
+                );
+            } else {
+                info!(
+                    workflow_id = %workflow.id,
+                    execution_id = %execution.id,
+                    "Workflow execution paused (waiting for form)"
+                );
+            }
+            Ok(())
+        }
+        Err(err) => Err(err),
+    }
+}
+
+/// Run workflow steps starting from `start_index`. Returns Ok(true) if paused (create_form), Ok(false) if completed.
+async fn run_steps_from(
+    pool: &PgPool,
+    ws_server: &actix::Addr<WsServer>,
+    workflow: &Workflow,
+    execution: &WorkflowExecution,
+    steps: &[WorkflowStep],
+    exec_steps: &[WorkflowExecutionStep],
+    context: &mut JsonValue,
+    start_index: usize,
+) -> Result<bool, String> {
+    for i in start_index..steps.len() {
+        let step = &steps[i];
+        let exec_step = &exec_steps[i];
+
+        let input = serde_json::json!({
+            "action_type": step.action_type,
+            "action_config": step.action_config,
+            "context": *context,
+        });
+
+        WorkflowExecutionStep::set_running(pool, exec_step.id, &input)
+            .await
+            .map_err(|e| format!("Failed to set step running: {}", e))?;
+
+        let interpolated_config = interpolate_config(&step.action_config, context);
+
+        // Handle create_form specially — it pauses execution
+        if step.action_type == "create_form" {
+            match action_create_form(pool, ws_server, workflow, execution, step, &interpolated_config, context).await {
+                Ok(output) => {
+                    WorkflowExecutionStep::set_completed(pool, exec_step.id, &output)
+                        .await
+                        .map_err(|e| format!("Failed to set step completed: {}", e))?;
+                    context["steps"][i.to_string()] = output;
+
+                    // Mark execution as waiting and store resume point
+                    let _ = WorkflowExecution::set_status(pool, execution.id, "waiting_for_form").await;
+                    return Ok(true); // Paused
+                }
+                Err(err) => {
+                    let _ = WorkflowExecutionStep::set_failed(pool, exec_step.id, &err).await;
+                    let _ = WorkflowExecution::set_failed(pool, execution.id, &err).await;
+                    broadcast_execution_failed(ws_server, workflow, execution, &err);
+                    return Err(err);
+                }
+            }
+        }
+
+        match execute_step_action(pool, ws_server, workflow.org_id, &step.action_type, &interpolated_config).await {
+            Ok(output) => {
+                WorkflowExecutionStep::set_completed(pool, exec_step.id, &output)
+                    .await
+                    .map_err(|e| format!("Failed to set step completed: {}", e))?;
+                context["steps"][i.to_string()] = output;
+            }
+            Err(err) => {
+                let _ = WorkflowExecutionStep::set_failed(pool, exec_step.id, &err).await;
+                let _ = WorkflowExecution::set_failed(pool, execution.id, &err).await;
+                broadcast_execution_failed(ws_server, workflow, execution, &err);
                 return Err(err);
             }
         }
     }
 
-    WorkflowExecution::set_completed(pool, execution.id)
-        .await
-        .map_err(|e| format!("Failed to set execution completed: {}", e))?;
+    Ok(false) // Not paused — completed
+}
 
-    // Broadcast execution completed
+fn broadcast_execution_failed(
+    ws_server: &actix::Addr<WsServer>,
+    workflow: &Workflow,
+    execution: &WorkflowExecution,
+    err: &str,
+) {
     ws_server.do_send(BroadcastMessage {
         org_id: workflow.org_id,
         channel_id: None,
@@ -203,18 +264,10 @@ async fn execute_workflow(
             workflow_id: workflow.id,
             execution_id: execution.id,
             workflow_name: workflow.name.clone(),
-            status: "completed".to_string(),
-            error_message: None,
+            status: "failed".to_string(),
+            error_message: Some(err.to_string()),
         },
     });
-
-    info!(
-        workflow_id = %workflow.id,
-        execution_id = %execution.id,
-        "Workflow execution completed successfully"
-    );
-
-    Ok(())
 }
 
 /// Interpolate `{{path.to.value}}` templates in action config using context.
@@ -566,6 +619,150 @@ async fn action_call_webhook(config: &JsonValue) -> Result<JsonValue, String> {
         "status": status,
         "body": truncated,
     }))
+}
+
+async fn action_create_form(
+    pool: &PgPool,
+    ws_server: &actix::Addr<WsServer>,
+    workflow: &Workflow,
+    execution: &WorkflowExecution,
+    step: &WorkflowStep,
+    config: &JsonValue,
+    context: &JsonValue,
+) -> Result<JsonValue, String> {
+    let title = config
+        .get("title")
+        .and_then(|v| v.as_str())
+        .unwrap_or("Form");
+
+    let fields = config
+        .get("fields")
+        .cloned()
+        .unwrap_or_else(|| serde_json::json!([]));
+
+    let target_user_id = config
+        .get("target_user_id")
+        .and_then(|v| v.as_str())
+        .or_else(|| context.get("trigger").and_then(|t| t.get("user_id")).and_then(|v| v.as_str()))
+        .and_then(|s| Uuid::parse_str(s).ok())
+        .ok_or("create_form: missing target_user_id (and no trigger.user_id available)")?;
+
+    let form = WorkflowForm::create(pool, workflow.id, step.id, execution.id, title, &fields, target_user_id)
+        .await
+        .map_err(|e| format!("Failed to create form: {}", e))?;
+
+    // Send FormRequested via WS to the target user
+    ws_server.do_send(BroadcastToUser {
+        org_id: workflow.org_id,
+        user_id: target_user_id,
+        message: ServerMessage::FormRequested {
+            form_id: form.id,
+            workflow_name: workflow.name.clone(),
+            title: title.to_string(),
+            fields: fields.clone(),
+        },
+    });
+
+    Ok(serde_json::json!({
+        "form_id": form.id.to_string(),
+        "target_user_id": target_user_id.to_string(),
+    }))
+}
+
+/// Resume a workflow execution after a form has been submitted.
+pub async fn resume_after_form(
+    pool: &PgPool,
+    ws_server: &actix::Addr<WsServer>,
+    execution_id: Uuid,
+    form_data: JsonValue,
+) {
+    let execution = match WorkflowExecution::get_by_id(pool, execution_id).await {
+        Ok(Some(e)) => e,
+        Ok(None) => {
+            error!(execution_id = %execution_id, "Execution not found for form resume");
+            return;
+        }
+        Err(e) => {
+            error!(execution_id = %execution_id, "Failed to get execution: {}", e);
+            return;
+        }
+    };
+
+    if execution.status != "waiting_for_form" {
+        warn!(execution_id = %execution_id, status = %execution.status, "Execution not in waiting_for_form state");
+        return;
+    }
+
+    let workflow = match Workflow::get_by_id(pool, execution.workflow_id).await {
+        Ok(Some(w)) => w,
+        _ => {
+            error!(workflow_id = %execution.workflow_id, "Workflow not found for form resume");
+            return;
+        }
+    };
+
+    let steps = match WorkflowStep::list_by_workflow(pool, workflow.id).await {
+        Ok(s) => s,
+        Err(e) => {
+            error!("Failed to load workflow steps: {}", e);
+            return;
+        }
+    };
+
+    let exec_steps = match WorkflowExecutionStep::list_by_execution(pool, execution.id).await {
+        Ok(s) => s,
+        Err(e) => {
+            error!("Failed to load execution steps: {}", e);
+            return;
+        }
+    };
+
+    // Find the step after the last completed one (the create_form step is completed, resume from next)
+    let resume_from = exec_steps
+        .iter()
+        .filter(|s| s.status == "completed")
+        .count();
+
+    // Rebuild context from completed steps
+    let mut context = serde_json::json!({
+        "trigger": execution.trigger_data,
+        "steps": {},
+        "form": form_data,
+    });
+
+    for (i, es) in exec_steps.iter().enumerate() {
+        if es.status == "completed" {
+            if let Some(ref output) = es.output_data {
+                context["steps"][i.to_string()] = output.clone();
+            }
+        }
+    }
+
+    // Set execution back to running
+    let _ = WorkflowExecution::set_status(pool, execution.id, "running").await;
+
+    match run_steps_from(pool, ws_server, &workflow, &execution, &steps, &exec_steps, &mut context, resume_from).await {
+        Ok(paused) => {
+            if !paused {
+                let _ = WorkflowExecution::set_completed(pool, execution.id).await;
+                ws_server.do_send(BroadcastMessage {
+                    org_id: workflow.org_id,
+                    channel_id: None,
+                    message: ServerMessage::WorkflowExecutionCompleted {
+                        workflow_id: workflow.id,
+                        execution_id: execution.id,
+                        workflow_name: workflow.name.clone(),
+                        status: "completed".to_string(),
+                        error_message: None,
+                    },
+                });
+                info!(execution_id = %execution.id, "Workflow execution resumed and completed");
+            }
+        }
+        Err(err) => {
+            error!(execution_id = %execution.id, "Workflow execution failed after form resume: {}", err);
+        }
+    }
 }
 
 async fn action_delay(config: &JsonValue) -> Result<JsonValue, String> {

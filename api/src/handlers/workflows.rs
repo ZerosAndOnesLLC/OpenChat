@@ -6,7 +6,7 @@ use uuid::Uuid;
 use crate::{
     errors::{ApiError, ApiResult},
     models::user::User,
-    models::workflow::{Workflow, WorkflowExecution, WorkflowExecutionStep, WorkflowStep},
+    models::workflow::{Workflow, WorkflowExecution, WorkflowExecutionStep, WorkflowForm, WorkflowStep},
     services::{tv_api::TokenClaims, workflow_engine},
     websocket::server::WsServer,
 };
@@ -680,4 +680,138 @@ pub async fn webhook_trigger(
     Ok(HttpResponse::Ok().json(serde_json::json!({
         "message": "Webhook received"
     })))
+}
+
+// ---- Form endpoints ----
+
+#[derive(Debug, Deserialize)]
+pub struct SubmitFormRequest {
+    pub data: serde_json::Value,
+}
+
+#[derive(Debug, Serialize)]
+pub struct FormResponse {
+    pub id: Uuid,
+    pub workflow_id: Uuid,
+    pub title: String,
+    pub fields: serde_json::Value,
+    pub status: String,
+    pub created_at: String,
+    pub submitted_at: Option<String>,
+}
+
+impl From<WorkflowForm> for FormResponse {
+    fn from(f: WorkflowForm) -> Self {
+        Self {
+            id: f.id,
+            workflow_id: f.workflow_id,
+            title: f.title,
+            fields: f.fields,
+            status: f.status,
+            created_at: f.created_at.to_rfc3339(),
+            submitted_at: f.submitted_at.map(|dt| dt.to_rfc3339()),
+        }
+    }
+}
+
+/// GET /api/forms/pending
+pub async fn list_pending_forms(
+    pool: web::Data<PgPool>,
+    req: HttpRequest,
+) -> ApiResult<HttpResponse> {
+    let claims = req
+        .extensions()
+        .get::<TokenClaims>()
+        .cloned()
+        .ok_or_else(|| ApiError::Authentication("Missing authentication".to_string()))?;
+
+    let current_user = User::get_by_tv_user_id(pool.get_ref(), claims.user_id)
+        .await?
+        .ok_or_else(|| ApiError::NotFound("Current user not found".to_string()))?;
+
+    let forms = WorkflowForm::list_pending_for_user(pool.get_ref(), current_user.id).await?;
+    let response: Vec<FormResponse> = forms.into_iter().map(FormResponse::from).collect();
+
+    Ok(HttpResponse::Ok().json(response))
+}
+
+/// GET /api/forms/{id}
+pub async fn get_form(
+    pool: web::Data<PgPool>,
+    form_id: web::Path<Uuid>,
+    req: HttpRequest,
+) -> ApiResult<HttpResponse> {
+    let claims = req
+        .extensions()
+        .get::<TokenClaims>()
+        .cloned()
+        .ok_or_else(|| ApiError::Authentication("Missing authentication".to_string()))?;
+
+    let current_user = User::get_by_tv_user_id(pool.get_ref(), claims.user_id)
+        .await?
+        .ok_or_else(|| ApiError::NotFound("Current user not found".to_string()))?;
+
+    let form = WorkflowForm::get_by_id(pool.get_ref(), *form_id)
+        .await?
+        .ok_or_else(|| ApiError::NotFound("Form not found".to_string()))?;
+
+    if form.target_user_id != current_user.id {
+        return Err(ApiError::Authorization(
+            "You are not the target of this form".to_string(),
+        ));
+    }
+
+    Ok(HttpResponse::Ok().json(FormResponse::from(form)))
+}
+
+/// POST /api/forms/{id}/submit
+pub async fn submit_form(
+    pool: web::Data<PgPool>,
+    ws_server: web::Data<actix::Addr<WsServer>>,
+    form_id: web::Path<Uuid>,
+    body: web::Json<SubmitFormRequest>,
+    req: HttpRequest,
+) -> ApiResult<HttpResponse> {
+    let claims = req
+        .extensions()
+        .get::<TokenClaims>()
+        .cloned()
+        .ok_or_else(|| ApiError::Authentication("Missing authentication".to_string()))?;
+
+    let current_user = User::get_by_tv_user_id(pool.get_ref(), claims.user_id)
+        .await?
+        .ok_or_else(|| ApiError::NotFound("Current user not found".to_string()))?;
+
+    let form = WorkflowForm::get_by_id(pool.get_ref(), *form_id)
+        .await?
+        .ok_or_else(|| ApiError::NotFound("Form not found".to_string()))?;
+
+    if form.target_user_id != current_user.id {
+        return Err(ApiError::Authorization(
+            "You are not the target of this form".to_string(),
+        ));
+    }
+
+    if form.status != "pending" {
+        return Err(ApiError::BadRequest("Form has already been submitted".to_string()));
+    }
+
+    let submitted = WorkflowForm::submit(pool.get_ref(), *form_id, current_user.id, &body.data).await?;
+
+    // Resume workflow execution with form data
+    let execution_id = submitted.execution_id;
+    let pool_clone = pool.clone();
+    let ws_clone = ws_server.clone();
+    let form_data = body.data.clone();
+    tokio::spawn(async move {
+        workflow_engine::resume_after_form(
+            pool_clone.get_ref(),
+            ws_clone.get_ref(),
+            execution_id,
+            form_data,
+        )
+        .await;
+    });
+
+    Ok(HttpResponse::Ok().json(FormResponse::from(submitted)))
 }

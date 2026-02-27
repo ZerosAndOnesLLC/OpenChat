@@ -456,3 +456,89 @@ impl WorkflowExecutionStep {
         Ok(step)
     }
 }
+
+#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
+pub struct WorkflowForm {
+    pub id: Uuid,
+    pub workflow_id: Uuid,
+    pub step_id: Uuid,
+    pub execution_id: Uuid,
+    pub title: String,
+    pub fields: serde_json::Value,
+    pub target_user_id: Uuid,
+    pub submitted_by: Option<Uuid>,
+    pub submitted_data: Option<serde_json::Value>,
+    pub status: String,
+    pub created_at: DateTime<Utc>,
+    pub submitted_at: Option<DateTime<Utc>>,
+}
+
+impl WorkflowForm {
+    pub async fn create(
+        pool: &PgPool,
+        workflow_id: Uuid,
+        step_id: Uuid,
+        execution_id: Uuid,
+        title: &str,
+        fields: &serde_json::Value,
+        target_user_id: Uuid,
+    ) -> ApiResult<WorkflowForm> {
+        let form = sqlx::query_as::<_, WorkflowForm>(
+            r#"INSERT INTO workflow_forms (id, workflow_id, step_id, execution_id, title, fields, target_user_id)
+               VALUES ($1, $2, $3, $4, $5, $6, $7)
+               RETURNING *"#,
+        )
+        .bind(Uuid::new_v4())
+        .bind(workflow_id)
+        .bind(step_id)
+        .bind(execution_id)
+        .bind(title)
+        .bind(fields)
+        .bind(target_user_id)
+        .fetch_one(pool)
+        .await?;
+
+        Ok(form)
+    }
+
+    pub async fn get_by_id(pool: &PgPool, id: Uuid) -> ApiResult<Option<WorkflowForm>> {
+        let form = sqlx::query_as::<_, WorkflowForm>("SELECT * FROM workflow_forms WHERE id = $1")
+            .bind(id)
+            .fetch_optional(pool)
+            .await?;
+
+        Ok(form)
+    }
+
+    pub async fn list_pending_for_user(pool: &PgPool, user_id: Uuid) -> ApiResult<Vec<WorkflowForm>> {
+        let forms = sqlx::query_as::<_, WorkflowForm>(
+            "SELECT * FROM workflow_forms WHERE target_user_id = $1 AND status = 'pending' ORDER BY created_at DESC",
+        )
+        .bind(user_id)
+        .fetch_all(pool)
+        .await?;
+
+        Ok(forms)
+    }
+
+    pub async fn submit(
+        pool: &PgPool,
+        id: Uuid,
+        submitted_by: Uuid,
+        submitted_data: &serde_json::Value,
+    ) -> ApiResult<WorkflowForm> {
+        let form = sqlx::query_as::<_, WorkflowForm>(
+            r#"UPDATE workflow_forms
+               SET status = 'submitted', submitted_by = $2, submitted_data = $3, submitted_at = NOW()
+               WHERE id = $1
+               RETURNING *"#,
+        )
+        .bind(id)
+        .bind(submitted_by)
+        .bind(submitted_data)
+        .fetch_one(pool)
+        .await?;
+
+        Ok(form)
+    }
+}

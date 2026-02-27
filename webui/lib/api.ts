@@ -62,6 +62,8 @@ import type {
   WorkflowExecution,
   CreateWorkflowRequest,
   UpdateWorkflowRequest,
+  WorkflowForm,
+  SubmitFormRequest,
 } from './types';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080';
@@ -1049,6 +1051,22 @@ class ApiClient {
   async testWorkflow(id: string): Promise<{ message: string }> {
     return this.request<{ message: string }>(`/api/workflows/${id}/test`, {
       method: 'POST',
+    });
+  }
+
+  // Form endpoints
+  async listPendingForms(): Promise<WorkflowForm[]> {
+    return this.request<WorkflowForm[]>('/api/forms/pending');
+  }
+
+  async getForm(id: string): Promise<WorkflowForm> {
+    return this.request<WorkflowForm>(`/api/forms/${id}`);
+  }
+
+  async submitForm(id: string, data: SubmitFormRequest): Promise<WorkflowForm> {
+    return this.request<WorkflowForm>(`/api/forms/${id}/submit`, {
+      method: 'POST',
+      body: JSON.stringify(data),
     });
   }
 }

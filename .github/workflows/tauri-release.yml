@@ -38,7 +38,6 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y \
             libwebkit2gtk-4.1-dev \
-            libappindicator3-dev \
             librsvg2-dev \
             patchelf \
             libssl-dev \
@@ -46,22 +45,14 @@ jobs:
             libayatana-appindicator3-dev
 
       - name: Install Rust toolchain
-        run: |
-          if ! command -v rustup &> /dev/null; then
-            curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
-            source "$HOME/.cargo/env"
-          fi
-          echo "$HOME/.cargo/bin" >> $GITHUB_PATH
-          rustup update stable
-          rustup default stable
-          rustup target add ${{ matrix.target }}
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '20'
-          cache: 'npm'
-          cache-dependency-path: webui/package-lock.json
 
       - name: Install webui dependencies
         working-directory: webui

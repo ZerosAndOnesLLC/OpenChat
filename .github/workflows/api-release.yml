@@ -1,137 +1,105 @@
-name: API Build & Release
+name: API Release
 
 on:
   push:
-    branches:
-      - main
-    paths:
-      - 'api/**'
-      - '.github/workflows/api-release.yml'
-  workflow_dispatch:
+    tags:
+      - 'api-v*'
 
-env:
-  CARGO_TERM_COLOR: always
+permissions:
+  contents: write
 
 jobs:
   build:
     strategy:
       matrix:
         include:
-          - arch: x86_64
-            runner: [self-hosted, linux, X64]
-          - arch: aarch64
-            runner: [self-hosted, linux, ARM64]
+          - target: x86_64-unknown-linux-gnu
+            runner: [self-hosted, Linux, X64]
+          - target: aarch64-unknown-linux-gnu
+            runner: [self-hosted, Linux, ARM64]
     runs-on: ${{ matrix.runner }}
-    permissions:
-      contents: read
-
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
       - name: Install Rust toolchain
-        uses: dtolnay/rust-toolchain@stable
-        with:
-          components: clippy
-
-      - name: Cache cargo registry
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/.cargo/registry
-            ~/.cargo/git
-            api/target
-          key: ${{ runner.os }}-${{ matrix.arch }}-cargo-api-${{ hashFiles('api/Cargo.lock') }}
-          restore-keys: |
-            ${{ runner.os }}-${{ matrix.arch }}-cargo-api-
-
-      - name: Extract version
-        id: version
-        working-directory: api
         run: |
-          VERSION=$(grep '^version' Cargo.toml | head -1 | sed 's/version = "\(.*\)"/\1/')
-          echo "version=$VERSION" >> $GITHUB_OUTPUT
-          echo "API Version: $VERSION"
+          if ! command -v rustup &> /dev/null; then
+            curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+            source "$HOME/.cargo/env"
+          fi
+          echo "$HOME/.cargo/bin" >> $GITHUB_PATH
+          rustup update stable
+          rustup default stable
+          rustup target add ${{ matrix.target }}
 
-      - name: Run clippy
-        if: matrix.arch == 'x86_64'
+      - name: Build release
         working-directory: api
-        run: cargo clippy --release -- -D warnings
+        run: cargo build --release --target ${{ matrix.target }}
 
-      - name: Build release binary
-        working-directory: api
-        run: cargo build --release
-
-      - name: Prepare release artifact
+      - name: Package binaries
         run: |
-          mkdir -p release
-          cp api/target/release/openchat-api release/
-          chmod +x release/openchat-api
-          cd release && tar -czvf openchat-api-v${{ steps.version.outputs.version }}-linux-${{ matrix.arch }}.tar.gz openchat-api
+          VERSION="${GITHUB_REF_NAME#api-v}"
+          for BINARY in openchat-api openchat-worker; do
+            ARCHIVE_NAME="${BINARY}-${VERSION}-${{ matrix.target }}"
+            mkdir -p "${ARCHIVE_NAME}"
+            cp "api/target/${{ matrix.target }}/release/${BINARY}" "${ARCHIVE_NAME}/${BINARY}"
+            tar czf "${ARCHIVE_NAME}.tar.gz" "${ARCHIVE_NAME}"
+            sha256sum "${ARCHIVE_NAME}.tar.gz" > "${ARCHIVE_NAME}.tar.gz.sha256"
+          done
 
-      - name: Upload artifact
+      - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: openchat-api-v${{ steps.version.outputs.version }}-linux-${{ matrix.arch }}
-          path: release/openchat-api-v${{ steps.version.outputs.version }}-linux-${{ matrix.arch }}.tar.gz
+          name: release-${{ matrix.target }}
+          path: |
+            *.tar.gz
+            *.sha256
 
   release:
     needs: build
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write
-
+    runs-on: self-hosted
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Extract version
-        id: version
-        working-directory: api
-        run: |
-          VERSION=$(grep '^version' Cargo.toml | head -1 | sed 's/version = "\(.*\)"/\1/')
-          echo "version=$VERSION" >> $GITHUB_OUTPUT
-          echo "API Version: $VERSION"
-
-      - name: Download all artifacts
+      - name: Download artifacts
         uses: actions/download-artifact@v4
         with:
-          path: artifacts
-
-      - name: Collect release files
-        run: |
-          mkdir -p release
-          cp artifacts/openchat-api-v${{ steps.version.outputs.version }}-linux-x86_64/openchat-api-v${{ steps.version.outputs.version }}-linux-x86_64.tar.gz release/
-          cp artifacts/openchat-api-v${{ steps.version.outputs.version }}-linux-aarch64/openchat-api-v${{ steps.version.outputs.version }}-linux-aarch64.tar.gz release/
-          ls -la release/
+          merge-multiple: true
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: api-v${{ steps.version.outputs.version }}
-          name: OpenChat API v${{ steps.version.outputs.version }}
-          body: |
-            ## OpenChat API v${{ steps.version.outputs.version }}
-
-            ### Installation
-            ```bash
-            # x86_64
-            tar -xzvf openchat-api-v${{ steps.version.outputs.version }}-linux-x86_64.tar.gz
-            # ARM64
-            tar -xzvf openchat-api-v${{ steps.version.outputs.version }}-linux-aarch64.tar.gz
-
-            chmod +x openchat-api
-            ./openchat-api
-            ```
-
-            ### Requirements
-            - PostgreSQL 14+
-            - Redis 6+
-
-            See [documentation](https://github.com/ZerosAndOnesLLC/OpenChat#readme) for configuration details.
-          files: |
-            release/openchat-api-v${{ steps.version.outputs.version }}-linux-x86_64.tar.gz
-            release/openchat-api-v${{ steps.version.outputs.version }}-linux-aarch64.tar.gz
-          draft: false
-          prerelease: false
+          name: OpenChat API ${GITHUB_REF_NAME#api-}
           generate_release_notes: true
+          files: |
+            *.tar.gz
+            *.sha256
+
+      - name: Clean up old releases
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const { data: releases } = await github.rest.repos.listReleases({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              per_page: 100,
+            });
+            const apiReleases = releases
+              .filter(r => r.tag_name.startsWith('api-v'))
+              .sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+            for (const release of apiReleases.slice(10)) {
+              console.log(`Deleting release: ${release.tag_name}`);
+              await github.rest.repos.deleteRelease({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                release_id: release.id,
+              });
+              try {
+                await github.rest.git.deleteRef({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  ref: `tags/${release.tag_name}`,
+                });
+                console.log(`Deleted tag: ${release.tag_name}`);
+              } catch (e) {
+                console.log(`Tag ${release.tag_name} already deleted or not found`);
+              }
+            }

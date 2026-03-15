@@ -17,5 +17,4 @@ Cargo.lock
 .DS_Store
 Thumbs.db
 
-# SQLx
-.sqlx/
+# SQLx offline cache is committed for CI builds

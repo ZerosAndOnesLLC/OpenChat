@@ -35,6 +35,8 @@ jobs:
       - name: Build release
         working-directory: api
         run: cargo build --release --target ${{ matrix.target }}
+        env:
+          SQLX_OFFLINE: "true"
 
       - name: Package binaries
         run: |

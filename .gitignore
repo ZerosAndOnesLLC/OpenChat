@@ -424,16 +424,6 @@ global.json
 secrets.json
 
 # NPM stuff
-.sqlx/
-.sqlx-data/
-.sqlx-data-dev/
-.sqlx-data-test/
-.sqlx-data-prod/
-.sqlx-data-staging/
-.sqlx-data-dev/
-.sqlx-data-test/
-.sqlx-data-prod/
-.sqlx-data-staging/
 .next/
 auth-ui/.next/
 .cache/

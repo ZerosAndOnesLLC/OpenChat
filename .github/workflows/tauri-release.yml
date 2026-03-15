@@ -56,7 +56,7 @@ jobs:
 
       - name: Install webui dependencies
         working-directory: webui
-        run: npm ci
+        run: npm install
 
       - name: Build webui
         working-directory: webui

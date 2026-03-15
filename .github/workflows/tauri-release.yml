@@ -1,70 +1,15 @@
-name: Tauri Desktop Build & Release
+name: Tauri Desktop Release
 
 on:
   push:
-    branches:
-      - main
-    paths:
-      - 'tauri/**'
-      - 'webui/**'
-      - '.github/workflows/tauri-release.yml'
+    tags:
+      - 'desktop-v*'
 
-env:
-  CARGO_TERM_COLOR: always
+permissions:
+  contents: write
 
 jobs:
-  create-release:
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write
-    outputs:
-      version: ${{ steps.version.outputs.version }}
-      release_id: ${{ steps.create_release.outputs.id }}
-
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Extract version
-        id: version
-        working-directory: tauri
-        run: |
-          VERSION=$(grep '^version' Cargo.toml | head -1 | sed 's/version = "\(.*\)"/\1/')
-          echo "version=$VERSION" >> $GITHUB_OUTPUT
-          echo "Desktop Version: $VERSION"
-
-      - name: Create GitHub Release
-        id: create_release
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: desktop-v${{ steps.version.outputs.version }}
-          name: OpenChat Desktop v${{ steps.version.outputs.version }}
-          body: |
-            ## OpenChat Desktop v${{ steps.version.outputs.version }}
-
-            ### Downloads
-            | Platform | Download |
-            |----------|----------|
-            | Windows | `OpenChat_${{ steps.version.outputs.version }}_x64-setup.exe` |
-            | macOS (Intel) | `OpenChat_${{ steps.version.outputs.version }}_x64.dmg` |
-            | macOS (Apple Silicon) | `OpenChat_${{ steps.version.outputs.version }}_aarch64.dmg` |
-            | Linux (AppImage) | `OpenChat_${{ steps.version.outputs.version }}_amd64.AppImage` |
-            | Linux (Debian) | `OpenChat_${{ steps.version.outputs.version }}_amd64.deb` |
-
-            ### Features
-            - Cross-platform desktop client
-            - System tray integration
-            - Native notifications
-            - Secure credential storage
-
-            See [documentation](https://github.com/ZerosAndOnesLLC/OpenChat#readme) for setup instructions.
-          draft: true
-          prerelease: false
-
   build-tauri:
-    needs: create-release
-    permissions:
-      contents: write
     strategy:
       fail-fast: false
       matrix:
@@ -85,8 +30,7 @@ jobs:
     runs-on: ${{ matrix.platform }}
 
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
       - name: Install Linux dependencies
         if: matrix.platform == 'ubuntu-22.04'
@@ -102,9 +46,15 @@ jobs:
             libayatana-appindicator3-dev
 
       - name: Install Rust toolchain
-        uses: dtolnay/rust-toolchain@stable
-        with:
-          targets: ${{ matrix.target }}
+        run: |
+          if ! command -v rustup &> /dev/null; then
+            curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+            source "$HOME/.cargo/env"
+          fi
+          echo "$HOME/.cargo/bin" >> $GITHUB_PATH
+          rustup update stable
+          rustup default stable
+          rustup target add ${{ matrix.target }}
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -112,17 +62,6 @@ jobs:
           node-version: '20'
           cache: 'npm'
           cache-dependency-path: webui/package-lock.json
-
-      - name: Cache cargo registry
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/.cargo/registry
-            ~/.cargo/git
-            tauri/target
-          key: ${{ runner.os }}-${{ matrix.target }}-cargo-tauri-${{ hashFiles('tauri/Cargo.lock') }}
-          restore-keys: |
-            ${{ runner.os }}-${{ matrix.target }}-cargo-tauri-
 
       - name: Install webui dependencies
         working-directory: webui
@@ -149,45 +88,77 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Upload Linux artifacts
-        if: matrix.platform == 'ubuntu-22.04'
-        uses: softprops/action-gh-release@v2
+      - name: Collect artifacts
+        shell: bash
+        run: |
+          mkdir -p release-artifacts
+          if [ "${{ matrix.platform }}" = "ubuntu-22.04" ]; then
+            cp tauri/target/${{ matrix.target }}/release/bundle/appimage/*.AppImage release-artifacts/ || true
+            cp tauri/target/${{ matrix.target }}/release/bundle/deb/*.deb release-artifacts/ || true
+          elif [ "${{ matrix.platform }}" = "windows-latest" ]; then
+            cp tauri/target/${{ matrix.target }}/release/bundle/nsis/*.exe release-artifacts/ || true
+          elif [ "${{ matrix.platform }}" = "macos-latest" ]; then
+            cp tauri/target/${{ matrix.target }}/release/bundle/dmg/*.dmg release-artifacts/ || true
+          fi
+          cd release-artifacts
+          for f in *; do
+            sha256sum "$f" > "${f}.sha256" 2>/dev/null || shasum -a 256 "$f" > "${f}.sha256"
+          done
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
         with:
-          tag_name: desktop-v${{ needs.create-release.outputs.version }}
-          files: |
-            tauri/target/${{ matrix.target }}/release/bundle/appimage/*.AppImage
-            tauri/target/${{ matrix.target }}/release/bundle/deb/*.deb
+          name: release-${{ matrix.name }}
+          path: release-artifacts/*
 
-      - name: Upload Windows artifacts
-        if: matrix.platform == 'windows-latest'
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: desktop-v${{ needs.create-release.outputs.version }}
-          files: |
-            tauri/target/${{ matrix.target }}/release/bundle/nsis/*.exe
-
-      - name: Upload macOS artifacts
-        if: matrix.platform == 'macos-latest'
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: desktop-v${{ needs.create-release.outputs.version }}
-          files: |
-            tauri/target/${{ matrix.target }}/release/bundle/dmg/*.dmg
-
-  publish-release:
-    needs: [create-release, build-tauri]
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write
-
+  release:
+    needs: build-tauri
+    runs-on: self-hosted
     steps:
-      - name: Publish release
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+        with:
+          merge-multiple: true
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: OpenChat Desktop ${GITHUB_REF_NAME#desktop-}
+          generate_release_notes: true
+          files: |
+            *.AppImage
+            *.deb
+            *.exe
+            *.dmg
+            *.sha256
+
+      - name: Clean up old releases
         uses: actions/github-script@v7
         with:
           script: |
-            await github.rest.repos.updateRelease({
+            const { data: releases } = await github.rest.repos.listReleases({
               owner: context.repo.owner,
               repo: context.repo.repo,
-              release_id: ${{ needs.create-release.outputs.release_id }},
-              draft: false
+              per_page: 100,
             });
+            const desktopReleases = releases
+              .filter(r => r.tag_name.startsWith('desktop-v'))
+              .sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+            for (const release of desktopReleases.slice(10)) {
+              console.log(`Deleting release: ${release.tag_name}`);
+              await github.rest.repos.deleteRelease({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                release_id: release.id,
+              });
+              try {
+                await github.rest.git.deleteRef({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  ref: `tags/${release.tag_name}`,
+                });
+                console.log(`Deleted tag: ${release.tag_name}`);
+              } catch (e) {
+                console.log(`Tag ${release.tag_name} already deleted or not found`);
+              }
+            }

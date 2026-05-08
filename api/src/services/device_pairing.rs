@@ -1,5 +1,5 @@
 use chrono::{Duration, Utc};
-use rand::{thread_rng, Rng};
+use rand::RngExt;
 use sqlx::PgPool;
 use uuid::Uuid;
 
@@ -17,10 +17,10 @@ const CODE_CHARS: &[u8] = b"23456789ABCDEFGHJKLMNPQRSTUVWXYZ";
 
 /// Generate a random pairing code
 pub fn generate_code() -> String {
-    let mut rng = thread_rng();
+    let mut rng = rand::rng();
     (0..CODE_LENGTH)
         .map(|_| {
-            let idx = rng.gen_range(0..CODE_CHARS.len());
+            let idx = rng.random_range(0..CODE_CHARS.len());
             CODE_CHARS[idx] as char
         })
         .collect()

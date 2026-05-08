@@ -1,5 +1,5 @@
 use chrono::{DateTime, Utc};
-use rand::RngCore;
+use rand::RngExt;
 use serde::{Deserialize, Serialize};
 use sqlx::PgPool;
 use uuid::Uuid;
@@ -35,7 +35,7 @@ impl IncomingWebhook {
     /// Generate a secure random token for webhooks
     fn generate_token() -> String {
         let mut bytes = [0u8; 32];
-        rand::thread_rng().fill_bytes(&mut bytes);
+        rand::rng().fill(&mut bytes);
         // Use base16 encoding (hex) - manual implementation to avoid extra deps
         bytes.iter().map(|b| format!("{:02x}", b)).collect()
     }

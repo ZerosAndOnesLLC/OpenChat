@@ -1,5 +1,6 @@
 use anyhow::{anyhow, Result};
 use chrono::{TimeZone, Utc};
+use rand::RngExt;
 use reqwest::Client;
 use sqlx::PgPool;
 use std::collections::HashMap;
@@ -441,19 +442,21 @@ impl MigrationService {
         let client = Client::new();
 
         // Generate a random password
-        let password: String = (0..16)
-            .map(|_| {
-                let idx = rand::random::<usize>() % 62;
-                let c = if idx < 10 {
-                    (b'0' + idx as u8) as char
-                } else if idx < 36 {
-                    (b'A' + (idx - 10) as u8) as char
-                } else {
-                    (b'a' + (idx - 36) as u8) as char
-                };
-                c
-            })
-            .collect();
+        let password: String = {
+            let mut rng = rand::rng();
+            (0..16)
+                .map(|_| {
+                    let idx = rng.random_range(0..62usize);
+                    if idx < 10 {
+                        (b'0' + idx as u8) as char
+                    } else if idx < 36 {
+                        (b'A' + (idx - 10) as u8) as char
+                    } else {
+                        (b'a' + (idx - 36) as u8) as char
+                    }
+                })
+                .collect()
+        };
 
         let password = format!("{}!@#", password); // Add special chars for complexity
 

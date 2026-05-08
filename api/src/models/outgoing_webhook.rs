@@ -1,5 +1,5 @@
 use chrono::{DateTime, Utc};
-use rand::RngCore;
+use rand::RngExt;
 use serde::{Deserialize, Serialize};
 use serde_json::Value as JsonValue;
 use sqlx::PgPool;
@@ -39,7 +39,7 @@ pub struct WebhookDelivery {
 impl OutgoingWebhook {
     fn generate_signing_secret() -> String {
         let mut bytes = [0u8; 32];
-        rand::thread_rng().fill_bytes(&mut bytes);
+        rand::rng().fill(&mut bytes);
         bytes.iter().map(|b| format!("{:02x}", b)).collect()
     }
 

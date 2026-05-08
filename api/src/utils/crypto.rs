@@ -1,9 +1,9 @@
 use aes_gcm::{
-    aead::{Aead, KeyInit, OsRng},
+    aead::{Aead, KeyInit},
     Aes256Gcm, Nonce,
 };
 use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine};
-use rand::RngCore;
+use rand::RngExt;
 use serde::{Deserialize, Serialize};
 
 use crate::errors::{ApiError, ApiResult};
@@ -46,7 +46,7 @@ pub fn encrypt(plaintext: &[u8], key: &[u8; 32]) -> ApiResult<EncryptedPayload> 
 
     // Generate random nonce
     let mut nonce_bytes = [0u8; NONCE_SIZE];
-    OsRng.fill_bytes(&mut nonce_bytes);
+    rand::rng().fill(&mut nonce_bytes);
     let nonce = Nonce::from_slice(&nonce_bytes);
 
     // Encrypt
@@ -95,7 +95,7 @@ pub fn decrypt(payload: &EncryptedPayload, key: &[u8; 32]) -> ApiResult<Vec<u8>>
 #[allow(dead_code)]
 pub fn generate_key() -> [u8; 32] {
     let mut key = [0u8; 32];
-    OsRng.fill_bytes(&mut key);
+    rand::rng().fill(&mut key);
     key
 }
 

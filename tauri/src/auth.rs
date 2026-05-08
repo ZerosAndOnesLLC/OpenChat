@@ -277,10 +277,10 @@ fn clear_credentials_internal(state: &State<'_, AppState>) -> Result<(), String>
     log::info!("clear_credentials_internal: clearing all stored credentials");
 
     // Clear from OS keychain
-    if let Ok(entry) = keyring::Entry::new(KEYRING_SERVICE, KEYRING_USERNAME) {
+    if let Ok(entry) = keyring_core::Entry::new(KEYRING_SERVICE, KEYRING_USERNAME) {
         match entry.delete_credential() {
             Ok(_) => log::info!("clear_credentials_internal: cleared keychain"),
-            Err(keyring::Error::NoEntry) => log::info!("clear_credentials_internal: no keychain entry to clear"),
+            Err(keyring_core::Error::NoEntry) => log::info!("clear_credentials_internal: no keychain entry to clear"),
             Err(e) => log::warn!("clear_credentials_internal: failed to clear keychain: {}", e),
         }
     }
@@ -353,7 +353,7 @@ pub async fn store_credentials(
 /// Helper to store in OS keychain
 fn store_in_keychain(json_str: &str) -> Result<(), String> {
     log::info!("store_in_keychain: accessing keychain service '{}' with username '{}'", KEYRING_SERVICE, KEYRING_USERNAME);
-    let entry = keyring::Entry::new(KEYRING_SERVICE, KEYRING_USERNAME)
+    let entry = keyring_core::Entry::new(KEYRING_SERVICE, KEYRING_USERNAME)
         .map_err(|e| {
             log::error!("store_in_keychain: failed to access keychain: {}", e);
             format!("Failed to access keychain: {}", e)
@@ -438,7 +438,7 @@ pub async fn get_stored_token(state: State<'_, AppState>) -> Result<Option<Strin
 
 /// Helper to read from OS keychain
 fn read_from_keychain() -> Option<StoredCredentials> {
-    match keyring::Entry::new(KEYRING_SERVICE, KEYRING_USERNAME) {
+    match keyring_core::Entry::new(KEYRING_SERVICE, KEYRING_USERNAME) {
         Ok(entry) => match entry.get_password() {
             Ok(json_str) => {
                 log::info!("read_from_keychain: found entry in keychain, parsing...");
@@ -450,7 +450,7 @@ fn read_from_keychain() -> Option<StoredCredentials> {
                     }
                 }
             }
-            Err(keyring::Error::NoEntry) => {
+            Err(keyring_core::Error::NoEntry) => {
                 log::info!("read_from_keychain: no entry found");
                 None
             }

@@ -1,6 +1,6 @@
 [package]
 name = "openchat-api"
-version = "0.75.0"
+version = "0.76.0"
 edition = "2024"
 
 [[bin]]
@@ -14,7 +14,7 @@ path = "src/bin/worker.rs"
 [dependencies]
 # Web Framework
 actix-web = { version = "4", features = ["rustls-0_23"] }
-actix-ws = "0.3"
+actix-ws = "0.4"
 actix-cors = "0.7"
 actix = "0.13"
 actix-multipart = "0.7"
@@ -36,14 +36,14 @@ sqlx = { version = "0.8", features = [
 ] }
 
 # Redis (Caching + Pub/Sub)
-redis = { version = "0.32.7", features = [
+redis = { version = "1.2.1", features = [
     "tokio-comp",
     "connection-manager",
     "streams",
     "tls-rustls",
     "tokio-rustls-comp"
 ] }
-deadpool-redis = { version = "0.22", features = ["rt_tokio_1"] }
+deadpool-redis = { version = "0.23", features = ["rt_tokio_1"] }
 
 # Serialization
 serde = { version = "1", features = ["derive"] }
@@ -52,11 +52,11 @@ uuid = { version = "1", features = ["v4", "serde"] }
 chrono = { version = "0.4", features = ["serde"] }
 
 # Authentication & Cryptography
-jsonwebtoken = { version = "10.2.0", features = ["aws_lc_rs"] }
-reqwest = { version = "0.12", features = ["json", "rustls-tls"] }
-sha2 = "0.10"
-hmac = "0.12"
-rand = "0.8"
+jsonwebtoken = { version = "10.3.0", features = ["aws_lc_rs"] }
+reqwest = { version = "0.13", features = ["json", "form", "rustls"] }
+sha2 = "0.11"
+hmac = "0.13"
+rand = "0.10"
 aes-gcm = "0.10"
 
 # Error Handling
@@ -86,8 +86,8 @@ base64 = "0.22"
 image = "0.25"
 
 # Compression
-flate2 = "1.0"
+flate2 = "1.1"
 
 # LiveKit (Voice/Video Calling)
 livekit-api = "0.4"
-livekit-protocol = "0.3"
+livekit-protocol = "0.7"

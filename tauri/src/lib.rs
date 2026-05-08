@@ -107,6 +107,11 @@ async fn login_success(
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    // keyring 4.0 requires explicit selection of the OS credential store before use
+    if let Err(e) = keyring::use_native_store(false) {
+        log::warn!("Failed to initialize native keyring store: {}", e);
+    }
+
     tauri::Builder::default()
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_dialog::init())

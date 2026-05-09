@@ -408,7 +408,7 @@ Foundation for scheduled messages, reminders, webhook delivery, and retention en
 
 ## Phase 10: Flutter Mobile & Desktop App
 **Branch:** `feature/flutter-app`
-**Status:** Not Started
+**Status:** Won't Do (keeping Tauri desktop app)
 
 ### 10.1 Project Setup
 - [ ] Initialize Flutter project at `openchat/flutter/`
@@ -515,8 +515,8 @@ Phase 5 (Commands/Polls) → Phase 8 (Workflows, uses slash commands as trigger)
 Phase 6 (Forward/Polish) → independent
 Phase 7 (Voice/Video) → independent
 Phase 9 (E2E Encryption) → after all message features (Phases 2-6)
-Phase 10 (Flutter) → after all API endpoints stable (Phases 1-9)
-Phase 11 (Testing) → after all features (Phases 1-10)
+Phase 10 (Flutter) → Won't Do
+Phase 11 (Testing) → after all features (Phases 1-9)
 ```
 
 Recommended execution order: 1 → 2 → 3 → 4 → 5 → 6 → 7 → 8 → 9 → 10 → 11

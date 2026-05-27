@@ -131,7 +131,7 @@ impl AuditLog {
         bindings.push(offset.to_string());
 
         // Build the query dynamically
-        let mut sqlx_query = sqlx::query_as::<_, AuditLog>(&query);
+        let mut sqlx_query = sqlx::query_as::<_, AuditLog>(sqlx::AssertSqlSafe(query));
 
         if let Some(user_id) = filters.user_id {
             sqlx_query = sqlx_query.bind(user_id);
@@ -162,11 +162,11 @@ impl AuditLog {
     pub async fn count(pool: &PgPool, filters: &AuditLogFilters) -> ApiResult<i64> {
         let mut query = String::from("SELECT COUNT(*) as count FROM audit_logs WHERE 1=1");
 
-        let mut sqlx_query = sqlx::query_scalar::<_, i64>(&query);
+        let mut sqlx_query = sqlx::query_scalar::<_, i64>(sqlx::AssertSqlSafe(query.clone()));
 
         if let Some(user_id) = filters.user_id {
             query.push_str(" AND user_id = $1");
-            sqlx_query = sqlx::query_scalar::<_, i64>(&query).bind(user_id);
+            sqlx_query = sqlx::query_scalar::<_, i64>(sqlx::AssertSqlSafe(query.clone())).bind(user_id);
         }
 
         if let Some(ref action) = filters.action {

@@ -303,7 +303,7 @@ async fn search_in_channel(
     query_builder.push_str(&format!(" ORDER BY m.created_at DESC LIMIT ${}", bind_idx));
 
     // Execute search query
-    let mut query = sqlx::query_as::<_, Message>(&query_builder).bind(channel_id);
+    let mut query = sqlx::query_as::<_, Message>(sqlx::AssertSqlSafe(query_builder.clone())).bind(channel_id);
     for binding in &bindings {
         query = query.bind(binding);
     }
@@ -311,7 +311,7 @@ async fn search_in_channel(
     let messages = query.fetch_all(pool).await?;
 
     // Execute count query
-    let mut count_query = sqlx::query_scalar::<_, i64>(&count_builder).bind(channel_id);
+    let mut count_query = sqlx::query_scalar::<_, i64>(sqlx::AssertSqlSafe(count_builder)).bind(channel_id);
     for binding in &bindings {
         count_query = count_query.bind(binding);
     }
@@ -407,7 +407,7 @@ async fn search_in_dm(
     query_builder.push_str(&format!(" ORDER BY m.created_at DESC LIMIT ${}", bind_idx));
 
     // Execute search query
-    let mut query = sqlx::query_as::<_, Message>(&query_builder).bind(dm_id);
+    let mut query = sqlx::query_as::<_, Message>(sqlx::AssertSqlSafe(query_builder.clone())).bind(dm_id);
     for binding in &bindings {
         query = query.bind(binding);
     }
@@ -415,7 +415,7 @@ async fn search_in_dm(
     let messages = query.fetch_all(pool).await?;
 
     // Execute count query
-    let mut count_query = sqlx::query_scalar::<_, i64>(&count_builder).bind(dm_id);
+    let mut count_query = sqlx::query_scalar::<_, i64>(sqlx::AssertSqlSafe(count_builder)).bind(dm_id);
     for binding in &bindings {
         count_query = count_query.bind(binding);
     }
@@ -509,7 +509,7 @@ async fn search_all(
     query_builder.push_str(&format!(" ORDER BY m.created_at DESC LIMIT ${}", bind_idx));
 
     // Execute search query
-    let mut query = sqlx::query_as::<_, Message>(&query_builder).bind(org_id);
+    let mut query = sqlx::query_as::<_, Message>(sqlx::AssertSqlSafe(query_builder.clone())).bind(org_id);
     for binding in &bindings {
         query = query.bind(binding);
     }
@@ -517,7 +517,7 @@ async fn search_all(
     let messages = query.fetch_all(pool).await?;
 
     // Execute count query
-    let mut count_query = sqlx::query_scalar::<_, i64>(&count_builder).bind(org_id);
+    let mut count_query = sqlx::query_scalar::<_, i64>(sqlx::AssertSqlSafe(count_builder)).bind(org_id);
     for binding in &bindings {
         count_query = count_query.bind(binding);
     }

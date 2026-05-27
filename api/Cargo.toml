@@ -1,6 +1,6 @@
 [package]
 name = "openchat-api"
-version = "0.76.0"
+version = "0.76.1"
 edition = "2024"
 
 [[bin]]
@@ -27,8 +27,9 @@ futures-util = "0.3"
 async-trait = "0.1"
 
 # Database
-sqlx = { version = "0.8", features = [
-    "runtime-tokio-rustls",
+sqlx = { version = "0.9.0", features = [
+    "runtime-tokio",
+    "tls-rustls-aws-lc-rs",
     "postgres",
     "migrate",
     "uuid",

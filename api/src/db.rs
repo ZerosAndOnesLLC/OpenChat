@@ -49,7 +49,7 @@ pub fn init_redis_client(redis_url: &str) -> ApiResult<Client> {
 /// Note: Uses SET instead of SET LOCAL since we're not in an explicit transaction
 #[allow(dead_code)]
 pub async fn set_rls_context(pool: &PgPool, org_id: Uuid) -> ApiResult<()> {
-    sqlx::query(&format!("SET app.current_org_id = '{}'", org_id))
+    sqlx::query(sqlx::AssertSqlSafe(format!("SET app.current_org_id = '{}'", org_id)))
         .execute(pool)
         .await?;
 

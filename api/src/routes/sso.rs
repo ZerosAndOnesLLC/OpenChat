@@ -220,6 +220,8 @@ pub async fn get_userinfo(
 
     let tv_api_url = std::env::var("TV_API_URL")
         .unwrap_or_else(|_| "https://api.titanium-vault.com".to_string());
+    // Shared secret that lets TitaniumVault trust the client IP we assert below.
+    let service_token = std::env::var("SERVICE_TOKEN").unwrap_or_default();
 
     // Extract the Authorization header from the incoming request
     let auth_header = req
@@ -227,6 +229,17 @@ pub async fn get_userinfo(
         .get("Authorization")
         .and_then(|h| h.to_str().ok())
         .ok_or(ApiError::Authentication("Missing Authorization header".to_string()))?;
+
+    // The end user's connection terminates at OpenChat's load balancer, so by the time we call
+    // TitaniumVault it would only see our egress IP. Forward the observed client IP (leftmost
+    // X-Forwarded-For entry) so TV can log/rate-limit the real user; gated by the service token.
+    let client_ip = req
+        .headers()
+        .get("x-forwarded-for")
+        .and_then(|h| h.to_str().ok())
+        .and_then(|xff| xff.split(',').next())
+        .map(|ip| ip.trim().to_string())
+        .filter(|ip| !ip.is_empty());
 
     let client = reqwest::Client::builder()
         .timeout(Duration::from_secs(10))
@@ -237,15 +250,20 @@ pub async fn get_userinfo(
     let userinfo_endpoint = format!("{}/userinfo", tv_api_url.trim_end_matches('/'));
     tracing::debug!("Calling userinfo endpoint: {}", userinfo_endpoint);
 
-    let response = client
+    let mut request = client
         .get(&userinfo_endpoint)
-        .header("Authorization", auth_header)
-        .send()
-        .await
-        .map_err(|e| {
-            tracing::error!("Network error during userinfo request: {}", e);
-            ApiError::Internal(format!("Failed to fetch userinfo: {}", e))
-        })?;
+        .header("Authorization", auth_header);
+    if !service_token.is_empty() {
+        request = request.header("X-Service-Token", service_token);
+        if let Some(ip) = &client_ip {
+            request = request.header("X-Original-Client-IP", ip);
+        }
+    }
+
+    let response = request.send().await.map_err(|e| {
+        tracing::error!("Network error during userinfo request: {}", e);
+        ApiError::Internal(format!("Failed to fetch userinfo: {}", e))
+    })?;
 
     let status = response.status();
     tracing::debug!("Userinfo response status: {}", status);

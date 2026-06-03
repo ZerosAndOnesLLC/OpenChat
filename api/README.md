@@ -650,6 +650,7 @@ When rate limit is exceeded, the API returns:
 | `DATABASE_URL` | PostgreSQL connection string | Yes |
 | `REDIS_URL` | Redis connection string | Yes |
 | `TV_API_URL` | TitaniumVault API URL | Yes |
+| `SERVICE_TOKEN` | Shared secret matching tv-api's `SERVICE_TOKEN`. When set, the `/userinfo` proxy sends `X-Service-Token` + `X-Original-Client-IP` so tv-api logs the real end-user IP instead of OpenChat's egress IP. | No (recommended) |
 | `OAUTH_CLIENT_ID` | OAuth client ID for SSO | Yes |
 | `OAUTH_CLIENT_SECRET` | OAuth client secret for SSO | Yes |
 | `OAUTH_REDIRECT_URI` | OAuth redirect URI for SSO callback | Yes |

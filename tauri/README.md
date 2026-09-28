@@ -160,7 +160,7 @@ Manage Rust dependencies in `Cargo.toml`. Current plugins:
 - `tauri-plugin-notification`: System notifications
 - `tauri-plugin-log`: Logging functionality
 - `tauri-plugin-deep-link`: Deep link / URL protocol handling
-- `keyring`: Secure OS credential storage (Windows Credential Manager, macOS Keychain, Linux Secret Service)
+- `keyring-core` + native stores: Secure OS credential storage (Windows Credential Manager, macOS Keychain, Linux kernel keyutils)
 
 ## Security
 

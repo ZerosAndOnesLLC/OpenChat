@@ -105,10 +105,21 @@ async fn login_success(
     Ok(())
 }
 
+/// keyring-core requires explicit selection of the OS credential store before use.
+/// On Linux the kernel keyutils store is used.
+fn init_native_credential_store() -> keyring_core::Result<()> {
+    #[cfg(target_os = "macos")]
+    keyring_core::set_default_store(apple_native_keyring_store::keychain::Store::new()?);
+    #[cfg(target_os = "windows")]
+    keyring_core::set_default_store(windows_native_keyring_store::Store::new()?);
+    #[cfg(target_os = "linux")]
+    keyring_core::set_default_store(linux_keyutils_keyring_store::Store::new()?);
+    Ok(())
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    // keyring 4.0 requires explicit selection of the OS credential store before use
-    if let Err(e) = keyring::use_native_store(false) {
+    if let Err(e) = init_native_credential_store() {
         log::warn!("Failed to initialize native keyring store: {}", e);
     }
 
@@ -255,26 +266,6 @@ fn check_stored_credentials(state: &State<'_, auth::AppState>) -> bool {
     }
 
     false
-}
-
-/// Get the stored API URL from credentials
-fn get_stored_api_url(state: &State<'_, auth::AppState>) -> Option<String> {
-    if let Ok(creds_guard) = state.credentials.lock() {
-        if let Some(ref creds) = *creds_guard {
-            if chrono::Utc::now() < creds.expires_at {
-                return Some(creds.api_url.clone());
-            }
-        }
-    }
-
-    // Also check file fallback
-    if let Some(creds) = auth::read_stored_credentials_sync() {
-        if chrono::Utc::now() < creds.expires_at {
-            return Some(creds.api_url);
-        }
-    }
-
-    None
 }
 
 /// Get the stored Web UI URL from credentials

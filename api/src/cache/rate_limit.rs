@@ -217,8 +217,6 @@ pub async fn reset_rate_limit(
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-
     #[tokio::test]
     #[ignore] // Requires Redis to be running
     async fn test_rate_limiting() {

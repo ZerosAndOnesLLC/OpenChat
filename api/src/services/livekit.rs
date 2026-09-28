@@ -61,9 +61,9 @@ impl LiveKitService {
         let grants = VideoGrants {
             room_join: true,
             room: room_name.to_string(),
-            can_publish,
-            can_subscribe,
-            can_publish_data: true,
+            can_publish: Some(can_publish),
+            can_subscribe: Some(can_subscribe),
+            can_publish_data: Some(true),
             ..Default::default()
         };
 

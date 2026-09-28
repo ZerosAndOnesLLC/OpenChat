@@ -17,7 +17,7 @@ actix-web = { version = "4", features = ["rustls-0_23"] }
 actix-ws = "0.4"
 actix-cors = "0.7"
 actix = "0.13"
-actix-multipart = "0.7"
+actix-multipart = "0.8"
 rustls = { version = "0.23", features = ["aws-lc-rs"] }
 rustls-pemfile = "2"
 
@@ -37,7 +37,7 @@ sqlx = { version = "0.9.0", features = [
 ] }
 
 # Redis (Caching + Pub/Sub)
-redis = { version = "1.2.3", features = [
+redis = { version = "1.7.1", features = [
     "tokio-comp",
     "connection-manager",
     "streams",
@@ -53,12 +53,12 @@ uuid = { version = "1", features = ["v4", "serde"] }
 chrono = { version = "0.4", features = ["serde"] }
 
 # Authentication & Cryptography
-jsonwebtoken = { version = "10.4.0", features = ["aws_lc_rs"] }
+jsonwebtoken = { version = "11.1.0", features = ["aws_lc_rs"] }
 reqwest = { version = "0.13", features = ["json", "form", "rustls"] }
 sha2 = "0.11"
 hmac = "0.13"
 rand = "0.10"
-aes-gcm = "0.10"
+aes-gcm = "0.11"
 
 # Error Handling
 thiserror = "2"
@@ -81,7 +81,7 @@ mime = "0.3"
 mime_guess = "2"
 tokio-util = { version = "0.7", features = ["io", "rt"] }
 bytes = "1"
-base64 = "0.22"
+base64 = "0.23"
 
 # Image Processing
 image = "0.25"
@@ -90,5 +90,5 @@ image = "0.25"
 flate2 = "1.1"
 
 # LiveKit (Voice/Video Calling)
-livekit-api = "0.5"
-livekit-protocol = "0.7"
+livekit-api = "0.8"
+livekit-protocol = "0.8"

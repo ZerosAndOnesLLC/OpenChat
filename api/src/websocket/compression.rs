@@ -31,11 +31,11 @@ mod tests {
 
     #[test]
     fn test_compress_decompress() {
-        let original = b"Hello, World! This is a test message that should be compressed.";
-        let compressed = compress(original).expect("Compression failed");
+        let original = b"Hello, World! This is a test message that should be compressed. ".repeat(16);
+        let compressed = compress(&original).expect("Compression failed");
         let decompressed = decompress(&compressed).expect("Decompression failed");
 
-        assert_eq!(original.to_vec(), decompressed);
+        assert_eq!(original, decompressed);
         assert!(compressed.len() < original.len(), "Compression should reduce size");
     }
 

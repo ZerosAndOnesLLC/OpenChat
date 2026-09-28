@@ -47,11 +47,11 @@ pub fn encrypt(plaintext: &[u8], key: &[u8; 32]) -> ApiResult<EncryptedPayload> 
     // Generate random nonce
     let mut nonce_bytes = [0u8; NONCE_SIZE];
     rand::rng().fill(&mut nonce_bytes);
-    let nonce = Nonce::from_slice(&nonce_bytes);
+    let nonce = Nonce::from(nonce_bytes);
 
     // Encrypt
     let ciphertext = cipher
-        .encrypt(nonce, plaintext)
+        .encrypt(&nonce, plaintext)
         .map_err(|e| ApiError::Internal(format!("Encryption failed: {}", e)))?;
 
     Ok(EncryptedPayload {
@@ -76,7 +76,8 @@ pub fn decrypt(payload: &EncryptedPayload, key: &[u8; 32]) -> ApiResult<Vec<u8>>
             nonce_bytes.len()
         )));
     }
-    let nonce = Nonce::from_slice(&nonce_bytes);
+    let nonce = Nonce::try_from(nonce_bytes.as_slice())
+        .map_err(|_| ApiError::BadRequest("Invalid nonce".to_string()))?;
 
     // Decode ciphertext
     let ciphertext = URL_SAFE_NO_PAD
@@ -85,7 +86,7 @@ pub fn decrypt(payload: &EncryptedPayload, key: &[u8; 32]) -> ApiResult<Vec<u8>>
 
     // Decrypt
     let plaintext = cipher
-        .decrypt(nonce, ciphertext.as_ref())
+        .decrypt(&nonce, ciphertext.as_ref())
         .map_err(|e| ApiError::BadRequest(format!("Decryption failed: {}", e)))?;
 
     Ok(plaintext)

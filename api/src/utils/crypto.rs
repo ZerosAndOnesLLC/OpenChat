@@ -92,14 +92,6 @@ pub fn decrypt(payload: &EncryptedPayload, key: &[u8; 32]) -> ApiResult<Vec<u8>>
     Ok(plaintext)
 }
 
-/// Generate a random 256-bit key
-#[allow(dead_code)]
-pub fn generate_key() -> [u8; 32] {
-    let mut key = [0u8; 32];
-    rand::rng().fill(&mut key);
-    key
-}
-
 /// Derive a key from a shared secret (e.g., environment variable)
 /// Uses SHA-256 to ensure correct key size
 pub fn derive_key_from_secret(secret: &str) -> [u8; 32] {
@@ -113,6 +105,10 @@ pub fn derive_key_from_secret(secret: &str) -> [u8; 32] {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn generate_key() -> [u8; 32] {
+        rand::random()
+    }
 
     #[test]
     fn test_encrypt_decrypt() {

@@ -6,6 +6,7 @@
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 [![Rust](https://img.shields.io/badge/rust-2024-orange.svg)](https://www.rust-lang.org/)
 [![Next.js](https://img.shields.io/badge/next.js-16-black.svg)](https://nextjs.org/)
+[![CI](https://github.com/ZerosAndOnesLLC/OpenChat/actions/workflows/ci.yml/badge.svg)](https://github.com/ZerosAndOnesLLC/OpenChat/actions/workflows/ci.yml)
 [![API Build](https://github.com/ZerosAndOnesLLC/OpenChat/actions/workflows/api-release.yml/badge.svg)](https://github.com/ZerosAndOnesLLC/OpenChat/actions/workflows/api-release.yml)
 [![Desktop Build](https://github.com/ZerosAndOnesLLC/OpenChat/actions/workflows/tauri-release.yml/badge.svg)](https://github.com/ZerosAndOnesLLC/OpenChat/actions/workflows/tauri-release.yml)
 
@@ -693,7 +694,7 @@ OpenChat Desktop is a native desktop application built with **Tauri** and **Rust
 ### Download & Installation
 
 #### Windows
-1. Download the latest `.msi` installer from [Releases](https://github.com/yourusername/openchat/releases)
+1. Download the latest `.msi` installer from [Releases](https://github.com/ZerosAndOnesLLC/OpenChat/releases)
 2. Run the installer and follow the setup wizard
 3. Launch OpenChat from the Start Menu or Desktop shortcut
 
@@ -702,9 +703,9 @@ OpenChat Desktop is a native desktop application built with **Tauri** and **Rust
 - WebView2 Runtime (usually pre-installed)
 
 #### macOS
-1. Download the latest `.dmg` file from [Releases](https://github.com/yourusername/openchat/releases)
+1. Download the latest `.dmg` file from [Releases](https://github.com/ZerosAndOnesLLC/OpenChat/releases)
 2. Open the `.dmg` and drag OpenChat to Applications
-3. Launch from Applications folder
+3. Launch from Applications folder (builds are not yet notarized: right-click → Open the first time)
 
 **System Requirements:**
 - macOS 10.13 (High Sierra) or later
@@ -744,6 +745,24 @@ Want to build from source or contribute to the desktop app? See the [Desktop Dev
 - **Plugins**: Shell, Dialog, FileSystem, Notifications
 
 ---
+
+## CI & Releases
+
+**CI** (`.github/workflows/ci.yml`) runs on every pull request and push to `main` using GitHub-hosted runners:
+- **API / Desktop**: `cargo check` with warnings as errors, `cargo test`, and `cargo clippy` (report only)
+- **Web UI**: `tsc --noEmit`, `next build`, and ESLint (report only)
+
+**Releases** are cut by pushing a tag; the tag must match the version in the component's manifest.
+
+| Component | Version source | Tag | Workflow | Runners |
+|-----------|----------------|-----|----------|---------|
+| API | `api/Cargo.toml` | `api-vX.Y.Z` | `api-release.yml` | self-hosted (x64 + arm64 Linux) |
+| Desktop | `tauri/Cargo.toml` | `desktop-vX.Y.Z` | `tauri-release.yml` | GitHub-hosted (Linux x64/arm64, Windows, macOS) |
+| Web UI | `webui/package.json` | — | deployed via `webui/build-and-pub-to-s3.sh` | — |
+
+Both release workflows can also be run manually from the Actions tab (`workflow_dispatch`) as a dry run that builds artifacts without publishing a release. The latest 10 releases per component are kept; older releases are pruned but their tags are preserved.
+
+Lockfiles (`api/Cargo.lock`, `tauri/Cargo.lock`, `webui/package-lock.json`) are committed so CI and releases build against the exact reviewed dependency versions.
 
 ## Contributing
 

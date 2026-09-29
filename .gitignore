@@ -470,3 +470,8 @@ android/**/.externalNativeBuild/
 android/**/.cxx/
 android/gradle-*/
 android/gradle-wrapper.zip
+
+# Lockfiles for deployable apps are committed for reproducible builds
+!api/Cargo.lock
+!tauri/Cargo.lock
+!webui/package-lock.json

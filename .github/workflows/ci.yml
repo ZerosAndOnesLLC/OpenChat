@@ -1,0 +1,117 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  api:
+    name: API (check, test, clippy)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    env:
+      SQLX_OFFLINE: "true"
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: api
+
+      - name: cargo check (warnings are errors)
+        working-directory: api
+        run: cargo check --locked --all-targets
+        env:
+          RUSTFLAGS: -D warnings
+
+      - name: cargo test
+        working-directory: api
+        run: cargo test --locked
+
+      - name: cargo clippy (report only)
+        working-directory: api
+        continue-on-error: true
+        run: cargo clippy --locked --all-targets
+
+  desktop:
+    name: Desktop (check, test, clippy)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Linux dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libwebkit2gtk-4.1-dev \
+            libayatana-appindicator3-dev \
+            librsvg2-dev \
+            libxdo-dev \
+            libssl-dev
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: tauri
+
+      - name: cargo check (warnings are errors)
+        working-directory: tauri
+        run: cargo check --locked --all-targets
+        env:
+          RUSTFLAGS: -D warnings
+
+      - name: cargo test
+        working-directory: tauri
+        run: cargo test --locked
+
+      - name: cargo clippy (report only)
+        working-directory: tauri
+        continue-on-error: true
+        run: cargo clippy --locked --all-targets
+
+  webui:
+    name: Web UI (typecheck, build, lint)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: webui
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: webui/package-lock.json
+
+      - run: npm ci
+
+      - name: Typecheck
+        run: npx tsc --noEmit
+
+      - name: Build
+        run: npm run build
+
+      - name: Lint (report only until existing errors are fixed)
+        continue-on-error: true
+        run: npm run lint

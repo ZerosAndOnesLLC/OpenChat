@@ -748,7 +748,7 @@ Want to build from source or contribute to the desktop app? See the [Desktop Dev
 
 ## CI & Releases
 
-**CI** (`.github/workflows/ci.yml`) runs on every pull request and push to `main` using GitHub-hosted runners:
+**CI** (`.github/workflows/ci.yml`) runs on every pull request and push to `main`. All CI and release workflows use GitHub-hosted runners (free for this public repo); no self-hosted runners are required.
 - **API / Desktop**: `cargo check` with warnings as errors, `cargo test`, and `cargo clippy` (report only)
 - **Web UI**: `tsc --noEmit`, `next build`, and ESLint (report only)
 
@@ -756,7 +756,7 @@ Want to build from source or contribute to the desktop app? See the [Desktop Dev
 
 | Component | Version source | Tag | Workflow | Runners |
 |-----------|----------------|-----|----------|---------|
-| API | `api/Cargo.toml` | `api-vX.Y.Z` | `api-release.yml` | self-hosted (x64 + arm64 Linux) |
+| API | `api/Cargo.toml` | `api-vX.Y.Z` | `api-release.yml` | GitHub-hosted (Ubuntu 22.04 x64 + arm64, glibc 2.35+) |
 | Desktop | `tauri/Cargo.toml` | `desktop-vX.Y.Z` | `tauri-release.yml` | GitHub-hosted (Linux x64/arm64, Windows, macOS) |
 | Web UI | `webui/package.json` | — | deployed via `webui/build-and-pub-to-s3.sh` | — |
 

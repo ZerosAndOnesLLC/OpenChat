@@ -87,7 +87,11 @@ cmd_bump() {
     fi
 
     git -C "$ROOT" commit --quiet -m "chore(release): $component $new"
-    echo "Committed. Open a PR, merge it, then run: scripts/release.sh tag $component"
+    if [ "$component" = "webui" ]; then
+        echo "Committed. Open a PR, merge it, then deploy with webui/build-and-pub-to-s3.sh"
+    else
+        echo "Committed. Open a PR, merge it, then run: scripts/release.sh tag $component"
+    fi
 }
 
 cmd_tag() {

@@ -760,6 +760,16 @@ Want to build from source or contribute to the desktop app? See the [Desktop Dev
 | Desktop | `tauri/Cargo.toml` | `desktop-vX.Y.Z` | `tauri-release.yml` | GitHub-hosted (Linux x64/arm64, Windows, macOS) |
 | Web UI | `webui/package.json` | — | deployed via `webui/build-and-pub-to-s3.sh` | — |
 
+Use `scripts/release.sh` to cut a release:
+
+```bash
+# 1. On a branch: bump the version (manifest + lockfile), verify it builds, and commit
+scripts/release.sh bump api patch        # or: desktop / webui, minor / major
+# 2. Open a PR and merge it
+# 3. On an up-to-date main: tag the merged version and push the tag (starts the release workflow)
+scripts/release.sh tag api               # or: desktop
+```
+
 Both release workflows can also be run manually from the Actions tab (`workflow_dispatch`) as a dry run that builds artifacts without publishing a release. The latest 10 releases per component are kept; older releases are pruned but their tags are preserved.
 
 Lockfiles (`api/Cargo.lock`, `tauri/Cargo.lock`, `webui/package-lock.json`) are committed so CI and releases build against the exact reviewed dependency versions.

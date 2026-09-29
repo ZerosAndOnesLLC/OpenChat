@@ -4,9 +4,19 @@ on:
   push:
     tags:
       - 'desktop-v*'
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Build installers only (no GitHub release)'
+        type: boolean
+        default: true
 
 permissions:
   contents: write
+
+concurrency:
+  group: tauri-release-${{ github.ref }}
+  cancel-in-progress: false
 
 jobs:
   build-tauri:
@@ -14,23 +24,39 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - runner: [self-hosted, Linux, ARM64]
+          - runner: ubuntu-24.04
+            target: x86_64-unknown-linux-gnu
+            name: linux-x64
+            os: linux
+          - runner: ubuntu-24.04-arm
             target: aarch64-unknown-linux-gnu
             name: linux-arm64
             os: linux
-          - runner: [self-hosted, X64, Windows]
+          - runner: windows-latest
             target: x86_64-pc-windows-msvc
-            name: windows
+            name: windows-x64
             os: windows
-          - runner: [self-hosted, ARM64, macOS]
+          - runner: macos-14
             target: aarch64-apple-darwin
-            name: macos-arm
+            name: macos-arm64
             os: macos
 
     runs-on: ${{ matrix.runner }}
+    timeout-minutes: 90
 
     steps:
       - uses: actions/checkout@v4
+
+      - name: Verify tag matches Cargo.toml version
+        if: startsWith(github.ref, 'refs/tags/desktop-v')
+        shell: bash
+        run: |
+          CARGO_VERSION=$(grep -m1 '^version' tauri/Cargo.toml | cut -d'"' -f2)
+          TAG_VERSION="${GITHUB_REF_NAME#desktop-v}"
+          if [ "$CARGO_VERSION" != "$TAG_VERSION" ]; then
+            echo "::error::Tag $GITHUB_REF_NAME does not match tauri/Cargo.toml version $CARGO_VERSION"
+            exit 1
+          fi
 
       - name: Install Linux dependencies
         if: matrix.os == 'linux'
@@ -38,54 +64,33 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y \
             libwebkit2gtk-4.1-dev \
-            librsvg2-dev \
-            patchelf \
-            libssl-dev \
-            libgtk-3-dev \
             libayatana-appindicator3-dev \
-            || sudo apt-get install -y \
-            libwebkit2gtk-4.0-dev \
             librsvg2-dev \
-            patchelf \
+            libxdo-dev \
             libssl-dev \
-            libgtk-3-dev \
-            libappindicator3-dev
+            patchelf
 
-      - name: Install Rust toolchain (Unix)
-        if: matrix.os != 'windows'
-        run: |
-          if ! command -v rustup &> /dev/null; then
-            curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
-            source "$HOME/.cargo/env"
-          fi
-          echo "$HOME/.cargo/bin" >> $GITHUB_PATH
-          rustup update stable
-          rustup default stable
-          rustup target add ${{ matrix.target }}
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
 
-      - name: Install Rust toolchain (Windows)
-        if: matrix.os == 'windows'
-        shell: powershell
-        run: |
-          if (!(Get-Command rustup -ErrorAction SilentlyContinue)) {
-            Invoke-WebRequest -Uri https://win.rustup.rs/x86_64 -OutFile rustup-init.exe
-            .\rustup-init.exe -y
-            Remove-Item rustup-init.exe
-          }
-          $env:PATH = "$env:USERPROFILE\.cargo\bin;$env:PATH"
-          echo "$env:USERPROFILE\.cargo\bin" | Out-File -Append -Encoding utf8 $env:GITHUB_PATH
-          rustup update stable
-          rustup default stable
-          rustup target add ${{ matrix.target }}
+      - name: Cache Rust build
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: tauri
+          key: ${{ matrix.target }}
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '24'
+          cache: npm
+          cache-dependency-path: webui/package-lock.json
 
       - name: Install webui dependencies
         working-directory: webui
-        run: npm install
+        run: npm ci
 
       - name: Build webui
         working-directory: webui
@@ -99,41 +104,50 @@ jobs:
           rm -rf tauri/dist
           cp -r webui/out tauri/dist
 
-      - name: Install Tauri CLI
-        run: cargo install tauri-cli --version "^2.0"
-
       - name: Build Tauri app
         working-directory: tauri
-        run: cargo tauri build --target ${{ matrix.target }}
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: bash
+        run: npx --yes @tauri-apps/cli@2 build --target ${{ matrix.target }}
 
       - name: Collect artifacts
         shell: bash
         run: |
+          set -euo pipefail
+          shopt -s nullglob
+          BUNDLE="tauri/target/${{ matrix.target }}/release/bundle"
           mkdir -p release-artifacts
-          if [ "${{ matrix.os }}" = "linux" ]; then
-            cp tauri/target/${{ matrix.target }}/release/bundle/appimage/*.AppImage release-artifacts/ || true
-            cp tauri/target/${{ matrix.target }}/release/bundle/deb/*.deb release-artifacts/ || true
-          elif [ "${{ matrix.os }}" = "windows" ]; then
-            cp tauri/target/${{ matrix.target }}/release/bundle/nsis/*.exe release-artifacts/ || true
-          elif [ "${{ matrix.os }}" = "macos" ]; then
-            cp tauri/target/${{ matrix.target }}/release/bundle/dmg/*.dmg release-artifacts/ || true
+          case "${{ matrix.os }}" in
+            linux)   files=("$BUNDLE"/appimage/*.AppImage "$BUNDLE"/deb/*.deb "$BUNDLE"/rpm/*.rpm) ;;
+            windows) files=("$BUNDLE"/nsis/*.exe "$BUNDLE"/msi/*.msi) ;;
+            macos)   files=("$BUNDLE"/dmg/*.dmg) ;;
+          esac
+          if [ ${#files[@]} -eq 0 ]; then
+            echo "::error::No installers found under $BUNDLE"
+            exit 1
           fi
+          cp "${files[@]}" release-artifacts/
           cd release-artifacts
           for f in *; do
-            sha256sum "$f" > "${f}.sha256" 2>/dev/null || shasum -a 256 "$f" > "${f}.sha256"
+            if command -v sha256sum >/dev/null; then
+              sha256sum "$f" > "$f.sha256"
+            else
+              shasum -a 256 "$f" > "$f.sha256"
+            fi
           done
+          ls -la
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
           name: release-${{ matrix.name }}
           path: release-artifacts/*
+          if-no-files-found: error
 
   release:
     needs: build-tauri
-    runs-on: self-hosted
+    if: startsWith(github.ref, 'refs/tags/desktop-v')
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - name: Download artifacts
         uses: actions/download-artifact@v4
@@ -145,18 +159,21 @@ jobs:
         with:
           name: OpenChat Desktop ${{ github.ref_name }}
           generate_release_notes: true
+          fail_on_unmatched_files: false
           files: |
             *.AppImage
             *.deb
+            *.rpm
             *.exe
+            *.msi
             *.dmg
             *.sha256
 
-      - name: Clean up old releases
+      - name: Prune old releases (tags are kept)
         uses: actions/github-script@v7
         with:
           script: |
-            const { data: releases } = await github.rest.repos.listReleases({
+            const releases = await github.paginate(github.rest.repos.listReleases, {
               owner: context.repo.owner,
               repo: context.repo.repo,
               per_page: 100,
@@ -171,14 +188,4 @@ jobs:
                 repo: context.repo.repo,
                 release_id: release.id,
               });
-              try {
-                await github.rest.git.deleteRef({
-                  owner: context.repo.owner,
-                  repo: context.repo.repo,
-                  ref: `tags/${release.tag_name}`,
-                });
-                console.log(`Deleted tag: ${release.tag_name}`);
-              } catch (e) {
-                console.log(`Tag ${release.tag_name} already deleted or not found`);
-              }
             }

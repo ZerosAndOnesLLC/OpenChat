@@ -116,7 +116,7 @@ impl RedisPubSub {
     }
 
     /// Start subscribing to Redis channels
-    async fn subscribe_to_channels(&self, ctx: &mut Context<Self>) {
+    fn subscribe_to_channels(&self, ctx: &mut Context<Self>) {
         let redis_client = self.redis_client.clone();
         let ws_server = self.ws_server.clone();
 
@@ -381,7 +381,7 @@ impl Actor for RedisPubSub {
 
     fn started(&mut self, ctx: &mut Self::Context) {
         tracing::info!("Redis Pub/Sub actor started");
-        let _ = self.subscribe_to_channels(ctx);
+        self.subscribe_to_channels(ctx);
     }
 }
 

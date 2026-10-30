@@ -342,11 +342,9 @@ impl AuditLogger {
             return Some(ip.to_string());
         }
 
-        // Fall back to connection info
-        req.connection_info()
-            .realip_remote_addr()
-            .and_then(parse_ip)
-            .map(|ip| ip.to_string())
+        // Fall back to the TCP peer (X-Forwarded-For was handled above, so
+        // connection_info's header parsing would add nothing).
+        req.peer_addr().map(|addr| addr.ip().to_string())
     }
 
     /// Extract user agent from request

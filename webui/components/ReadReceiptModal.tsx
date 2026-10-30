@@ -17,25 +17,36 @@ export default function ReadReceiptModal({ messageId, isOpen, onClose }: ReadRec
   const [error, setError] = useState<string | null>(null);
   const trapRef = useFocusTrap(isOpen);
 
-  useEffect(() => {
-    if (isOpen && messageId) {
-      loadReceipts();
+  // Message whose receipts should be on screen; null while closed.
+  const receiptsFor = isOpen && messageId ? messageId : null;
+  const [requestedFor, setRequestedFor] = useState<string | null>(null);
+  if (requestedFor !== receiptsFor) {
+    setRequestedFor(receiptsFor);
+    if (receiptsFor) {
+      setLoading(true);
+      setError(null);
     }
-  }, [isOpen, messageId]);
+  }
 
-  const loadReceipts = async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const data = await apiClient.getMessageReceipts(messageId);
-      setReceipts(data);
-    } catch (err) {
-      console.error('Failed to load read receipts:', err);
-      setError('Failed to load read receipts');
-    } finally {
-      setLoading(false);
-    }
-  };
+  useEffect(() => {
+    if (!receiptsFor) return;
+    let cancelled = false;
+    apiClient.getMessageReceipts(receiptsFor)
+      .then((data) => {
+        if (!cancelled) setReceipts(data);
+      })
+      .catch((err) => {
+        if (cancelled) return;
+        console.error('Failed to load read receipts:', err);
+        setError('Failed to load read receipts');
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [receiptsFor]);
 
   const formatTime = (timestamp: string) => {
     const date = new Date(timestamp);

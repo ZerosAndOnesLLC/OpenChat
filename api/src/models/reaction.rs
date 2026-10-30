@@ -55,14 +55,12 @@ impl Reaction {
         user_id: Uuid,
         emoji: &str,
     ) -> ApiResult<()> {
-        sqlx::query(
-            "DELETE FROM reactions WHERE message_id = $1 AND user_id = $2 AND emoji = $3"
-        )
-        .bind(message_id)
-        .bind(user_id)
-        .bind(emoji)
-        .execute(pool)
-        .await?;
+        sqlx::query("DELETE FROM reactions WHERE message_id = $1 AND user_id = $2 AND emoji = $3")
+            .bind(message_id)
+            .bind(user_id)
+            .bind(emoji)
+            .execute(pool)
+            .await?;
 
         Ok(())
     }
@@ -84,7 +82,10 @@ impl Reaction {
     }
 
     /// Get reaction counts (aggregated by emoji) for a message
-    pub async fn count_by_message(pool: &PgPool, message_id: Uuid) -> ApiResult<Vec<ReactionCount>> {
+    pub async fn count_by_message(
+        pool: &PgPool,
+        message_id: Uuid,
+    ) -> ApiResult<Vec<ReactionCount>> {
         let counts = sqlx::query_as::<_, ReactionCount>(
             r#"
             SELECT

@@ -39,7 +39,7 @@ export default function ChannelMentionDialog({
             <div className="flex gap-2">
               <span className="text-yellow-600 dark:text-yellow-500">⚠️</span>
               <p className="text-sm text-yellow-800 dark:text-yellow-300">
-                Use @channel sparingly for important announcements that require everyone's attention.
+                Use @channel sparingly for important announcements that require everyone&apos;s attention.
               </p>
             </div>
           </div>

@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useCallback, useSyncExternalStore } from 'react';
+import { useEffect, useCallback, useSyncExternalStore } from 'react';
 import { useWebSocketStore } from '@/lib/websocket';
 
 const STORAGE_KEY = 'browserNotificationsEnabled';
@@ -131,7 +131,6 @@ function drawBadge(ctx: CanvasRenderingContext2D, count: number) {
 
 export function useBrowserNotifications() {
   const enabled = useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot);
-  const prevCountRef = useRef(0);
 
   // Compute total unread across all channels and DMs
   const totalUnread = useWebSocketStore((state) => {

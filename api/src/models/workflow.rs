@@ -193,7 +193,10 @@ impl WorkflowStep {
         Ok(step)
     }
 
-    pub async fn list_by_workflow(pool: &PgPool, workflow_id: Uuid) -> ApiResult<Vec<WorkflowStep>> {
+    pub async fn list_by_workflow(
+        pool: &PgPool,
+        workflow_id: Uuid,
+    ) -> ApiResult<Vec<WorkflowStep>> {
         let steps = sqlx::query_as::<_, WorkflowStep>(
             "SELECT * FROM workflow_steps WHERE workflow_id = $1 ORDER BY step_order ASC",
         )
@@ -248,18 +251,22 @@ impl WorkflowStep {
         let mut tx = pool.begin().await?;
 
         // Temporarily set all to high values to avoid unique constraint violations
-        sqlx::query("UPDATE workflow_steps SET step_order = step_order + 10000 WHERE workflow_id = $1")
+        sqlx::query(
+            "UPDATE workflow_steps SET step_order = step_order + 10000 WHERE workflow_id = $1",
+        )
+        .bind(workflow_id)
+        .execute(&mut *tx)
+        .await?;
+
+        for (i, step_id) in step_ids.iter().enumerate() {
+            sqlx::query(
+                "UPDATE workflow_steps SET step_order = $1 WHERE id = $2 AND workflow_id = $3",
+            )
+            .bind(i as i32)
+            .bind(step_id)
             .bind(workflow_id)
             .execute(&mut *tx)
             .await?;
-
-        for (i, step_id) in step_ids.iter().enumerate() {
-            sqlx::query("UPDATE workflow_steps SET step_order = $1 WHERE id = $2 AND workflow_id = $3")
-                .bind(i as i32)
-                .bind(step_id)
-                .bind(workflow_id)
-                .execute(&mut *tx)
-                .await?;
         }
 
         tx.commit().await?;
@@ -289,11 +296,12 @@ impl WorkflowExecution {
     }
 
     pub async fn get_by_id(pool: &PgPool, id: Uuid) -> ApiResult<Option<WorkflowExecution>> {
-        let execution =
-            sqlx::query_as::<_, WorkflowExecution>("SELECT * FROM workflow_executions WHERE id = $1")
-                .bind(id)
-                .fetch_optional(pool)
-                .await?;
+        let execution = sqlx::query_as::<_, WorkflowExecution>(
+            "SELECT * FROM workflow_executions WHERE id = $1",
+        )
+        .bind(id)
+        .fetch_optional(pool)
+        .await?;
 
         Ok(execution)
     }
@@ -333,7 +341,11 @@ impl WorkflowExecution {
         Ok(execution)
     }
 
-    pub async fn set_failed(pool: &PgPool, id: Uuid, error_message: &str) -> ApiResult<WorkflowExecution> {
+    pub async fn set_failed(
+        pool: &PgPool,
+        id: Uuid,
+        error_message: &str,
+    ) -> ApiResult<WorkflowExecution> {
         let execution = sqlx::query_as::<_, WorkflowExecution>(
             r#"UPDATE workflow_executions
                SET status = 'failed', completed_at = NOW(), error_message = $2
@@ -407,7 +419,11 @@ impl WorkflowExecutionStep {
         Ok(steps)
     }
 
-    pub async fn set_running(pool: &PgPool, id: Uuid, input_data: &serde_json::Value) -> ApiResult<WorkflowExecutionStep> {
+    pub async fn set_running(
+        pool: &PgPool,
+        id: Uuid,
+        input_data: &serde_json::Value,
+    ) -> ApiResult<WorkflowExecutionStep> {
         let step = sqlx::query_as::<_, WorkflowExecutionStep>(
             r#"UPDATE workflow_execution_steps
                SET status = 'running', input_data = $2, started_at = NOW()
@@ -441,7 +457,11 @@ impl WorkflowExecutionStep {
         Ok(step)
     }
 
-    pub async fn set_failed(pool: &PgPool, id: Uuid, error_message: &str) -> ApiResult<WorkflowExecutionStep> {
+    pub async fn set_failed(
+        pool: &PgPool,
+        id: Uuid,
+        error_message: &str,
+    ) -> ApiResult<WorkflowExecutionStep> {
         let step = sqlx::query_as::<_, WorkflowExecutionStep>(
             r#"UPDATE workflow_execution_steps
                SET status = 'failed', completed_at = NOW(), error_message = $2
@@ -510,7 +530,10 @@ impl WorkflowForm {
         Ok(form)
     }
 
-    pub async fn list_pending_for_user(pool: &PgPool, user_id: Uuid) -> ApiResult<Vec<WorkflowForm>> {
+    pub async fn list_pending_for_user(
+        pool: &PgPool,
+        user_id: Uuid,
+    ) -> ApiResult<Vec<WorkflowForm>> {
         let forms = sqlx::query_as::<_, WorkflowForm>(
             "SELECT * FROM workflow_forms WHERE target_user_id = $1 AND status = 'pending' ORDER BY created_at DESC",
         )

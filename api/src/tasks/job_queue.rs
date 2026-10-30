@@ -5,9 +5,11 @@ use tokio_util::sync::CancellationToken;
 use tracing::{error, info, warn};
 use uuid::Uuid;
 
+use super::{
+    reminder_worker, retention_worker, scheduled_message_worker, webhook_worker, workflow_worker,
+};
 use crate::models::job::{Job, JobType};
 use crate::storage::StorageFactory;
-use super::{reminder_worker, retention_worker, scheduled_message_worker, webhook_worker, workflow_worker};
 
 const STREAM_KEY: &str = "openchat:jobs:stream";
 const GROUP_NAME: &str = "openchat-workers";
@@ -41,17 +43,19 @@ pub async fn enqueue_job(
     let job_id = row.0;
 
     // Only push to stream for immediate jobs; scheduled jobs are picked up by the poller
-    if scheduled <= Utc::now() {
-        if let Err(e) = redis::cmd("XADD")
+    if scheduled <= Utc::now()
+        && let Err(e) = redis::cmd("XADD")
             .arg(STREAM_KEY)
             .arg("*")
             .arg("job_id")
             .arg(job_id.to_string())
             .query_async::<()>(redis)
             .await
-        {
-            warn!("Failed to XADD job {} to stream (will be picked up by poller): {}", job_id, e);
-        }
+    {
+        warn!(
+            "Failed to XADD job {} to stream (will be picked up by poller): {}",
+            job_id, e
+        );
     }
 
     info!(job_id = %job_id, job_type = %job_type_str, "Job enqueued");
@@ -66,7 +70,11 @@ pub struct JobQueue {
 }
 
 impl JobQueue {
-    pub fn new(pool: PgPool, redis: redis::aio::MultiplexedConnection, storage_factory: Arc<StorageFactory>) -> Self {
+    pub fn new(
+        pool: PgPool,
+        redis: redis::aio::MultiplexedConnection,
+        storage_factory: Arc<StorageFactory>,
+    ) -> Self {
         let consumer_id = format!("worker-{}", Uuid::new_v4());
         Self {
             pool,
@@ -222,12 +230,10 @@ impl JobQueue {
         };
 
         // Load job from Postgres
-        let job: Job = match sqlx::query_as(
-            "SELECT * FROM job_queue WHERE id = $1",
-        )
-        .bind(job_id)
-        .fetch_optional(&self.pool)
-        .await
+        let job: Job = match sqlx::query_as("SELECT * FROM job_queue WHERE id = $1")
+            .bind(job_id)
+            .fetch_optional(&self.pool)
+            .await
         {
             Ok(Some(job)) => job,
             Ok(None) => {
@@ -364,10 +370,7 @@ impl JobQueue {
     }
 
     /// Poll for scheduled/retry jobs that are due and push them to the stream.
-    pub async fn poll_scheduled_jobs(
-        pool: &PgPool,
-        redis: &mut redis::aio::MultiplexedConnection,
-    ) {
+    pub async fn poll_scheduled_jobs(pool: &PgPool, redis: &mut redis::aio::MultiplexedConnection) {
         let due_jobs: Vec<(Uuid,)> = match sqlx::query_as(
             r#"UPDATE job_queue
                SET status = 'pending'

@@ -64,12 +64,7 @@ pub const ALLOWED_VIDEO_TYPES: &[&str] = &[
     "video/x-msvideo",
     "video/webm",
 ];
-pub const ALLOWED_AUDIO_TYPES: &[&str] = &[
-    "audio/mpeg",
-    "audio/wav",
-    "audio/ogg",
-    "audio/webm",
-];
+pub const ALLOWED_AUDIO_TYPES: &[&str] = &["audio/mpeg", "audio/wav", "audio/ogg", "audio/webm"];
 
 pub fn is_allowed_file_type(content_type: &str) -> bool {
     ALLOWED_IMAGE_TYPES.contains(&content_type)

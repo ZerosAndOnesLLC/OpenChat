@@ -1,6 +1,6 @@
+use sqlx::PgPool;
 use std::sync::Arc;
 use std::time::Duration;
-use sqlx::PgPool;
 use tracing::{error, info};
 
 use crate::models::call::Call;

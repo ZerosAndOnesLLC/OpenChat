@@ -1,15 +1,15 @@
-use actix_multipart::Multipart;
-use actix_web::{web, HttpMessage, HttpRequest, HttpResponse};
-use futures_util::StreamExt;
 use crate::db::RedisPool;
+use actix_multipart::Multipart;
+use actix_web::{HttpMessage, HttpRequest, HttpResponse, web};
+use futures_util::StreamExt;
 use sqlx::PgPool;
 use std::sync::Arc;
 use uuid::Uuid;
 
 use crate::errors::ApiError;
 use crate::models::emoji::{
-    is_allowed_emoji_type, validate_emoji_name, validate_emoji_size, CustomEmoji,
-    EmojiUploadResponse,
+    CustomEmoji, EmojiUploadResponse, is_allowed_emoji_type, validate_emoji_name,
+    validate_emoji_size,
 };
 use crate::services::tv_api::TokenClaims;
 use crate::storage::StorageFactory;
@@ -41,7 +41,7 @@ pub async fn upload_emoji(
             JOIN permissions p ON rp.permission_id = p.id
             WHERE ur.user_id = $1
             AND p.permission_name = 'org.manage_settings'
-        )"
+        )",
     )
     .bind(user_id)
     .fetch_one(db.get_ref())
@@ -62,9 +62,8 @@ pub async fn upload_emoji(
 
     // Process multipart form
     while let Some(item) = payload.next().await {
-        let mut field = item.map_err(|e| {
-            ApiError::BadRequest(format!("Failed to read multipart field: {}", e))
-        })?;
+        let mut field = item
+            .map_err(|e| ApiError::BadRequest(format!("Failed to read multipart field: {}", e)))?;
 
         let field_name = field.name();
 
@@ -72,15 +71,14 @@ pub async fn upload_emoji(
             // Read emoji name field
             let mut data = Vec::new();
             while let Some(chunk) = field.next().await {
-                let chunk = chunk.map_err(|e| {
-                    ApiError::BadRequest(format!("Failed to read chunk: {}", e))
-                })?;
+                let chunk = chunk
+                    .map_err(|e| ApiError::BadRequest(format!("Failed to read chunk: {}", e)))?;
                 data.extend_from_slice(&chunk);
             }
             let name = String::from_utf8(data)
                 .map_err(|e| ApiError::BadRequest(format!("Invalid emoji name: {}", e)))?;
 
-            validate_emoji_name(&name).map_err(|e| ApiError::BadRequest(e))?;
+            validate_emoji_name(&name).map_err(ApiError::BadRequest)?;
             emoji_name = Some(name);
         } else if field_name == Some("file") {
             // Read file field
@@ -125,21 +123,21 @@ pub async fn upload_emoji(
             }
 
             let file_size = file_data.len() as i64;
-            validate_emoji_size(file_size).map_err(|e| ApiError::BadRequest(e))?;
+            validate_emoji_size(file_size).map_err(ApiError::BadRequest)?;
 
             uploaded_file = Some((file_data, file_name, content_type));
         }
     }
 
-    let emoji_name = emoji_name
-        .ok_or_else(|| ApiError::BadRequest("Missing emoji name".to_string()))?;
+    let emoji_name =
+        emoji_name.ok_or_else(|| ApiError::BadRequest("Missing emoji name".to_string()))?;
 
-    let (file_data, file_name, content_type) = uploaded_file
-        .ok_or_else(|| ApiError::BadRequest("No file uploaded".to_string()))?;
+    let (file_data, file_name, content_type) =
+        uploaded_file.ok_or_else(|| ApiError::BadRequest("No file uploaded".to_string()))?;
 
     // Check if emoji name already exists for this org
     let exists: bool = sqlx::query_scalar(
-        "SELECT EXISTS(SELECT 1 FROM custom_emojis WHERE org_id = $1 AND name = $2)"
+        "SELECT EXISTS(SELECT 1 FROM custom_emojis WHERE org_id = $1 AND name = $2)",
     )
     .bind(org_id)
     .bind(&emoji_name)
@@ -196,13 +194,11 @@ pub async fn upload_emoji(
         let _: Result<(), _> = redis::AsyncCommands::del(&mut *conn, &cache_key).await;
     }
 
-    let emoji: CustomEmoji = sqlx::query_as(
-        "SELECT * FROM custom_emojis WHERE id = $1"
-    )
-    .bind(emoji_id)
-    .fetch_one(db.get_ref())
-    .await
-    .map_err(|e| ApiError::Internal(format!("Failed to fetch emoji: {}", e)))?;
+    let emoji: CustomEmoji = sqlx::query_as("SELECT * FROM custom_emojis WHERE id = $1")
+        .bind(emoji_id)
+        .fetch_one(db.get_ref())
+        .await
+        .map_err(|e| ApiError::Internal(format!("Failed to fetch emoji: {}", e)))?;
 
     Ok(HttpResponse::Ok().json(EmojiUploadResponse {
         id: emoji.id,
@@ -226,32 +222,30 @@ pub async fn get_org_emojis(
 
     let org_id = claims.org_id;
 
-    
-
     // Try to get from cache first
     let cache_key = format!("emojis:org:{}", org_id);
-    if let Ok(mut conn) = redis_pool.get().await {
-        if let Ok(Some(cached_json)) = redis::AsyncCommands::get::<_, Option<String>>(&mut *conn, &cache_key).await {
-            if let Ok(cached) = serde_json::from_str::<Vec<CustomEmoji>>(&cached_json) {
-                return Ok(HttpResponse::Ok().json(cached));
-            }
-        }
+    if let Ok(mut conn) = redis_pool.get().await
+        && let Ok(Some(cached_json)) =
+            redis::AsyncCommands::get::<_, Option<String>>(&mut *conn, &cache_key).await
+        && let Ok(cached) = serde_json::from_str::<Vec<CustomEmoji>>(&cached_json)
+    {
+        return Ok(HttpResponse::Ok().json(cached));
     }
 
     // Fetch from database
-    let emojis: Vec<CustomEmoji> = sqlx::query_as(
-        "SELECT * FROM custom_emojis WHERE org_id = $1 ORDER BY name ASC",
-    )
-    .bind(org_id)
-    .fetch_all(db.get_ref())
-    .await
-    .map_err(|e| ApiError::Internal(format!("Failed to fetch emojis: {}", e)))?;
+    let emojis: Vec<CustomEmoji> =
+        sqlx::query_as("SELECT * FROM custom_emojis WHERE org_id = $1 ORDER BY name ASC")
+            .bind(org_id)
+            .fetch_all(db.get_ref())
+            .await
+            .map_err(|e| ApiError::Internal(format!("Failed to fetch emojis: {}", e)))?;
 
     // Cache for 5 minutes
-    if let Ok(emojis_json) = serde_json::to_string(&emojis) {
-        if let Ok(mut conn) = redis_pool.get().await {
-            let _: Result<(), _> = redis::AsyncCommands::set_ex(&mut *conn, &cache_key, emojis_json, 300).await;
-        }
+    if let Ok(emojis_json) = serde_json::to_string(&emojis)
+        && let Ok(mut conn) = redis_pool.get().await
+    {
+        let _: Result<(), _> =
+            redis::AsyncCommands::set_ex(&mut *conn, &cache_key, emojis_json, 300).await;
     }
 
     Ok(HttpResponse::Ok().json(emojis))
@@ -282,7 +276,7 @@ pub async fn delete_emoji(
             JOIN permissions p ON rp.permission_id = p.id
             WHERE ur.user_id = $1
             AND p.permission_name = 'org.manage_settings'
-        )"
+        )",
     )
     .bind(user_id)
     .fetch_one(db.get_ref())
@@ -296,15 +290,14 @@ pub async fn delete_emoji(
     }
 
     // Fetch emoji
-    let emoji: CustomEmoji = sqlx::query_as(
-        "SELECT * FROM custom_emojis WHERE id = $1 AND org_id = $2",
-    )
-    .bind(emoji_id)
-    .bind(org_id)
-    .fetch_optional(db.get_ref())
-    .await
-    .map_err(|e| ApiError::Internal(format!("Failed to fetch emoji: {}", e)))?
-    .ok_or_else(|| ApiError::NotFound("Emoji not found".to_string()))?;
+    let emoji: CustomEmoji =
+        sqlx::query_as("SELECT * FROM custom_emojis WHERE id = $1 AND org_id = $2")
+            .bind(emoji_id)
+            .bind(org_id)
+            .fetch_optional(db.get_ref())
+            .await
+            .map_err(|e| ApiError::Internal(format!("Failed to fetch emoji: {}", e)))?
+            .ok_or_else(|| ApiError::NotFound("Emoji not found".to_string()))?;
 
     // Get storage for this org
     let storage = storage_factory.get_storage(org_id).await?;
@@ -339,14 +332,12 @@ pub async fn get_emoji_image(
     let emoji_id = emoji_id.into_inner();
 
     // Fetch emoji metadata (no auth required for viewing emojis)
-    let emoji: CustomEmoji = sqlx::query_as(
-        "SELECT * FROM custom_emojis WHERE id = $1",
-    )
-    .bind(emoji_id)
-    .fetch_optional(db.get_ref())
-    .await
-    .map_err(|e| ApiError::Internal(format!("Failed to fetch emoji: {}", e)))?
-    .ok_or_else(|| ApiError::NotFound("Emoji not found".to_string()))?;
+    let emoji: CustomEmoji = sqlx::query_as("SELECT * FROM custom_emojis WHERE id = $1")
+        .bind(emoji_id)
+        .fetch_optional(db.get_ref())
+        .await
+        .map_err(|e| ApiError::Internal(format!("Failed to fetch emoji: {}", e)))?
+        .ok_or_else(|| ApiError::NotFound("Emoji not found".to_string()))?;
 
     // Get storage for this org
     let storage = storage_factory.get_storage(emoji.org_id).await?;
@@ -367,7 +358,7 @@ pub async fn get_emoji_image(
 
 /// Resize emoji image to 128x128 pixels
 fn resize_emoji_image(file_data: &[u8], content_type: &str) -> Result<Vec<u8>, String> {
-    use image::{imageops::FilterType, ImageFormat};
+    use image::{ImageFormat, imageops::FilterType};
     use std::io::Cursor;
 
     // Parse the image format from content type
@@ -380,8 +371,8 @@ fn resize_emoji_image(file_data: &[u8], content_type: &str) -> Result<Vec<u8>, S
     };
 
     // Load the image
-    let img = image::load_from_memory(file_data)
-        .map_err(|e| format!("Failed to load image: {}", e))?;
+    let img =
+        image::load_from_memory(file_data).map_err(|e| format!("Failed to load image: {}", e))?;
 
     // Resize to 128x128 using Lanczos3 filter for best quality
     let resized = img.resize_exact(128, 128, FilterType::Lanczos3);

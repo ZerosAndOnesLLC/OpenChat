@@ -35,8 +35,9 @@ pub async fn get_groups_from_cache(
 
     match cached {
         Some(json) => {
-            let groups: Vec<UserGroup> = serde_json::from_str(&json)
-                .map_err(|e| crate::errors::ApiError::Internal(format!("Cache deserialization error: {}", e)))?;
+            let groups: Vec<UserGroup> = serde_json::from_str(&json).map_err(|e| {
+                crate::errors::ApiError::Internal(format!("Cache deserialization error: {}", e))
+            })?;
             Ok(Some(groups))
         }
         None => Ok(None),
@@ -48,22 +49,24 @@ pub async fn set_groups_in_cache(
     org_id: Uuid,
     groups: &[UserGroup],
 ) -> ApiResult<()> {
-    let mut conn = redis_pool.get().await
+    let mut conn = redis_pool
+        .get()
+        .await
         .map_err(|e| crate::errors::ApiError::Internal(format!("Redis pool error: {}", e)))?;
 
     let key = cache_key(org_id);
-    let json = serde_json::to_string(groups)
-        .map_err(|e| crate::errors::ApiError::Internal(format!("Cache serialization error: {}", e)))?;
+    let json = serde_json::to_string(groups).map_err(|e| {
+        crate::errors::ApiError::Internal(format!("Cache serialization error: {}", e))
+    })?;
 
     let _: () = conn.set_ex(&key, json, USER_GROUPS_CACHE_TTL).await?;
     Ok(())
 }
 
-pub async fn invalidate_groups_cache(
-    redis_pool: &RedisPool,
-    org_id: Uuid,
-) -> ApiResult<()> {
-    let mut conn = redis_pool.get().await
+pub async fn invalidate_groups_cache(redis_pool: &RedisPool, org_id: Uuid) -> ApiResult<()> {
+    let mut conn = redis_pool
+        .get()
+        .await
         .map_err(|e| crate::errors::ApiError::Internal(format!("Redis pool error: {}", e)))?;
 
     let key = cache_key(org_id);

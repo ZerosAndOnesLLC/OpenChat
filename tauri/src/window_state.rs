@@ -45,8 +45,8 @@ fn get_state_path() -> Option<PathBuf> {
 
 /// Saves the window state to disk
 pub fn save_window_state(state: &WindowState) -> Result<(), String> {
-    let path = get_state_path()
-        .ok_or_else(|| "Could not determine app data directory".to_string())?;
+    let path =
+        get_state_path().ok_or_else(|| "Could not determine app data directory".to_string())?;
 
     // Create parent directories if they don't exist
     if let Some(parent) = path.parent() {
@@ -57,8 +57,7 @@ pub fn save_window_state(state: &WindowState) -> Result<(), String> {
     let json = serde_json::to_string_pretty(state)
         .map_err(|e| format!("Failed to serialize window state: {}", e))?;
 
-    fs::write(&path, json)
-        .map_err(|e| format!("Failed to write window state: {}", e))?;
+    fs::write(&path, json).map_err(|e| format!("Failed to write window state: {}", e))?;
 
     log::info!("save_window_state: saved to {:?}", path);
     Ok(())
@@ -111,18 +110,17 @@ pub fn update_normal_state(window: &WebviewWindow) {
 
 /// Initializes the normal state tracker with the current window state
 pub fn init_normal_state(window: &WebviewWindow) {
-    if let Ok(mut guard) = NORMAL_STATE.lock() {
-        if guard.is_none() {
-            if let (Ok(position), Ok(size)) = (window.outer_position(), window.inner_size()) {
-                *guard = Some(WindowState {
-                    x: position.x,
-                    y: position.y,
-                    width: size.width,
-                    height: size.height,
-                    maximized: false,
-                });
-            }
-        }
+    if let Ok(mut guard) = NORMAL_STATE.lock()
+        && guard.is_none()
+        && let (Ok(position), Ok(size)) = (window.outer_position(), window.inner_size())
+    {
+        *guard = Some(WindowState {
+            x: position.x,
+            y: position.y,
+            width: size.width,
+            height: size.height,
+            maximized: false,
+        });
     }
 }
 
@@ -133,16 +131,16 @@ pub fn capture_window_state(window: &WebviewWindow) -> Option<WindowState> {
 
     if is_maximized {
         // When maximized, use the tracked normal state for position/size
-        if let Ok(guard) = NORMAL_STATE.lock() {
-            if let Some(ref normal) = *guard {
-                return Some(WindowState {
-                    x: normal.x,
-                    y: normal.y,
-                    width: normal.width,
-                    height: normal.height,
-                    maximized: true,
-                });
-            }
+        if let Ok(guard) = NORMAL_STATE.lock()
+            && let Some(ref normal) = *guard
+        {
+            return Some(WindowState {
+                x: normal.x,
+                y: normal.y,
+                width: normal.width,
+                height: normal.height,
+                maximized: true,
+            });
         }
         // Fallback: no tracked state, return default with maximized flag
         return Some(WindowState {

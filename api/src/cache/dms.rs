@@ -4,7 +4,10 @@ use serde_json;
 use uuid::Uuid;
 
 use crate::db::RedisPool;
-use crate::{errors::ApiResult, models::direct_message::{DirectMessage, DmParticipant}};
+use crate::{
+    errors::ApiResult,
+    models::direct_message::{DirectMessage, DmParticipant},
+};
 
 const DM_CACHE_TTL: u64 = 300; // 5 minutes in seconds
 const DM_CACHE_PREFIX: &str = "openchat:org";
@@ -33,7 +36,10 @@ pub async fn get_dm_from_cache(
     let mut conn = match redis_pool.get().await {
         Ok(c) => c,
         Err(e) => {
-            tracing::warn!("Redis pool error fetching DM cache, falling back to DB: {}", e);
+            tracing::warn!(
+                "Redis pool error fetching DM cache, falling back to DB: {}",
+                e
+            );
             return Ok(None);
         }
     };
@@ -50,8 +56,9 @@ pub async fn get_dm_from_cache(
     match cached {
         Some(json) => {
             super::metrics::record_hit(redis_pool, super::metrics::CacheType::Dms).await;
-            let dm: DirectMessage = serde_json::from_str(&json)
-                .map_err(|e| crate::errors::ApiError::Internal(format!("Cache deserialization error: {}", e)))?;
+            let dm: DirectMessage = serde_json::from_str(&json).map_err(|e| {
+                crate::errors::ApiError::Internal(format!("Cache deserialization error: {}", e))
+            })?;
             Ok(Some(dm))
         }
         None => {
@@ -62,16 +69,16 @@ pub async fn get_dm_from_cache(
 }
 
 /// Store DM in cache
-pub async fn set_dm_in_cache(
-    redis_pool: &RedisPool,
-    dm: &DirectMessage,
-) -> ApiResult<()> {
-    let mut conn = redis_pool.get().await
+pub async fn set_dm_in_cache(redis_pool: &RedisPool, dm: &DirectMessage) -> ApiResult<()> {
+    let mut conn = redis_pool
+        .get()
+        .await
         .map_err(|e| crate::errors::ApiError::Internal(format!("Redis pool error: {}", e)))?;
 
     let key = dm_cache_key(dm.org_id, dm.id);
-    let json = serde_json::to_string(dm)
-        .map_err(|e| crate::errors::ApiError::Internal(format!("Cache serialization error: {}", e)))?;
+    let json = serde_json::to_string(dm).map_err(|e| {
+        crate::errors::ApiError::Internal(format!("Cache serialization error: {}", e))
+    })?;
 
     let _: () = conn.set_ex(&key, json, DM_CACHE_TTL).await?;
 
@@ -85,7 +92,9 @@ pub async fn invalidate_dm_cache(
     org_id: Uuid,
     dm_id: Uuid,
 ) -> ApiResult<()> {
-    let mut conn = redis_pool.get().await
+    let mut conn = redis_pool
+        .get()
+        .await
         .map_err(|e| crate::errors::ApiError::Internal(format!("Redis pool error: {}", e)))?;
 
     let key = dm_cache_key(org_id, dm_id);
@@ -104,7 +113,10 @@ pub async fn get_dm_participants_from_cache(
     let mut conn = match redis_pool.get().await {
         Ok(c) => c,
         Err(e) => {
-            tracing::warn!("Redis pool error fetching DM participants cache, falling back to DB: {}", e);
+            tracing::warn!(
+                "Redis pool error fetching DM participants cache, falling back to DB: {}",
+                e
+            );
             return Ok(None);
         }
     };
@@ -113,7 +125,10 @@ pub async fn get_dm_participants_from_cache(
     let cached: Option<String> = match conn.get(&key).await {
         Ok(val) => val,
         Err(e) => {
-            tracing::warn!("Redis error fetching DM participants cache, falling back to DB: {}", e);
+            tracing::warn!(
+                "Redis error fetching DM participants cache, falling back to DB: {}",
+                e
+            );
             return Ok(None);
         }
     };
@@ -121,12 +136,14 @@ pub async fn get_dm_participants_from_cache(
     match cached {
         Some(json) => {
             super::metrics::record_hit(redis_pool, super::metrics::CacheType::DmParticipants).await;
-            let participants: Vec<DmParticipant> = serde_json::from_str(&json)
-                .map_err(|e| crate::errors::ApiError::Internal(format!("Cache deserialization error: {}", e)))?;
+            let participants: Vec<DmParticipant> = serde_json::from_str(&json).map_err(|e| {
+                crate::errors::ApiError::Internal(format!("Cache deserialization error: {}", e))
+            })?;
             Ok(Some(participants))
         }
         None => {
-            super::metrics::record_miss(redis_pool, super::metrics::CacheType::DmParticipants).await;
+            super::metrics::record_miss(redis_pool, super::metrics::CacheType::DmParticipants)
+                .await;
             Ok(None)
         }
     }
@@ -139,12 +156,15 @@ pub async fn set_dm_participants_in_cache(
     dm_id: Uuid,
     participants: &[DmParticipant],
 ) -> ApiResult<()> {
-    let mut conn = redis_pool.get().await
+    let mut conn = redis_pool
+        .get()
+        .await
         .map_err(|e| crate::errors::ApiError::Internal(format!("Redis pool error: {}", e)))?;
 
     let key = dm_participants_cache_key(org_id, dm_id);
-    let json = serde_json::to_string(participants)
-        .map_err(|e| crate::errors::ApiError::Internal(format!("Cache serialization error: {}", e)))?;
+    let json = serde_json::to_string(participants).map_err(|e| {
+        crate::errors::ApiError::Internal(format!("Cache serialization error: {}", e))
+    })?;
 
     let _: () = conn.set_ex(&key, json, DM_CACHE_TTL).await?;
 
@@ -158,7 +178,9 @@ pub async fn invalidate_dm_participants_cache(
     org_id: Uuid,
     dm_id: Uuid,
 ) -> ApiResult<()> {
-    let mut conn = redis_pool.get().await
+    let mut conn = redis_pool
+        .get()
+        .await
         .map_err(|e| crate::errors::ApiError::Internal(format!("Redis pool error: {}", e)))?;
 
     let key = dm_participants_cache_key(org_id, dm_id);
@@ -177,7 +199,10 @@ pub async fn get_user_dms_from_cache(
     let mut conn = match redis_pool.get().await {
         Ok(c) => c,
         Err(e) => {
-            tracing::warn!("Redis pool error fetching user DMs cache, falling back to DB: {}", e);
+            tracing::warn!(
+                "Redis pool error fetching user DMs cache, falling back to DB: {}",
+                e
+            );
             return Ok(None);
         }
     };
@@ -186,15 +211,19 @@ pub async fn get_user_dms_from_cache(
     let cached: Option<String> = match conn.get(&key).await {
         Ok(val) => val,
         Err(e) => {
-            tracing::warn!("Redis error fetching user DMs cache, falling back to DB: {}", e);
+            tracing::warn!(
+                "Redis error fetching user DMs cache, falling back to DB: {}",
+                e
+            );
             return Ok(None);
         }
     };
 
     match cached {
         Some(json) => {
-            let dms: Vec<DirectMessage> = serde_json::from_str(&json)
-                .map_err(|e| crate::errors::ApiError::Internal(format!("Cache deserialization error: {}", e)))?;
+            let dms: Vec<DirectMessage> = serde_json::from_str(&json).map_err(|e| {
+                crate::errors::ApiError::Internal(format!("Cache deserialization error: {}", e))
+            })?;
             Ok(Some(dms))
         }
         None => Ok(None),
@@ -209,12 +238,15 @@ pub async fn set_user_dms_in_cache(
     user_id: Uuid,
     dms: &[DirectMessage],
 ) -> ApiResult<()> {
-    let mut conn = redis_pool.get().await
+    let mut conn = redis_pool
+        .get()
+        .await
         .map_err(|e| crate::errors::ApiError::Internal(format!("Redis pool error: {}", e)))?;
 
     let key = user_dms_cache_key(org_id, user_id);
-    let json = serde_json::to_string(dms)
-        .map_err(|e| crate::errors::ApiError::Internal(format!("Cache serialization error: {}", e)))?;
+    let json = serde_json::to_string(dms).map_err(|e| {
+        crate::errors::ApiError::Internal(format!("Cache serialization error: {}", e))
+    })?;
 
     let _: () = conn.set_ex(&key, json, DM_CACHE_TTL).await?;
 
@@ -228,7 +260,9 @@ pub async fn invalidate_user_dms_cache(
     org_id: Uuid,
     user_id: Uuid,
 ) -> ApiResult<()> {
-    let mut conn = redis_pool.get().await
+    let mut conn = redis_pool
+        .get()
+        .await
         .map_err(|e| crate::errors::ApiError::Internal(format!("Redis pool error: {}", e)))?;
 
     let key = user_dms_cache_key(org_id, user_id);
@@ -239,11 +273,10 @@ pub async fn invalidate_user_dms_cache(
 
 /// Invalidate all DM cache for an organization
 #[allow(dead_code)]
-pub async fn invalidate_org_dm_cache(
-    redis_pool: &RedisPool,
-    org_id: Uuid,
-) -> ApiResult<()> {
-    let mut conn = redis_pool.get().await
+pub async fn invalidate_org_dm_cache(redis_pool: &RedisPool, org_id: Uuid) -> ApiResult<()> {
+    let mut conn = redis_pool
+        .get()
+        .await
         .map_err(|e| crate::errors::ApiError::Internal(format!("Redis pool error: {}", e)))?;
 
     let pattern = format!("{}:{}:dm*", DM_CACHE_PREFIX, org_id);

@@ -32,27 +32,21 @@ export default function MentionAutocomplete({
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
-    loadUsers();
-    loadGroups();
+    let cancelled = false;
+    apiClient.listUsers()
+      .then((data) => {
+        if (!cancelled) setUsers(data);
+      })
+      .catch((error) => console.error('Failed to load users:', error));
+    apiClient.listUserGroups()
+      .then((data) => {
+        if (!cancelled) setGroups(data);
+      })
+      .catch((error) => console.error('Failed to load groups:', error));
+    return () => {
+      cancelled = true;
+    };
   }, []);
-
-  const loadUsers = async () => {
-    try {
-      const data = await apiClient.listUsers();
-      setUsers(data);
-    } catch (error) {
-      console.error('Failed to load users:', error);
-    }
-  };
-
-  const loadGroups = async () => {
-    try {
-      const data = await apiClient.listUserGroups();
-      setGroups(data);
-    } catch (error) {
-      console.error('Failed to load groups:', error);
-    }
-  };
 
   useEffect(() => {
     const cursorPos = textareaRef.current?.selectionStart || 0;

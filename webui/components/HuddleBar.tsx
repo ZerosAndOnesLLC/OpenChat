@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { Headphones, Mic, MicOff, PhoneOff } from 'lucide-react';
+import { Headphones, PhoneOff } from 'lucide-react';
 import { useWebSocketStore } from '@/lib/websocket';
 import { apiClient } from '@/lib/api';
 

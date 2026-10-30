@@ -748,11 +748,12 @@ Want to build from source or contribute to the desktop app? See the [Desktop Dev
 
 ## CI & Releases
 
-**CI** (`.github/workflows/ci.yml`) runs on every pull request and push to `main`. All CI and release workflows use GitHub-hosted runners (free for this public repo); no self-hosted runners are required.
-- **API / Desktop**: `cargo check` with warnings as errors, `cargo test`, and `cargo clippy` (report only)
-- **Web UI**: `tsc --noEmit`, `next build`, and ESLint (report only)
+**CI** (`.github/workflows/ci.yml`) runs checks only, on pull requests, and only for the components a PR touches. Merges to `main` don't re-run it. All CI and release workflows use GitHub-hosted runners (free for this public repo); no self-hosted runners are required.
+- **API**: `cargo fmt --check`, `cargo clippy` (lints report only for now), `cargo test` (compiler warnings are errors)
+- **Desktop**: `cargo fmt --check`, `cargo clippy` and `cargo test`, warnings are errors
+- **Web UI**: `tsc --noEmit` and ESLint (report only for now). No `next build` on PRs.
 
-**Releases** are cut by pushing a tag; the tag must match the version in the component's manifest.
+**Releases** are cut with `gh release create`; publishing the release triggers the component's workflow, which builds and uploads the binaries/installers into that release. The tag must match the version in the component's manifest.
 
 | Component | Version source | Tag | Workflow | Runners |
 |-----------|----------------|-----|----------|---------|
@@ -766,11 +767,11 @@ Use `scripts/release.sh` to cut a release:
 # 1. On a branch: bump the version (manifest + lockfile), verify it builds, and commit
 scripts/release.sh bump api patch        # or: desktop / webui, minor / major
 # 2. Open a PR and merge it
-# 3. On an up-to-date main: tag the merged version and push the tag (starts the release workflow)
-scripts/release.sh tag api               # or: desktop
+# 3. On an up-to-date main: create the release (runs `gh release create api-vX.Y.Z --generate-notes`)
+scripts/release.sh release api           # or: desktop
 ```
 
-Both release workflows can also be run manually from the Actions tab (`workflow_dispatch`) as a dry run that builds artifacts without publishing a release. The latest 10 releases per component are kept; older releases are pruned but their tags are preserved.
+To rebuild an existing release, run its workflow from the Actions tab (`workflow_dispatch`) with the tag; assets are replaced. The latest 10 releases per component are kept; older releases are pruned but their tags are preserved.
 
 Lockfiles (`api/Cargo.lock`, `tauri/Cargo.lock`, `webui/package-lock.json`) are committed so CI and releases build against the exact reviewed dependency versions.
 

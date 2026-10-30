@@ -1,11 +1,27 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
-import { invoke } from '@tauri-apps/api/core';
+import { useState, useEffect, useEffectEvent, useRef } from 'react';
 
 interface ScannerProps {
   onCodeScanned: (code: string) => void;
   onClose: () => void;
+}
+
+/** Pairing code from an `openchat://pair?code=ABC123` QR payload, or an error message. */
+function parsePairingQr(data: string): { code: string } | { error: string } {
+  try {
+    const url = new URL(data);
+    if (url.protocol === 'openchat:' && url.hostname === 'pair') {
+      const code = url.searchParams.get('code');
+      if (code && code.length === 6) {
+        return { code };
+      }
+      return { error: 'Invalid QR code format. Please scan a valid OpenChat pairing code.' };
+    }
+    return { error: 'This is not an OpenChat pairing code. Please scan the correct QR code.' };
+  } catch {
+    return { error: 'Invalid QR code format. Please scan a valid OpenChat pairing code.' };
+  }
 }
 
 export default function Scanner({ onCodeScanned, onClose }: ScannerProps) {
@@ -15,55 +31,63 @@ export default function Scanner({ onCodeScanned, onClose }: ScannerProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
-  const scanIntervalRef = useRef<NodeJS.Timeout | null>(null);
-
-  useEffect(() => {
-    startCamera();
-    return () => {
-      stopCamera();
-    };
-  }, []);
-
-  const startCamera = async () => {
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: 'environment' },
-      });
-
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream;
-        streamRef.current = stream;
-        setHasPermission(true);
-        setScanning(true);
-
-        // Start scanning for QR codes
-        scanIntervalRef.current = setInterval(() => {
-          scanQRCode();
-        }, 500);
-      }
-    } catch (err) {
-      console.error('Camera access error:', err);
-      setError('Unable to access camera. Please check permissions.');
-      setHasPermission(false);
-    }
-  };
 
   const stopCamera = () => {
-    if (scanIntervalRef.current) {
-      clearInterval(scanIntervalRef.current);
-      scanIntervalRef.current = null;
-    }
-
+    setScanning(false);
     if (streamRef.current) {
       streamRef.current.getTracks().forEach((track) => track.stop());
       streamRef.current = null;
     }
-
-    setScanning(false);
   };
 
-  const scanQRCode = async () => {
-    if (!videoRef.current || !canvasRef.current || !scanning) return;
+  // Request the camera on mount; release it on unmount.
+  useEffect(() => {
+    let cancelled = false;
+    navigator.mediaDevices
+      .getUserMedia({ video: { facingMode: 'environment' } })
+      .then((stream) => {
+        if (cancelled) {
+          stream.getTracks().forEach((track) => track.stop());
+          return;
+        }
+        streamRef.current = stream;
+        setHasPermission(true);
+        setScanning(true);
+      })
+      .catch((err) => {
+        if (cancelled) return;
+        console.error('Camera access error:', err);
+        setError('Unable to access camera. Please check permissions.');
+        setHasPermission(false);
+      });
+    return () => {
+      cancelled = true;
+      streamRef.current?.getTracks().forEach((track) => track.stop());
+      streamRef.current = null;
+    };
+  }, []);
+
+  // The <video> only mounts once permission is granted; attach the stream then.
+  useEffect(() => {
+    if (hasPermission && videoRef.current && streamRef.current) {
+      videoRef.current.srcObject = streamRef.current;
+    }
+  }, [hasPermission]);
+
+  const handleQRCodeDetected = useEffectEvent((data: string) => {
+    const result = parsePairingQr(data);
+    if ('code' in result) {
+      stopCamera();
+      onCodeScanned(result.code);
+      onClose();
+    } else {
+      // Keep scanning so the user can present the right code.
+      setError(result.error);
+    }
+  });
+
+  const scanQRCode = useEffectEvent(async () => {
+    if (!videoRef.current || !canvasRef.current) return;
 
     const video = videoRef.current;
     const canvas = canvasRef.current;
@@ -90,53 +114,16 @@ export default function Scanner({ onCodeScanned, onClose }: ScannerProps) {
     } catch (err) {
       console.error('QR scanning error:', err);
     }
-  };
+  });
 
-  const handleQRCodeDetected = (data: string) => {
-    setScanning(false);
-    stopCamera();
-
-    try {
-      // Parse QR code data
-      // Expected format: openchat://pair?code=ABC123
-      const url = new URL(data);
-
-      if (url.protocol === 'openchat:' && url.hostname === 'pair') {
-        const code = url.searchParams.get('code');
-        if (code && code.length === 6) {
-          onCodeScanned(code);
-          onClose();
-        } else {
-          setError('Invalid QR code format. Please scan a valid OpenChat pairing code.');
-          setScanning(true);
-          if (scanIntervalRef.current) {
-            clearInterval(scanIntervalRef.current);
-          }
-          scanIntervalRef.current = setInterval(() => {
-            scanQRCode();
-          }, 500);
-        }
-      } else {
-        setError('This is not an OpenChat pairing code. Please scan the correct QR code.');
-        setScanning(true);
-        if (scanIntervalRef.current) {
-          clearInterval(scanIntervalRef.current);
-        }
-        scanIntervalRef.current = setInterval(() => {
-          scanQRCode();
-        }, 500);
-      }
-    } catch (err) {
-      setError('Invalid QR code format. Please scan a valid OpenChat pairing code.');
-      setScanning(true);
-      if (scanIntervalRef.current) {
-        clearInterval(scanIntervalRef.current);
-      }
-      scanIntervalRef.current = setInterval(() => {
-        scanQRCode();
-      }, 500);
-    }
-  };
+  // Scan for QR codes every 500ms while scanning is active.
+  useEffect(() => {
+    if (!scanning) return;
+    const interval = setInterval(() => {
+      scanQRCode();
+    }, 500);
+    return () => clearInterval(interval);
+  }, [scanning]);
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-90">

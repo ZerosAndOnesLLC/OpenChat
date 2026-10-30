@@ -1,4 +1,4 @@
-use actix_web::{web, HttpMessage, HttpRequest, HttpResponse};
+use actix_web::{HttpMessage, HttpRequest, HttpResponse, web};
 use serde::{Deserialize, Serialize};
 use sqlx::PgPool;
 use uuid::Uuid;
@@ -7,7 +7,7 @@ use crate::{
     errors::{ApiError, ApiResult},
     models::message::Message,
     models::notification_pref::{NotificationPref, UpsertNotificationPref},
-    models::slash_command::SlashCommand,
+    models::slash_command::{NewSlashCommand, SlashCommand},
     models::user::User,
     services::tv_api::TokenClaims,
     websocket::{
@@ -208,10 +208,24 @@ pub async fn execute_command(
             .await;
         }
         "mute" => {
-            return handle_mute(pool.get_ref(), &current_user, body.channel_id, body.dm_id, true).await;
+            return handle_mute(
+                pool.get_ref(),
+                &current_user,
+                body.channel_id,
+                body.dm_id,
+                true,
+            )
+            .await;
         }
         "unmute" => {
-            return handle_mute(pool.get_ref(), &current_user, body.channel_id, body.dm_id, false).await;
+            return handle_mute(
+                pool.get_ref(),
+                &current_user,
+                body.channel_id,
+                body.dm_id,
+                false,
+            )
+            .await;
         }
         _ => {}
     }
@@ -231,8 +245,13 @@ pub async fn execute_command(
         });
         tokio::spawn(async move {
             crate::services::workflow_engine::check_triggers(
-                pool.get_ref(), ws.get_ref(), org_id, "slash_command", trigger_data,
-            ).await;
+                pool.get_ref(),
+                ws.get_ref(),
+                org_id,
+                "slash_command",
+                trigger_data,
+            )
+            .await;
         });
     }
 
@@ -300,10 +319,7 @@ pub async fn execute_command(
 }
 
 /// GET /api/commands
-pub async fn list_commands(
-    pool: web::Data<PgPool>,
-    req: HttpRequest,
-) -> ApiResult<HttpResponse> {
+pub async fn list_commands(pool: web::Data<PgPool>, req: HttpRequest) -> ApiResult<HttpResponse> {
     let claims = req
         .extensions()
         .get::<TokenClaims>()
@@ -365,10 +381,7 @@ pub async fn create_command(
         ));
     }
 
-    let response_type = body
-        .response_type
-        .as_deref()
-        .unwrap_or("in_channel");
+    let response_type = body.response_type.as_deref().unwrap_or("in_channel");
 
     if !["ephemeral", "in_channel"].contains(&response_type) {
         return Err(ApiError::BadRequest(
@@ -378,14 +391,16 @@ pub async fn create_command(
 
     let command = SlashCommand::create(
         pool.get_ref(),
-        current_user.org_id,
-        &command_name,
-        &body.description,
-        body.usage_hint.as_deref(),
-        "webhook",
-        Some(&body.webhook_url),
-        response_type,
-        current_user.id,
+        NewSlashCommand {
+            org_id: current_user.org_id,
+            command_name: &command_name,
+            description: &body.description,
+            usage_hint: body.usage_hint.as_deref(),
+            handler_type: "webhook",
+            webhook_url: Some(&body.webhook_url),
+            response_type,
+            created_by: current_user.id,
+        },
     )
     .await?;
 
@@ -425,12 +440,12 @@ pub async fn update_command(
         ));
     }
 
-    if let Some(ref rt) = body.response_type {
-        if !["ephemeral", "in_channel"].contains(&rt.as_str()) {
-            return Err(ApiError::BadRequest(
-                "response_type must be 'ephemeral' or 'in_channel'".to_string(),
-            ));
-        }
+    if let Some(ref rt) = body.response_type
+        && !["ephemeral", "in_channel"].contains(&rt.as_str())
+    {
+        return Err(ApiError::BadRequest(
+            "response_type must be 'ephemeral' or 'in_channel'".to_string(),
+        ));
     }
 
     let updated = SlashCommand::update(

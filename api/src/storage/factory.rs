@@ -4,10 +4,10 @@ use sqlx::PgPool;
 use std::sync::Arc;
 use uuid::Uuid;
 
-use crate::errors::ApiError;
 use super::local::LocalStorage;
 use super::s3::S3Storage;
 use super::traits::{FileStorage, StorageType};
+use crate::errors::ApiError;
 
 #[derive(sqlx::FromRow)]
 struct StorageSettings {
@@ -32,10 +32,7 @@ impl StorageFactory {
         }
     }
 
-    pub async fn get_storage(
-        &self,
-        org_id: Uuid,
-    ) -> Result<Arc<dyn FileStorage>, ApiError> {
+    pub async fn get_storage(&self, org_id: Uuid) -> Result<Arc<dyn FileStorage>, ApiError> {
         // Fetch storage settings for org
         let settings: Option<StorageSettings> = sqlx::query_as(
             "SELECT storage_type, s3_bucket, s3_region, s3_access_key_id,
@@ -46,17 +43,12 @@ impl StorageFactory {
         .bind(org_id)
         .fetch_optional(&self.db)
         .await
-        .map_err(|e| {
-            ApiError::Internal(format!(
-                "Failed to fetch storage settings: {}",
-                e
-            ))
-        })?;
+        .map_err(|e| ApiError::Internal(format!("Failed to fetch storage settings: {}", e)))?;
 
         // Default to local storage if no settings found
         let storage_type = settings
             .as_ref()
-            .and_then(|s| StorageType::from_str(&s.storage_type))
+            .and_then(|s| s.storage_type.parse::<StorageType>().ok())
             .unwrap_or(StorageType::Local);
 
         match storage_type {
@@ -66,18 +58,16 @@ impl StorageFactory {
             }
             StorageType::S3 => {
                 let settings = settings.ok_or_else(|| {
-                    ApiError::Internal(
-                        "S3 storage settings not configured".to_string(),
-                    )
+                    ApiError::Internal("S3 storage settings not configured".to_string())
                 })?;
 
-                let bucket = settings.s3_bucket.ok_or_else(|| {
-                    ApiError::Internal("S3 bucket not configured".to_string())
-                })?;
+                let bucket = settings
+                    .s3_bucket
+                    .ok_or_else(|| ApiError::Internal("S3 bucket not configured".to_string()))?;
 
-                let region = settings.s3_region.ok_or_else(|| {
-                    ApiError::Internal("S3 region not configured".to_string())
-                })?;
+                let region = settings
+                    .s3_region
+                    .ok_or_else(|| ApiError::Internal("S3 region not configured".to_string()))?;
 
                 // Build S3 client
                 let config = if let (Some(access_key), Some(secret_key)) = (
@@ -86,11 +76,7 @@ impl StorageFactory {
                 ) {
                     // Use provided credentials
                     let credentials = aws_sdk_s3::config::Credentials::new(
-                        access_key,
-                        secret_key,
-                        None,
-                        None,
-                        "openchat",
+                        access_key, secret_key, None, None, "openchat",
                     );
 
                     let mut config_builder = aws_config::defaults(BehaviorVersion::latest())

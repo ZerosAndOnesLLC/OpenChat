@@ -190,11 +190,7 @@ impl DmReadStatus {
     }
 
     /// Get unread count for a DM
-    pub async fn get_unread_count(
-        pool: &PgPool,
-        user_id: Uuid,
-        dm_id: Uuid,
-    ) -> ApiResult<i32> {
+    pub async fn get_unread_count(pool: &PgPool, user_id: Uuid, dm_id: Uuid) -> ApiResult<i32> {
         let result = sqlx::query_scalar::<_, i32>(
             r#"
             SELECT COALESCE(

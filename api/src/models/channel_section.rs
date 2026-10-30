@@ -128,13 +128,11 @@ impl ChannelSection {
     }
 
     pub async fn delete(pool: &PgPool, id: Uuid, user_id: Uuid) -> ApiResult<bool> {
-        let result = sqlx::query(
-            "DELETE FROM channel_sections WHERE id = $1 AND user_id = $2",
-        )
-        .bind(id)
-        .bind(user_id)
-        .execute(pool)
-        .await?;
+        let result = sqlx::query("DELETE FROM channel_sections WHERE id = $1 AND user_id = $2")
+            .bind(id)
+            .bind(user_id)
+            .execute(pool)
+            .await?;
 
         Ok(result.rows_affected() > 0)
     }
@@ -162,7 +160,10 @@ impl ChannelSection {
 }
 
 impl ChannelSectionItem {
-    pub async fn list_by_section(pool: &PgPool, section_id: Uuid) -> ApiResult<Vec<ChannelSectionItem>> {
+    pub async fn list_by_section(
+        pool: &PgPool,
+        section_id: Uuid,
+    ) -> ApiResult<Vec<ChannelSectionItem>> {
         let items = sqlx::query_as::<_, ChannelSectionItem>(
             r#"
             SELECT * FROM channel_section_items

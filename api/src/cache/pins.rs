@@ -11,7 +11,10 @@ const PIN_CACHE_PREFIX: &str = "openchat:org";
 
 /// Build cache key for channel pins: openchat:org:{org_id}:channel_pins:{channel_id}
 fn channel_pins_cache_key(org_id: Uuid, channel_id: Uuid) -> String {
-    format!("{}:{}:channel_pins:{}", PIN_CACHE_PREFIX, org_id, channel_id)
+    format!(
+        "{}:{}:channel_pins:{}",
+        PIN_CACHE_PREFIX, org_id, channel_id
+    )
 }
 
 /// Get pinned messages from cache
@@ -23,7 +26,10 @@ pub async fn get_pins_from_cache(
     let mut conn = match redis_pool.get().await {
         Ok(c) => c,
         Err(e) => {
-            tracing::warn!("Redis pool error fetching pins cache, falling back to DB: {}", e);
+            tracing::warn!(
+                "Redis pool error fetching pins cache, falling back to DB: {}",
+                e
+            );
             return Ok(None);
         }
     };
@@ -40,8 +46,9 @@ pub async fn get_pins_from_cache(
     match cached {
         Some(json) => {
             super::metrics::record_hit(redis_pool, super::metrics::CacheType::Channels).await;
-            let pins: Vec<PinnedMessageInfo> = serde_json::from_str(&json)
-                .map_err(|e| crate::errors::ApiError::Internal(format!("Cache deserialization error: {}", e)))?;
+            let pins: Vec<PinnedMessageInfo> = serde_json::from_str(&json).map_err(|e| {
+                crate::errors::ApiError::Internal(format!("Cache deserialization error: {}", e))
+            })?;
             Ok(Some(pins))
         }
         None => {
@@ -58,12 +65,15 @@ pub async fn set_pins_in_cache(
     channel_id: Uuid,
     pins: &[PinnedMessageInfo],
 ) -> ApiResult<()> {
-    let mut conn = redis_pool.get().await
+    let mut conn = redis_pool
+        .get()
+        .await
         .map_err(|e| crate::errors::ApiError::Internal(format!("Redis pool error: {}", e)))?;
 
     let key = channel_pins_cache_key(org_id, channel_id);
-    let json = serde_json::to_string(pins)
-        .map_err(|e| crate::errors::ApiError::Internal(format!("Cache serialization error: {}", e)))?;
+    let json = serde_json::to_string(pins).map_err(|e| {
+        crate::errors::ApiError::Internal(format!("Cache serialization error: {}", e))
+    })?;
 
     let _: () = conn.set_ex(&key, json, PIN_CACHE_TTL).await?;
 
@@ -76,7 +86,9 @@ pub async fn invalidate_pins_cache(
     org_id: Uuid,
     channel_id: Uuid,
 ) -> ApiResult<()> {
-    let mut conn = redis_pool.get().await
+    let mut conn = redis_pool
+        .get()
+        .await
         .map_err(|e| crate::errors::ApiError::Internal(format!("Redis pool error: {}", e)))?;
 
     let key = channel_pins_cache_key(org_id, channel_id);
@@ -129,11 +141,10 @@ pub async fn remove_pin_from_cache(
 
 /// Invalidate all pin cache for an organization
 #[allow(dead_code)]
-pub async fn invalidate_org_pins_cache(
-    redis_pool: &RedisPool,
-    org_id: Uuid,
-) -> ApiResult<()> {
-    let mut conn = redis_pool.get().await
+pub async fn invalidate_org_pins_cache(redis_pool: &RedisPool, org_id: Uuid) -> ApiResult<()> {
+    let mut conn = redis_pool
+        .get()
+        .await
         .map_err(|e| crate::errors::ApiError::Internal(format!("Redis pool error: {}", e)))?;
 
     let pattern = format!("{}:{}:channel_pins:*", PIN_CACHE_PREFIX, org_id);

@@ -1,4 +1,4 @@
-use actix_web::{web, HttpMessage, HttpRequest, HttpResponse};
+use actix_web::{HttpMessage, HttpRequest, HttpResponse, web};
 use serde::{Deserialize, Serialize};
 use sqlx::PgPool;
 use uuid::Uuid;
@@ -6,7 +6,7 @@ use uuid::Uuid;
 use crate::{
     errors::{ApiError, ApiResult},
     models::message::Message,
-    models::poll::{Poll, PollOptionInfo, PollResults},
+    models::poll::{NewPoll, Poll, PollOptionInfo, PollResults},
     models::user::User,
     services::tv_api::TokenClaims,
     websocket::{
@@ -151,14 +151,16 @@ pub async fn create_poll(
 
     let poll = Poll::create(
         pool.get_ref(),
-        message.id,
-        current_user.org_id,
-        &body.question,
-        &options_value,
-        poll_type,
-        anonymous,
-        body.expires_at,
-        current_user.id,
+        NewPoll {
+            message_id: message.id,
+            org_id: current_user.org_id,
+            question: &body.question,
+            options: &options_value,
+            poll_type,
+            anonymous,
+            expires_at: body.expires_at,
+            created_by: current_user.id,
+        },
     )
     .await?;
 
@@ -374,9 +376,7 @@ pub async fn close_poll(
     }
 
     if poll.closed_at.is_some() {
-        return Err(ApiError::BadRequest(
-            "Poll is already closed".to_string(),
-        ));
+        return Err(ApiError::BadRequest("Poll is already closed".to_string()));
     }
 
     let closed_poll = Poll::close(pool.get_ref(), *id).await?;
@@ -430,7 +430,7 @@ fn broadcast_poll_update(
     let ws_msg = ServerMessage::PollVoteUpdated {
         poll_id: poll.id,
         message_id: poll.message_id,
-        channel_id: None,   // We'll need to look this up
+        channel_id: None, // We'll need to look this up
         dm_id: None,
         options: ws_options,
         total_votes: results.total_votes,

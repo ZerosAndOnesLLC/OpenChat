@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useEffectEvent } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useWebSocketStore } from '@/lib/websocket';
 import { draftsManager } from '@/lib/drafts';
@@ -14,6 +14,7 @@ import SlashCommandAutocomplete from './SlashCommandAutocomplete';
 import PollCreator from './PollCreator';
 import { toastManager } from '@/lib/toast';
 import { Shield } from 'lucide-react';
+import Image from 'next/image';
 
 interface MessageInputProps {
   channelId?: string;
@@ -49,8 +50,8 @@ export default function MessageInput({ channelId, dmId, replyTo, onClearReply, e
   const dragCounterRef = useRef(0);
   const lastSavedDraft = useRef<string>('');
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleSubmit = async (e?: React.FormEvent) => {
+    e?.preventDefault();
     if (!message.trim() && selectedFiles.length === 0) return;
 
     // Detect slash command
@@ -80,8 +81,8 @@ export default function MessageInput({ channelId, dmId, replyTo, onClearReply, e
           try { await draftsManager.deleteDraft(draftKey); } catch {}
         }
         if (onClearReply) onClearReply();
-      } catch (error: any) {
-        const errMsg = error?.message || 'Command failed';
+      } catch (error) {
+        const errMsg = (error instanceof Error && error.message) || 'Command failed';
         toastManager.error(errMsg);
       }
       return;
@@ -377,46 +378,47 @@ export default function MessageInput({ channelId, dmId, replyTo, onClearReply, e
       setMessage('');
       toastManager.success('Message scheduled');
       if (onClearReply) onClearReply();
-    } catch (error) {
+    } catch {
       toastManager.error('Failed to schedule message');
     }
   };
 
+  // Save the draft being switched away from (only if content changed). An
+  // Effect Event so it reads the latest `message` without re-running the
+  // draft effect on every keystroke.
+  const saveOutgoingDraft = useEffectEvent(async (nextDraftKey: string) => {
+    const previousKey = currentDraftKey.current;
+    if (!previousKey || previousKey === nextDraftKey || message === lastSavedDraft.current) {
+      return;
+    }
+    try {
+      if (message.trim()) {
+        await draftsManager.saveDraft(previousKey, message);
+      } else {
+        await draftsManager.deleteDraft(previousKey);
+      }
+    } catch (error) {
+      console.error('Failed to save previous draft:', error);
+    }
+  });
+
   // Load draft when channel/DM changes
   useEffect(() => {
-    const loadDraft = async () => {
-      const draftKey = channelId || dmId;
-      if (!draftKey) return;
+    const draftKey = channelId || dmId;
+    if (!draftKey) return;
 
-      // Save current draft before switching (only if content changed)
-      if (currentDraftKey.current && currentDraftKey.current !== draftKey) {
-        if (message !== lastSavedDraft.current) {
-          try {
-            if (message.trim()) {
-              await draftsManager.saveDraft(currentDraftKey.current, message);
-            } else {
-              await draftsManager.deleteDraft(currentDraftKey.current);
-            }
-          } catch (error) {
-            console.error('Failed to save previous draft:', error);
-          }
-        }
-      }
-
-      // Load new draft
-      try {
-        const draft = await draftsManager.getDraft(draftKey);
+    saveOutgoingDraft(draftKey)
+      .then(() => draftsManager.getDraft(draftKey))
+      .then((draft) => {
         setMessage(draft || '');
         lastSavedDraft.current = draft || '';
         currentDraftKey.current = draftKey;
-      } catch (error) {
+      })
+      .catch((error) => {
         console.error('Failed to load draft:', error);
         setMessage('');
         lastSavedDraft.current = '';
-      }
-    };
-
-    loadDraft();
+      });
   }, [channelId, dmId]);
 
   // Track whether slash command autocomplete is open
@@ -433,6 +435,12 @@ export default function MessageInput({ channelId, dmId, replyTo, onClearReply, e
     };
   }, []);
 
+  const sendFromShortcut = useEffectEvent(() => {
+    if (message.trim()) {
+      handleSubmit();
+    }
+  });
+
   // Register keyboard shortcuts for message input
   useEffect(() => {
     // Cmd/Ctrl+Enter: Send message
@@ -442,17 +450,13 @@ export default function MessageInput({ channelId, dmId, replyTo, onClearReply, e
       meta: true,
       description: 'Send message',
       category: SHORTCUT_CATEGORIES.MESSAGING,
-      handler: () => {
-        if (message.trim()) {
-          handleSubmit(new Event('submit') as any);
-        }
-      },
+      handler: () => sendFromShortcut(),
     });
 
     return () => {
       unregisterSend();
     };
-  }, [message]);
+  }, []);
 
   // Handle keyboard events in textarea
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -466,7 +470,7 @@ export default function MessageInput({ channelId, dmId, replyTo, onClearReply, e
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       if (message.trim() || selectedFiles.length > 0) {
-        handleSubmit(new Event('submit') as any);
+        handleSubmit();
       }
     }
 
@@ -526,9 +530,11 @@ export default function MessageInput({ channelId, dmId, replyTo, onClearReply, e
               {selectedFile.preview ? (
                 // Image preview
                 <div className="relative h-24 w-24 rounded-lg overflow-hidden border border-gray-700 bg-gray-800">
-                  <img
+                  <Image
                     src={selectedFile.preview}
                     alt={selectedFile.file.name}
+                    width={96}
+                    height={96}
                     className="h-full w-full object-cover"
                   />
                   {selectedFile.uploading && (

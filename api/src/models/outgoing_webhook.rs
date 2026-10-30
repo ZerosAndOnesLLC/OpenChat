@@ -73,12 +73,11 @@ impl OutgoingWebhook {
     }
 
     pub async fn get_by_id(pool: &PgPool, id: Uuid) -> ApiResult<Option<OutgoingWebhook>> {
-        let webhook = sqlx::query_as::<_, OutgoingWebhook>(
-            "SELECT * FROM outgoing_webhooks WHERE id = $1",
-        )
-        .bind(id)
-        .fetch_optional(pool)
-        .await?;
+        let webhook =
+            sqlx::query_as::<_, OutgoingWebhook>("SELECT * FROM outgoing_webhooks WHERE id = $1")
+                .bind(id)
+                .fetch_optional(pool)
+                .await?;
 
         Ok(webhook)
     }

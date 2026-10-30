@@ -80,13 +80,9 @@ impl Config {
             .parse()
             .unwrap_or(false);
 
-        let tls_cert_path = env::var("TLS_CERT_PATH")
-            .ok()
-            .filter(|s| !s.is_empty());
+        let tls_cert_path = env::var("TLS_CERT_PATH").ok().filter(|s| !s.is_empty());
 
-        let tls_key_path = env::var("TLS_KEY_PATH")
-            .ok()
-            .filter(|s| !s.is_empty());
+        let tls_key_path = env::var("TLS_KEY_PATH").ok().filter(|s| !s.is_empty());
 
         let enable_rate_limiting = env::var("ENABLE_RATE_LIMITING")
             .unwrap_or_else(|_| "true".to_string())
@@ -102,8 +98,8 @@ impl Config {
             .expect("PORT must be a valid number");
 
         // Default API base URL based on host/port, can be overridden for production
-        let api_base_url = env::var("API_BASE_URL")
-            .unwrap_or_else(|_| format!("http://localhost:{}", port));
+        let api_base_url =
+            env::var("API_BASE_URL").unwrap_or_else(|_| format!("http://localhost:{}", port));
 
         // Web UI URL for desktop app redirects
         let webui_url = env::var("WEBUI_URL")
@@ -122,8 +118,9 @@ impl Config {
             tls_cert_path,
             tls_key_path,
             enable_rate_limiting,
-            encryption_secret: env::var("ENCRYPTION_SECRET")
-                .unwrap_or_else(|_| env::var("JWT_SECRET").unwrap_or_else(|_| "default-fallback-secret".to_string())),
+            encryption_secret: env::var("ENCRYPTION_SECRET").unwrap_or_else(|_| {
+                env::var("JWT_SECRET").unwrap_or_else(|_| "default-fallback-secret".to_string())
+            }),
             websocket,
             redis,
             api_base_url,
@@ -225,7 +222,13 @@ impl LiveKitConfig {
     pub fn from_env() -> Option<Self> {
         let url = env::var("LIVEKIT_URL").ok().filter(|s| !s.is_empty())?;
         let api_key = env::var("LIVEKIT_API_KEY").ok().filter(|s| !s.is_empty())?;
-        let api_secret = env::var("LIVEKIT_API_SECRET").ok().filter(|s| !s.is_empty())?;
-        Some(Self { url, api_key, api_secret })
+        let api_secret = env::var("LIVEKIT_API_SECRET")
+            .ok()
+            .filter(|s| !s.is_empty())?;
+        Some(Self {
+            url,
+            api_key,
+            api_secret,
+        })
     }
 }

@@ -51,8 +51,21 @@ export default function WorkflowsAdminPage() {
   }, []);
 
   useEffect(() => {
-    fetchWorkflows();
-  }, [fetchWorkflows]);
+    let cancelled = false;
+    apiClient.listWorkflows()
+      .then((data) => {
+        if (!cancelled) setWorkflows(data);
+      })
+      .catch((err) => {
+        if (!cancelled) setError((err as Error).message);
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const handleCreate = () => {
     setEditingWorkflow(null);

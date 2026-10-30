@@ -60,18 +60,30 @@ struct VoteCount {
     count: i64,
 }
 
+/// Fields for [`Poll::create`].
+pub struct NewPoll<'a> {
+    pub message_id: Uuid,
+    pub org_id: Uuid,
+    pub question: &'a str,
+    pub options: &'a serde_json::Value,
+    pub poll_type: &'a str,
+    pub anonymous: bool,
+    pub expires_at: Option<DateTime<Utc>>,
+    pub created_by: Uuid,
+}
+
 impl Poll {
-    pub async fn create(
-        pool: &PgPool,
-        message_id: Uuid,
-        org_id: Uuid,
-        question: &str,
-        options: &serde_json::Value,
-        poll_type: &str,
-        anonymous: bool,
-        expires_at: Option<DateTime<Utc>>,
-        created_by: Uuid,
-    ) -> ApiResult<Poll> {
+    pub async fn create(pool: &PgPool, new: NewPoll<'_>) -> ApiResult<Poll> {
+        let NewPoll {
+            message_id,
+            org_id,
+            question,
+            options,
+            poll_type,
+            anonymous,
+            expires_at,
+            created_by,
+        } = new;
         let poll = sqlx::query_as::<_, Poll>(
             r#"
             INSERT INTO polls (id, message_id, org_id, question, options, poll_type, anonymous, expires_at, created_by)
@@ -112,16 +124,11 @@ impl Poll {
         Ok(poll)
     }
 
-    pub async fn get_by_message_ids(
-        pool: &PgPool,
-        message_ids: &[Uuid],
-    ) -> ApiResult<Vec<Poll>> {
-        let polls = sqlx::query_as::<_, Poll>(
-            "SELECT * FROM polls WHERE message_id = ANY($1)",
-        )
-        .bind(message_ids)
-        .fetch_all(pool)
-        .await?;
+    pub async fn get_by_message_ids(pool: &PgPool, message_ids: &[Uuid]) -> ApiResult<Vec<Poll>> {
+        let polls = sqlx::query_as::<_, Poll>("SELECT * FROM polls WHERE message_id = ANY($1)")
+            .bind(message_ids)
+            .fetch_all(pool)
+            .await?;
 
         Ok(polls)
     }
@@ -143,17 +150,16 @@ impl Poll {
             ));
         }
 
-        if let Some(expires_at) = poll.expires_at {
-            if Utc::now() > expires_at {
-                return Err(crate::errors::ApiError::BadRequest(
-                    "Poll has expired".to_string(),
-                ));
-            }
+        if let Some(expires_at) = poll.expires_at
+            && Utc::now() > expires_at
+        {
+            return Err(crate::errors::ApiError::BadRequest(
+                "Poll has expired".to_string(),
+            ));
         }
 
         // Validate option_index
-        let options: Vec<PollOptionInfo> = serde_json::from_value(poll.options)
-            .unwrap_or_default();
+        let options: Vec<PollOptionInfo> = serde_json::from_value(poll.options).unwrap_or_default();
         if option_index < 0 || option_index >= options.len() as i32 {
             return Err(crate::errors::ApiError::BadRequest(
                 "Invalid option index".to_string(),
@@ -236,8 +242,7 @@ impl Poll {
             .await?
             .ok_or_else(|| crate::errors::ApiError::NotFound("Poll not found".to_string()))?;
 
-        let options: Vec<PollOptionInfo> =
-            serde_json::from_value(poll.options).unwrap_or_default();
+        let options: Vec<PollOptionInfo> = serde_json::from_value(poll.options).unwrap_or_default();
 
         // Get vote counts per option
         let vote_counts = sqlx::query_as::<_, VoteCount>(

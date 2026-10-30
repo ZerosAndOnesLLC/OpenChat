@@ -1,4 +1,4 @@
-use actix_web::{web, HttpMessage, HttpRequest, HttpResponse};
+use actix_web::{HttpMessage, HttpRequest, HttpResponse, web};
 use serde::{Deserialize, Serialize};
 use sqlx::PgPool;
 use uuid::Uuid;
@@ -90,14 +90,16 @@ pub async fn add_reaction(
 
     // Verify user has access to the message (either member of channel or participant in DM)
     if let Some(channel_id) = message.channel_id {
-        let is_member = ChannelMember::is_member(pool.get_ref(), channel_id, current_user.id).await?;
+        let is_member =
+            ChannelMember::is_member(pool.get_ref(), channel_id, current_user.id).await?;
         if !is_member {
             return Err(ApiError::Authorization(
                 "You are not a member of this channel".to_string(),
             ));
         }
     } else if let Some(dm_id) = message.dm_id {
-        let is_participant = DirectMessage::is_participant(pool.get_ref(), dm_id, current_user.id).await?;
+        let is_participant =
+            DirectMessage::is_participant(pool.get_ref(), dm_id, current_user.id).await?;
         if !is_participant {
             return Err(ApiError::Authorization(
                 "You are not a participant in this DM".to_string(),
@@ -127,8 +129,13 @@ pub async fn add_reaction(
         });
         tokio::spawn(async move {
             crate::services::workflow_engine::check_triggers(
-                pool.get_ref(), ws.get_ref(), org_id, "reaction_added", trigger_data,
-            ).await;
+                pool.get_ref(),
+                ws.get_ref(),
+                org_id,
+                "reaction_added",
+                trigger_data,
+            )
+            .await;
         });
     }
 
@@ -189,14 +196,16 @@ pub async fn list_reactions(
 
     // Verify user has access to the message
     if let Some(channel_id) = message.channel_id {
-        let is_member = ChannelMember::is_member(pool.get_ref(), channel_id, current_user.id).await?;
+        let is_member =
+            ChannelMember::is_member(pool.get_ref(), channel_id, current_user.id).await?;
         if !is_member {
             return Err(ApiError::Authorization(
                 "You are not a member of this channel".to_string(),
             ));
         }
     } else if let Some(dm_id) = message.dm_id {
-        let is_participant = DirectMessage::is_participant(pool.get_ref(), dm_id, current_user.id).await?;
+        let is_participant =
+            DirectMessage::is_participant(pool.get_ref(), dm_id, current_user.id).await?;
         if !is_participant {
             return Err(ApiError::Authorization(
                 "You are not a participant in this DM".to_string(),
@@ -206,7 +215,8 @@ pub async fn list_reactions(
 
     // Get reactions
     let reactions = Reaction::list_by_message(pool.get_ref(), *message_id).await?;
-    let response: Vec<ReactionResponse> = reactions.into_iter().map(ReactionResponse::from).collect();
+    let response: Vec<ReactionResponse> =
+        reactions.into_iter().map(ReactionResponse::from).collect();
 
     Ok(HttpResponse::Ok().json(response))
 }
@@ -235,14 +245,16 @@ pub async fn get_reaction_counts(
 
     // Verify user has access to the message
     if let Some(channel_id) = message.channel_id {
-        let is_member = ChannelMember::is_member(pool.get_ref(), channel_id, current_user.id).await?;
+        let is_member =
+            ChannelMember::is_member(pool.get_ref(), channel_id, current_user.id).await?;
         if !is_member {
             return Err(ApiError::Authorization(
                 "You are not a member of this channel".to_string(),
             ));
         }
     } else if let Some(dm_id) = message.dm_id {
-        let is_participant = DirectMessage::is_participant(pool.get_ref(), dm_id, current_user.id).await?;
+        let is_participant =
+            DirectMessage::is_participant(pool.get_ref(), dm_id, current_user.id).await?;
         if !is_participant {
             return Err(ApiError::Authorization(
                 "You are not a participant in this DM".to_string(),
@@ -252,7 +264,10 @@ pub async fn get_reaction_counts(
 
     // Get reaction counts
     let counts = Reaction::count_by_message(pool.get_ref(), *message_id).await?;
-    let response: Vec<ReactionCountResponse> = counts.into_iter().map(ReactionCountResponse::from).collect();
+    let response: Vec<ReactionCountResponse> = counts
+        .into_iter()
+        .map(ReactionCountResponse::from)
+        .collect();
 
     Ok(HttpResponse::Ok().json(response))
 }

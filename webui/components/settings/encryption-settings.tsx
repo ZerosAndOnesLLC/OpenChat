@@ -16,19 +16,19 @@ export default function EncryptionSettings() {
   const currentDeviceId = getDeviceId();
 
   useEffect(() => {
-    loadDevices();
+    let cancelled = false;
+    apiClient.listMyCryptoDevices()
+      .then((data) => {
+        if (!cancelled) setDevices(data);
+      })
+      .catch((err) => console.error('Failed to load devices:', err))
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
   }, []);
-
-  const loadDevices = async () => {
-    try {
-      const data = await apiClient.listMyCryptoDevices();
-      setDevices(data);
-    } catch (err) {
-      console.error('Failed to load devices:', err);
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const handleVerify = async (deviceId: string) => {
     try {

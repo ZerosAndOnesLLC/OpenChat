@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { apiClient } from '@/lib/api';
 import type { LinkPreview as LinkPreviewType } from '@/lib/types';
+import Image from 'next/image';
 
 interface LinkPreviewProps {
   url: string;
@@ -12,9 +13,12 @@ interface LinkPreviewProps {
 const linkPreviewCache = new Map<string, LinkPreviewType | null>();
 
 export default function LinkPreview({ url }: LinkPreviewProps) {
-  const [preview, setPreview] = useState<LinkPreviewType | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState(false);
+  // Result of the last fetch, keyed by the URL it was fetched for.
+  const [fetched, setFetched] = useState<{
+    url: string;
+    preview: LinkPreviewType | null;
+    error: boolean;
+  } | null>(null);
   const [isVisible, setIsVisible] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
   const linkRef = useRef<HTMLAnchorElement>(null);
@@ -43,33 +47,30 @@ export default function LinkPreview({ url }: LinkPreviewProps) {
   }, []);
 
   useEffect(() => {
-    if (!isVisible) return;
+    if (!isVisible || linkPreviewCache.has(url)) return;
 
-    // Check cache first
-    if (linkPreviewCache.has(url)) {
-      const cached = linkPreviewCache.get(url);
-      setPreview(cached || null);
-      return;
-    }
-
-    const fetchPreview = async () => {
-      try {
-        setLoading(true);
-        setError(false);
-        const data = await apiClient.getLinkPreview(url);
+    let cancelled = false;
+    apiClient.getLinkPreview(url)
+      .then((data) => {
         linkPreviewCache.set(url, data);
-        setPreview(data);
-      } catch (err) {
+        if (!cancelled) setFetched({ url, preview: data, error: false });
+      })
+      .catch((err) => {
         console.error('Failed to fetch link preview:', err);
         linkPreviewCache.set(url, null);
-        setError(true);
-      } finally {
-        setLoading(false);
-      }
+        if (!cancelled) setFetched({ url, preview: null, error: true });
+      });
+    return () => {
+      cancelled = true;
     };
-
-    fetchPreview();
   }, [url, isVisible]);
+
+  // Check cache first; otherwise use the fetch result for this URL.
+  const isCached = linkPreviewCache.has(url);
+  const current = fetched?.url === url ? fetched : null;
+  const preview = isCached ? linkPreviewCache.get(url) ?? null : current?.preview ?? null;
+  const error = !isCached && (current?.error ?? false);
+  const loading = isVisible && !isCached && current === null;
 
   if (!isVisible) {
     return <div ref={containerRef} className="h-4" />;
@@ -100,9 +101,11 @@ export default function LinkPreview({ url }: LinkPreviewProps) {
       <div className="flex gap-3 p-3">
         {preview.image && (
           <div className="flex-shrink-0">
-            <img
+            <Image
               src={preview.image}
               alt={preview.title || 'Link preview'}
+              width={80}
+              height={80}
               className="h-20 w-20 rounded object-cover"
               onError={(e) => {
                 e.currentTarget.style.display = 'none';

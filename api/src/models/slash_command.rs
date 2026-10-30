@@ -20,18 +20,30 @@ pub struct SlashCommand {
     pub created_at: DateTime<Utc>,
 }
 
+/// Fields for [`SlashCommand::create`].
+pub struct NewSlashCommand<'a> {
+    pub org_id: Uuid,
+    pub command_name: &'a str,
+    pub description: &'a str,
+    pub usage_hint: Option<&'a str>,
+    pub handler_type: &'a str,
+    pub webhook_url: Option<&'a str>,
+    pub response_type: &'a str,
+    pub created_by: Uuid,
+}
+
 impl SlashCommand {
-    pub async fn create(
-        pool: &PgPool,
-        org_id: Uuid,
-        command_name: &str,
-        description: &str,
-        usage_hint: Option<&str>,
-        handler_type: &str,
-        webhook_url: Option<&str>,
-        response_type: &str,
-        created_by: Uuid,
-    ) -> ApiResult<SlashCommand> {
+    pub async fn create(pool: &PgPool, new: NewSlashCommand<'_>) -> ApiResult<SlashCommand> {
+        let NewSlashCommand {
+            org_id,
+            command_name,
+            description,
+            usage_hint,
+            handler_type,
+            webhook_url,
+            response_type,
+            created_by,
+        } = new;
         let command = sqlx::query_as::<_, SlashCommand>(
             r#"
             INSERT INTO slash_commands (id, org_id, command_name, description, usage_hint, handler_type, webhook_url, response_type, created_by)
@@ -55,12 +67,11 @@ impl SlashCommand {
     }
 
     pub async fn get_by_id(pool: &PgPool, id: Uuid) -> ApiResult<Option<SlashCommand>> {
-        let command = sqlx::query_as::<_, SlashCommand>(
-            "SELECT * FROM slash_commands WHERE id = $1",
-        )
-        .bind(id)
-        .fetch_optional(pool)
-        .await?;
+        let command =
+            sqlx::query_as::<_, SlashCommand>("SELECT * FROM slash_commands WHERE id = $1")
+                .bind(id)
+                .fetch_optional(pool)
+                .await?;
 
         Ok(command)
     }

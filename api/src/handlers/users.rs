@@ -1,4 +1,4 @@
-use actix_web::{web, HttpMessage, HttpRequest, HttpResponse};
+use actix_web::{HttpMessage, HttpRequest, HttpResponse, web};
 use serde::{Deserialize, Serialize};
 use sqlx::PgPool;
 use uuid::Uuid;
@@ -48,10 +48,7 @@ impl From<User> for UserResponse {
 }
 
 /// GET /api/users - List all users in the organization
-pub async fn list_users(
-    pool: web::Data<PgPool>,
-    req: HttpRequest,
-) -> ApiResult<HttpResponse> {
+pub async fn list_users(pool: web::Data<PgPool>, req: HttpRequest) -> ApiResult<HttpResponse> {
     // Get claims from request extensions (set by auth middleware)
     let claims = req
         .extensions()
@@ -82,7 +79,9 @@ pub async fn get_user(
         .clone();
 
     // Try to get user from cache first
-    let cached_user = crate::cache::users::get_user_from_cache(redis_pool.get_ref(), claims.org_id, *user_id).await?;
+    let cached_user =
+        crate::cache::users::get_user_from_cache(redis_pool.get_ref(), claims.org_id, *user_id)
+            .await?;
 
     let user = match cached_user {
         Some(user) => user,
@@ -154,7 +153,8 @@ pub async fn update_user(
     .await?;
 
     // Invalidate user cache
-    crate::cache::users::invalidate_user_cache(redis_pool.get_ref(), claims.org_id, *user_id).await?;
+    crate::cache::users::invalidate_user_cache(redis_pool.get_ref(), claims.org_id, *user_id)
+        .await?;
 
     Ok(HttpResponse::Ok().json(UserResponse::from(user)))
 }

@@ -41,8 +41,9 @@ pub async fn get_status(
 
     match cached {
         Some(json) => {
-            let status: UserStatusResponse = serde_json::from_str(&json)
-                .map_err(|e| crate::errors::ApiError::Internal(format!("Cache deserialization error: {}", e)))?;
+            let status: UserStatusResponse = serde_json::from_str(&json).map_err(|e| {
+                crate::errors::ApiError::Internal(format!("Cache deserialization error: {}", e))
+            })?;
             Ok(Some(status))
         }
         None => Ok(None),
@@ -56,12 +57,15 @@ pub async fn set_status(
     user_id: Uuid,
     status: &UserStatusResponse,
 ) -> ApiResult<()> {
-    let mut conn = redis_pool.get().await
+    let mut conn = redis_pool
+        .get()
+        .await
         .map_err(|e| crate::errors::ApiError::Internal(format!("Redis pool error: {}", e)))?;
 
     let key = status_cache_key(org_id, user_id);
-    let json = serde_json::to_string(status)
-        .map_err(|e| crate::errors::ApiError::Internal(format!("Cache serialization error: {}", e)))?;
+    let json = serde_json::to_string(status).map_err(|e| {
+        crate::errors::ApiError::Internal(format!("Cache serialization error: {}", e))
+    })?;
 
     let _: () = conn.set_ex(&key, json, STATUS_CACHE_TTL).await?;
     Ok(())
@@ -73,7 +77,9 @@ pub async fn invalidate_status(
     org_id: Uuid,
     user_id: Uuid,
 ) -> ApiResult<()> {
-    let mut conn = redis_pool.get().await
+    let mut conn = redis_pool
+        .get()
+        .await
         .map_err(|e| crate::errors::ApiError::Internal(format!("Redis pool error: {}", e)))?;
 
     let key = status_cache_key(org_id, user_id);
@@ -86,7 +92,9 @@ pub async fn invalidate_org_user_status_cache(
     redis_pool: &RedisPool,
     org_id: Uuid,
 ) -> ApiResult<()> {
-    let mut conn = redis_pool.get().await
+    let mut conn = redis_pool
+        .get()
+        .await
         .map_err(|e| crate::errors::ApiError::Internal(format!("Redis pool error: {}", e)))?;
 
     let pattern = format!("{}:{}:user_status:*", STATUS_CACHE_PREFIX, org_id);

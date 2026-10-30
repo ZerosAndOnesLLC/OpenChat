@@ -7,7 +7,11 @@ use crate::models::workflow::{Workflow, WorkflowExecution};
 
 /// Execute a workflow job from the job queue.
 /// Handles scheduled triggers and resume-after-delay.
-pub async fn execute(pool: &PgPool, _redis: &mut redis::aio::MultiplexedConnection, payload: &JsonValue) -> Result<(), String> {
+pub async fn execute(
+    pool: &PgPool,
+    _redis: &mut redis::aio::MultiplexedConnection,
+    payload: &JsonValue,
+) -> Result<(), String> {
     let action = payload
         .get("action")
         .and_then(|v| v.as_str())
@@ -52,9 +56,13 @@ pub async fn execute(pool: &PgPool, _redis: &mut redis::aio::MultiplexedConnecti
                 .await
                 .map_err(|e| format!("Failed to create execution: {}", e))?;
 
-            let exec_steps = crate::models::workflow::WorkflowExecutionStep::create_batch(pool, execution.id, &steps)
-                .await
-                .map_err(|e| format!("Failed to create execution steps: {}", e))?;
+            let exec_steps = crate::models::workflow::WorkflowExecutionStep::create_batch(
+                pool,
+                execution.id,
+                &steps,
+            )
+            .await
+            .map_err(|e| format!("Failed to create execution steps: {}", e))?;
 
             // Execute steps sequentially (without WS broadcasting since we don't have ws_server)
             let mut context = serde_json::json!({
@@ -68,25 +76,39 @@ pub async fn execute(pool: &PgPool, _redis: &mut redis::aio::MultiplexedConnecti
                     "action_config": step.action_config,
                 });
 
-                let _ = crate::models::workflow::WorkflowExecutionStep::set_running(pool, exec_step.id, &input).await;
+                let _ = crate::models::workflow::WorkflowExecutionStep::set_running(
+                    pool,
+                    exec_step.id,
+                    &input,
+                )
+                .await;
 
                 // For job-queue based execution, we only handle delay and call_webhook
                 match step.action_type.as_str() {
-                    "call_webhook" => {
-                        match execute_webhook_action(&step.action_config).await {
-                            Ok(output) => {
-                                let _ = crate::models::workflow::WorkflowExecutionStep::set_completed(pool, exec_step.id, &output).await;
-                                context["steps"][i.to_string()] = output;
-                            }
-                            Err(err) => {
-                                let _ = crate::models::workflow::WorkflowExecutionStep::set_failed(pool, exec_step.id, &err).await;
-                                let _ = WorkflowExecution::set_failed(pool, execution.id, &err).await;
-                                return Err(err);
-                            }
+                    "call_webhook" => match execute_webhook_action(&step.action_config).await {
+                        Ok(output) => {
+                            let _ = crate::models::workflow::WorkflowExecutionStep::set_completed(
+                                pool,
+                                exec_step.id,
+                                &output,
+                            )
+                            .await;
+                            context["steps"][i.to_string()] = output;
                         }
-                    }
+                        Err(err) => {
+                            let _ = crate::models::workflow::WorkflowExecutionStep::set_failed(
+                                pool,
+                                exec_step.id,
+                                &err,
+                            )
+                            .await;
+                            let _ = WorkflowExecution::set_failed(pool, execution.id, &err).await;
+                            return Err(err);
+                        }
+                    },
                     "delay" => {
-                        let seconds = step.action_config
+                        let seconds = step
+                            .action_config
                             .get("seconds")
                             .and_then(|v| v.as_u64())
                             .unwrap_or(0)
@@ -95,13 +117,23 @@ pub async fn execute(pool: &PgPool, _redis: &mut redis::aio::MultiplexedConnecti
                             tokio::time::sleep(std::time::Duration::from_secs(seconds)).await;
                         }
                         let output = serde_json::json!({"delayed_seconds": seconds});
-                        let _ = crate::models::workflow::WorkflowExecutionStep::set_completed(pool, exec_step.id, &output).await;
+                        let _ = crate::models::workflow::WorkflowExecutionStep::set_completed(
+                            pool,
+                            exec_step.id,
+                            &output,
+                        )
+                        .await;
                         context["steps"][i.to_string()] = output;
                     }
                     other => {
                         // Skip actions that require ws_server in job queue context
                         let output = serde_json::json!({"skipped": true, "reason": format!("{} not supported in background job", other)});
-                        let _ = crate::models::workflow::WorkflowExecutionStep::set_completed(pool, exec_step.id, &output).await;
+                        let _ = crate::models::workflow::WorkflowExecutionStep::set_completed(
+                            pool,
+                            exec_step.id,
+                            &output,
+                        )
+                        .await;
                         context["steps"][i.to_string()] = output;
                     }
                 }

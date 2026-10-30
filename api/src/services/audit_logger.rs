@@ -329,22 +329,22 @@ impl AuditLogger {
         .await
     }
 
-    /// Extract IP address from request, preferring X-Forwarded-For header
+    /// Extract IP address from request, preferring X-Forwarded-For header.
+    /// Values are parsed as IP addresses (a socket address's port is
+    /// dropped), so arbitrary header text is never stored.
     fn extract_ip_address(req: &HttpRequest) -> Option<String> {
         // Check X-Forwarded-For header first (for ALB/CloudFront)
-        if let Some(forwarded) = req.headers().get("X-Forwarded-For") {
-            if let Ok(forwarded_str) = forwarded.to_str() {
-                // Take the first IP in the list (client IP)
-                if let Some(client_ip) = forwarded_str.split(',').next() {
-                    return Some(client_ip.trim().to_string());
-                }
-            }
+        if let Some(forwarded) = req.headers().get("X-Forwarded-For")
+            && let Ok(forwarded_str) = forwarded.to_str()
+            // Take the first IP in the list (client IP)
+            && let Some(ip) = forwarded_str.split(',').next().and_then(parse_ip)
+        {
+            return Some(ip.to_string());
         }
 
-        // Fall back to connection info
-        req.connection_info()
-            .realip_remote_addr()
-            .map(|s| s.to_string())
+        // Fall back to the TCP peer (X-Forwarded-For was handled above, so
+        // connection_info's header parsing would add nothing).
+        req.peer_addr().map(|addr| addr.ip().to_string())
     }
 
     /// Extract user agent from request
@@ -354,6 +354,14 @@ impl AuditLogger {
             .and_then(|v| v.to_str().ok())
             .map(|s| s.to_string())
     }
+}
+
+/// Parse `1.2.3.4`, `::1`, `1.2.3.4:5678` or `[::1]:5678` into an IP.
+fn parse_ip(raw: &str) -> Option<std::net::IpAddr> {
+    let raw = raw.trim();
+    raw.parse::<std::net::IpAddr>()
+        .ok()
+        .or_else(|| raw.parse::<std::net::SocketAddr>().ok().map(|sa| sa.ip()))
 }
 
 /// Helper macro to simplify audit logging in handlers

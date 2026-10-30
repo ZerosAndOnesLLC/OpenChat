@@ -1,4 +1,4 @@
-use actix_web::{web, HttpMessage, HttpRequest, HttpResponse};
+use actix_web::{HttpMessage, HttpRequest, HttpResponse, web};
 use regex::Regex;
 use serde::{Deserialize, Serialize};
 use std::time::Duration;
@@ -54,7 +54,10 @@ pub async fn get_link_preview(
 
     // Check if response is successful
     if !response.status().is_success() {
-        return Err(ApiError::BadRequest(format!("Failed to fetch URL: HTTP {}", response.status())));
+        return Err(ApiError::BadRequest(format!(
+            "Failed to fetch URL: HTTP {}",
+            response.status()
+        )));
     }
 
     // Get content type to ensure it's HTML
@@ -81,8 +84,7 @@ pub async fn get_link_preview(
         .map_err(|e| ApiError::Internal(format!("Failed to read response: {}", e)))?;
 
     // Extract metadata using regex
-    let title = extract_meta_tag(&html, "og:title")
-        .or_else(|| extract_title_tag(&html));
+    let title = extract_meta_tag(&html, "og:title").or_else(|| extract_title_tag(&html));
     let description = extract_meta_tag(&html, "og:description")
         .or_else(|| extract_meta_tag(&html, "description"));
     let image = extract_meta_tag(&html, "og:image");
@@ -107,10 +109,10 @@ fn extract_meta_tag(html: &str, property: &str) -> Option<String> {
         r#"<meta\s+property=["']{}["']\s+content=["']([^"']+)["']"#,
         regex::escape(property)
     );
-    if let Ok(re) = Regex::new(&og_pattern) {
-        if let Some(cap) = re.captures(html) {
-            return Some(cap[1].to_string());
-        }
+    if let Ok(re) = Regex::new(&og_pattern)
+        && let Some(cap) = re.captures(html)
+    {
+        return Some(cap[1].to_string());
     }
 
     // Try standard name format: <meta name="description" content="..." />
@@ -118,10 +120,10 @@ fn extract_meta_tag(html: &str, property: &str) -> Option<String> {
         r#"<meta\s+name=["']{}["']\s+content=["']([^"']+)["']"#,
         regex::escape(property)
     );
-    if let Ok(re) = Regex::new(&name_pattern) {
-        if let Some(cap) = re.captures(html) {
-            return Some(cap[1].to_string());
-        }
+    if let Ok(re) = Regex::new(&name_pattern)
+        && let Some(cap) = re.captures(html)
+    {
+        return Some(cap[1].to_string());
     }
 
     // Try alternate format: content before property/name
@@ -129,10 +131,10 @@ fn extract_meta_tag(html: &str, property: &str) -> Option<String> {
         r#"<meta\s+content=["']([^"']+)["']\s+property=["']{}["']"#,
         regex::escape(property)
     );
-    if let Ok(re) = Regex::new(&alt_og_pattern) {
-        if let Some(cap) = re.captures(html) {
-            return Some(cap[1].to_string());
-        }
+    if let Ok(re) = Regex::new(&alt_og_pattern)
+        && let Some(cap) = re.captures(html)
+    {
+        return Some(cap[1].to_string());
     }
 
     None
@@ -140,10 +142,10 @@ fn extract_meta_tag(html: &str, property: &str) -> Option<String> {
 
 fn extract_title_tag(html: &str) -> Option<String> {
     let pattern = r#"<title>([^<]+)</title>"#;
-    if let Ok(re) = Regex::new(pattern) {
-        if let Some(cap) = re.captures(html) {
-            return Some(cap[1].trim().to_string());
-        }
+    if let Ok(re) = Regex::new(pattern)
+        && let Some(cap) = re.captures(html)
+    {
+        return Some(cap[1].trim().to_string());
     }
     None
 }

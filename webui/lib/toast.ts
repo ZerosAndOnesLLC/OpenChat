@@ -48,9 +48,16 @@ class ToastManager {
 
 export const toastManager = new ToastManager();
 
+declare global {
+  interface Window {
+    /** Global toast hook for non-React code (API client, WebSocket store). */
+    showToast?: (message: string, type?: ToastType) => void;
+  }
+}
+
 // Expose globally for use in API client
 if (typeof window !== 'undefined') {
-  (window as any).showToast = (message: string, type: ToastType = 'info') => {
+  window.showToast = (message: string, type: ToastType = 'info') => {
     toastManager.show(message, type);
   };
 }

@@ -1,13 +1,13 @@
 use hmac::{Hmac, KeyInit, Mac};
-use sha2::Sha256;
 use serde_json::Value as JsonValue;
+use sha2::Sha256;
 use sqlx::PgPool;
 use tracing::{error, info, warn};
 use uuid::Uuid;
 
+use crate::models::job::JobType;
 use crate::models::outgoing_webhook::{OutgoingWebhook, WebhookDelivery};
 use crate::tasks::job_queue;
-use crate::models::job::JobType;
 
 type HmacSha256 = Hmac<Sha256>;
 
@@ -57,8 +57,8 @@ pub async fn execute(pool: &PgPool, payload: &JsonValue) -> Result<(), String> {
     };
 
     // Serialize event payload to JSON bytes
-    let body_bytes =
-        serde_json::to_vec(event_payload).map_err(|e| format!("Failed to serialize payload: {}", e))?;
+    let body_bytes = serde_json::to_vec(event_payload)
+        .map_err(|e| format!("Failed to serialize payload: {}", e))?;
 
     // Compute HMAC-SHA256 signature
     let mut mac = HmacSha256::new_from_slice(webhook.signing_secret.as_bytes())
@@ -87,10 +87,7 @@ pub async fn execute(pool: &PgPool, payload: &JsonValue) -> Result<(), String> {
     match result {
         Ok(response) => {
             let status_code = response.status().as_u16() as i32;
-            let body = response
-                .text()
-                .await
-                .unwrap_or_else(|_| String::new());
+            let body = response.text().await.unwrap_or_else(|_| String::new());
 
             // Truncate response body for storage
             let truncated_body = if body.len() > 4096 {
@@ -183,18 +180,19 @@ pub async fn emit_event(
 
     for webhook in &webhooks {
         // Create delivery record
-        let delivery = match WebhookDelivery::create(pool, webhook.id, event_type, event_payload).await {
-            Ok(d) => d,
-            Err(e) => {
-                error!(
-                    webhook_id = %webhook.id,
-                    event_type = %event_type,
-                    "Failed to create webhook delivery record: {}",
-                    e
-                );
-                continue;
-            }
-        };
+        let delivery =
+            match WebhookDelivery::create(pool, webhook.id, event_type, event_payload).await {
+                Ok(d) => d,
+                Err(e) => {
+                    error!(
+                        webhook_id = %webhook.id,
+                        event_type = %event_type,
+                        "Failed to create webhook delivery record: {}",
+                        e
+                    );
+                    continue;
+                }
+            };
 
         // Enqueue the delivery job
         let job_payload = serde_json::json!({

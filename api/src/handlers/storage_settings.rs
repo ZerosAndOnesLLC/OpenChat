@@ -1,13 +1,14 @@
-use actix_web::{web, HttpMessage, HttpRequest, HttpResponse};
+use actix_web::{HttpMessage, HttpRequest, HttpResponse, web};
 use base64::{Engine as _, engine::general_purpose};
 use serde_json::json;
 use sqlx::PgPool;
 use uuid::Uuid;
 
 use crate::errors::ApiError;
-use crate::models::{storage_settings::{
-    StorageSettings, StorageSettingsResponse, UpdateStorageSettingsRequest,
-}, user::User};
+use crate::models::{
+    storage_settings::{StorageSettings, StorageSettingsResponse, UpdateStorageSettingsRequest},
+    user::User,
+};
 use crate::services::{audit_logger::AuditLogger, tv_api::TokenClaims};
 
 // Simple encryption/decryption for credentials (in production, use proper encryption)
@@ -32,13 +33,12 @@ pub async fn get_storage_settings(
     // For now, we'll allow any authenticated user to view their org's settings
     let org_id = claims.org_id;
 
-    let settings: Option<StorageSettings> = sqlx::query_as(
-        "SELECT * FROM storage_settings WHERE org_id = $1",
-    )
-    .bind(org_id)
-    .fetch_optional(db.get_ref())
-    .await
-    .map_err(|e| ApiError::Internal(format!("Failed to fetch storage settings: {}", e)))?;
+    let settings: Option<StorageSettings> =
+        sqlx::query_as("SELECT * FROM storage_settings WHERE org_id = $1")
+            .bind(org_id)
+            .fetch_optional(db.get_ref())
+            .await
+            .map_err(|e| ApiError::Internal(format!("Failed to fetch storage settings: {}", e)))?;
 
     if let Some(settings) = settings {
         Ok(HttpResponse::Ok().json(StorageSettingsResponse::from(settings)))
@@ -76,13 +76,14 @@ pub async fn update_storage_settings(
         .ok_or_else(|| ApiError::NotFound("Current user not found".to_string()))?;
 
     // Get old settings for audit log
-    let old_settings: Option<StorageSettings> = sqlx::query_as(
-        "SELECT * FROM storage_settings WHERE org_id = $1",
-    )
-    .bind(org_id)
-    .fetch_optional(db.get_ref())
-    .await
-    .map_err(|e| ApiError::Internal(format!("Failed to fetch old storage settings: {}", e)))?;
+    let old_settings: Option<StorageSettings> =
+        sqlx::query_as("SELECT * FROM storage_settings WHERE org_id = $1")
+            .bind(org_id)
+            .fetch_optional(db.get_ref())
+            .await
+            .map_err(|e| {
+                ApiError::Internal(format!("Failed to fetch old storage settings: {}", e))
+            })?;
 
     // Validate storage_type
     if payload.storage_type != "local" && payload.storage_type != "s3" {
@@ -163,7 +164,10 @@ pub async fn update_storage_settings(
     )
     .await
     {
-        tracing::warn!("Failed to create audit log for storage settings update: {}", e);
+        tracing::warn!(
+            "Failed to create audit log for storage settings update: {}",
+            e
+        );
     }
 
     // Invalidate storage factory cache so it picks up new settings

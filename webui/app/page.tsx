@@ -7,7 +7,10 @@ import LoginScreen from '@/components/desktop/login-screen';
 
 // Check if running in Tauri environment
 function isTauriApp(): boolean {
-  return typeof window !== 'undefined' && (window as any).__TAURI__ !== undefined;
+  return (
+    typeof window !== 'undefined' &&
+    (window as Window & { __TAURI__?: unknown }).__TAURI__ !== undefined
+  );
 }
 
 export default function Home() {
@@ -16,8 +19,6 @@ export default function Home() {
   useEffect(() => {
     console.log('Home component mounted');
     console.log('Is Tauri?', isTauriApp());
-    console.log('Is authenticated?', isAuthenticated);
-    console.log('Is loading?', isLoading);
     initialize();
   }, [initialize]);
 

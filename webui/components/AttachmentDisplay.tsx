@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { apiClient } from '@/lib/api';
 import type { Attachment } from '@/lib/types';
+import Image from 'next/image';
 
 interface AttachmentDisplayProps {
   attachments: Attachment[];
@@ -132,10 +133,13 @@ export default function AttachmentDisplay({ attachments = [] }: AttachmentDispla
                   </div>
                 </div>
               ) : imageSrc ? (
-                <img
+                <Image
                   src={imageSrc}
                   alt={attachment.file_name}
-                  className="rounded-lg border border-gray-700 max-h-80 cursor-pointer hover:opacity-90 transition-opacity"
+                  width={0}
+                  height={0}
+                  sizes="100vw"
+                  className="h-auto w-auto rounded-lg border border-gray-700 max-h-80 cursor-pointer hover:opacity-90 transition-opacity"
                   onClick={() => handleDownload(attachment.id, attachment.file_name)}
                 />
               ) : (

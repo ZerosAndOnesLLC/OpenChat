@@ -16,10 +16,7 @@ pub struct EncryptedChannel {
 }
 
 impl EncryptedChannel {
-    pub async fn enable_encryption(
-        pool: &PgPool,
-        channel_id: Uuid,
-    ) -> ApiResult<EncryptedChannel> {
+    pub async fn enable_encryption(pool: &PgPool, channel_id: Uuid) -> ApiResult<EncryptedChannel> {
         let ec = sqlx::query_as::<_, EncryptedChannel>(
             r#"
             INSERT INTO encrypted_channels (channel_id)

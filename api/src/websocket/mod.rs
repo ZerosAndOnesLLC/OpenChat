@@ -5,7 +5,7 @@ pub mod server;
 pub mod session;
 
 use actix::Addr;
-use actix_web::{web, Error, HttpRequest, HttpResponse};
+use actix_web::{Error, HttpRequest, HttpResponse, web};
 use sqlx::PgPool;
 use std::sync::Arc;
 use uuid::Uuid;
@@ -17,7 +17,7 @@ use crate::{
     services::{device_token::verify_device_token, tv_api::TvApiClient},
 };
 use server::WsServer;
-use session::{handle_ws_session, WsSessionData};
+use session::{WsSessionData, handle_ws_session};
 
 /// Result of token verification - either TitaniumVault or device token
 struct VerifiedToken {

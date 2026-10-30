@@ -1,4 +1,4 @@
-use actix_web::{web, HttpRequest, HttpResponse};
+use actix_web::{HttpRequest, HttpResponse, web};
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use sqlx::PgPool;
@@ -111,7 +111,9 @@ pub async fn export_audit_logs(
     let logs = AuditLog::list(pool.get_ref(), filters).await?;
 
     // Generate CSV
-    let mut csv = String::from("ID,User ID,Action,Resource Type,Resource ID,IP Address,User Agent,Timestamp,Metadata\n");
+    let mut csv = String::from(
+        "ID,User ID,Action,Resource Type,Resource ID,IP Address,User Agent,Timestamp,Metadata\n",
+    );
 
     for log in logs {
         let metadata_str = serde_json::to_string(&log.metadata).unwrap_or_default();
@@ -121,9 +123,7 @@ pub async fn export_audit_logs(
             log.user_id.map(|id| id.to_string()).unwrap_or_default(),
             escape_csv(&log.action),
             escape_csv(&log.resource_type),
-            log.resource_id
-                .map(|id| id.to_string())
-                .unwrap_or_default(),
+            log.resource_id.map(|id| id.to_string()).unwrap_or_default(),
             log.ip_address.as_deref().unwrap_or(""),
             escape_csv(log.user_agent.as_deref().unwrap_or("")),
             log.timestamp.to_rfc3339(),

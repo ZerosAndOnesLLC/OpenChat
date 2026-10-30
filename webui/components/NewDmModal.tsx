@@ -8,6 +8,7 @@ import type { DmMetadata } from '@/lib/types';
 import { useAuth } from '@/lib/auth';
 import { useWebSocketStore } from '@/lib/websocket';
 import { useFocusTrap } from '@/hooks/useFocusTrap';
+import Image from 'next/image';
 
 interface NewDmModalProps {
   isOpen: boolean;
@@ -165,9 +166,11 @@ export default function NewDmModal({
                         >
                           <div className="relative">
                             {user.avatar_url ? (
-                              <img
+                              <Image
                                 src={user.avatar_url}
                                 alt={user.display_name}
+                                width={40}
+                                height={40}
                                 className="h-10 w-10 rounded-full"
                               />
                             ) : (
@@ -211,9 +214,11 @@ export default function NewDmModal({
                           >
                             <div className="relative">
                               {user.avatar_url ? (
-                                <img
+                                <Image
                                   src={user.avatar_url}
                                   alt={user.display_name}
+                                  width={40}
+                                  height={40}
                                   className="h-10 w-10 rounded-full"
                                 />
                               ) : (

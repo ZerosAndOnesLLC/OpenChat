@@ -4,8 +4,8 @@ use std::path::PathBuf;
 use tokio::fs;
 use tokio::io::AsyncWriteExt;
 
-use crate::errors::ApiError;
 use super::traits::{FileStorage, StorageType, UploadedFile};
+use crate::errors::ApiError;
 
 #[derive(Clone)]
 pub struct LocalStorage {
@@ -21,14 +21,9 @@ impl LocalStorage {
 
     pub async fn ensure_directory_exists(&self) -> Result<(), ApiError> {
         if !self.base_path.exists() {
-            fs::create_dir_all(&self.base_path)
-                .await
-                .map_err(|e| {
-                    ApiError::Internal(format!(
-                        "Failed to create storage directory: {}",
-                        e
-                    ))
-                })?;
+            fs::create_dir_all(&self.base_path).await.map_err(|e| {
+                ApiError::Internal(format!("Failed to create storage directory: {}", e))
+            })?;
         }
         Ok(())
     }
@@ -55,26 +50,23 @@ impl FileStorage for LocalStorage {
 
         // Create parent directory if it doesn't exist
         if let Some(parent) = full_path.parent() {
-            fs::create_dir_all(parent).await.map_err(|e| {
-                ApiError::Internal(format!(
-                    "Failed to create directory: {}",
-                    e
-                ))
-            })?;
+            fs::create_dir_all(parent)
+                .await
+                .map_err(|e| ApiError::Internal(format!("Failed to create directory: {}", e)))?;
         }
 
         // Write file to disk
-        let mut file = fs::File::create(&full_path).await.map_err(|e| {
-            ApiError::Internal(format!("Failed to create file: {}", e))
-        })?;
+        let mut file = fs::File::create(&full_path)
+            .await
+            .map_err(|e| ApiError::Internal(format!("Failed to create file: {}", e)))?;
 
-        file.write_all(&data).await.map_err(|e| {
-            ApiError::Internal(format!("Failed to write file: {}", e))
-        })?;
+        file.write_all(&data)
+            .await
+            .map_err(|e| ApiError::Internal(format!("Failed to write file: {}", e)))?;
 
-        file.flush().await.map_err(|e| {
-            ApiError::Internal(format!("Failed to flush file: {}", e))
-        })?;
+        file.flush()
+            .await
+            .map_err(|e| ApiError::Internal(format!("Failed to flush file: {}", e)))?;
 
         Ok(UploadedFile {
             storage_type: StorageType::Local,
@@ -95,9 +87,9 @@ impl FileStorage for LocalStorage {
             )));
         }
 
-        let data = fs::read(&full_path).await.map_err(|e| {
-            ApiError::Internal(format!("Failed to read file: {}", e))
-        })?;
+        let data = fs::read(&full_path)
+            .await
+            .map_err(|e| ApiError::Internal(format!("Failed to read file: {}", e)))?;
 
         Ok(Bytes::from(data))
     }
@@ -109,9 +101,9 @@ impl FileStorage for LocalStorage {
             return Ok(()); // Already deleted, consider success
         }
 
-        fs::remove_file(&full_path).await.map_err(|e| {
-            ApiError::Internal(format!("Failed to delete file: {}", e))
-        })?;
+        fs::remove_file(&full_path)
+            .await
+            .map_err(|e| ApiError::Internal(format!("Failed to delete file: {}", e)))?;
 
         Ok(())
     }

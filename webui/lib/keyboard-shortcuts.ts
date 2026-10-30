@@ -154,20 +154,3 @@ class KeyboardShortcutsManager {
 
 // Export singleton instance
 export const keyboardShortcutsManager = new KeyboardShortcutsManager();
-
-/**
- * Hook to use keyboard shortcuts in React components
- * Note: This is exported for potential future use, but is not currently used in the codebase.
- * Global shortcuts are registered directly in components using keyboardShortcutsManager.register().
- */
-export function useKeyboardShortcut(
-  shortcut: Omit<KeyboardShortcut, 'handler'>,
-  handler: (e: KeyboardEvent) => void,
-  deps: any[] = []
-): void {
-  // This is a placeholder implementation
-  // Actual usage should directly use keyboardShortcutsManager.register() in useEffect
-  if (typeof window !== 'undefined') {
-    console.warn('useKeyboardShortcut is not implemented. Use keyboardShortcutsManager.register() directly in useEffect.');
-  }
-}

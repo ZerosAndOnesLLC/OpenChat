@@ -1,4 +1,4 @@
-use actix_web::{web, HttpMessage, HttpRequest, HttpResponse};
+use actix_web::{HttpMessage, HttpRequest, HttpResponse, web};
 use serde::Serialize;
 use sqlx::PgPool;
 use uuid::Uuid;
@@ -70,8 +70,7 @@ pub async fn pin_message(
         .ok_or_else(|| ApiError::BadRequest("Cannot pin messages in DMs".to_string()))?;
 
     // Verify user is a member of the channel
-    let is_member =
-        ChannelMember::is_member(pool.get_ref(), channel_id, current_user.id).await?;
+    let is_member = ChannelMember::is_member(pool.get_ref(), channel_id, current_user.id).await?;
     if !is_member {
         return Err(ApiError::Authorization(
             "You are not a member of this channel".to_string(),
@@ -90,8 +89,15 @@ pub async fn pin_message(
     let pin = PinnedMessage::pin(pool.get_ref(), channel_id, *message_id, current_user.id).await?;
 
     // Invalidate pins cache
-    if let Err(e) = crate::cache::pins::invalidate_pins_cache(redis_pool.get_ref(), channel.org_id, channel_id).await {
-        tracing::warn!("Failed to invalidate pins cache for channel {}: {}", channel_id, e);
+    if let Err(e) =
+        crate::cache::pins::invalidate_pins_cache(redis_pool.get_ref(), channel.org_id, channel_id)
+            .await
+    {
+        tracing::warn!(
+            "Failed to invalidate pins cache for channel {}: {}",
+            channel_id,
+            e
+        );
     }
 
     // Broadcast pin event via WebSocket
@@ -140,8 +146,7 @@ pub async fn unpin_message(
         .ok_or_else(|| ApiError::BadRequest("Cannot unpin messages in DMs".to_string()))?;
 
     // Verify user is a member of the channel
-    let is_member =
-        ChannelMember::is_member(pool.get_ref(), channel_id, current_user.id).await?;
+    let is_member = ChannelMember::is_member(pool.get_ref(), channel_id, current_user.id).await?;
     if !is_member {
         return Err(ApiError::Authorization(
             "You are not a member of this channel".to_string(),
@@ -160,8 +165,15 @@ pub async fn unpin_message(
     PinnedMessage::unpin(pool.get_ref(), channel_id, *message_id).await?;
 
     // Invalidate pins cache
-    if let Err(e) = crate::cache::pins::invalidate_pins_cache(redis_pool.get_ref(), channel.org_id, channel_id).await {
-        tracing::warn!("Failed to invalidate pins cache for channel {}: {}", channel_id, e);
+    if let Err(e) =
+        crate::cache::pins::invalidate_pins_cache(redis_pool.get_ref(), channel.org_id, channel_id)
+            .await
+    {
+        tracing::warn!(
+            "Failed to invalidate pins cache for channel {}: {}",
+            channel_id,
+            e
+        );
     }
 
     // Broadcast unpin event via WebSocket
@@ -202,8 +214,7 @@ pub async fn list_channel_pins(
         .ok_or_else(|| ApiError::NotFound("Channel not found".to_string()))?;
 
     // Verify user is a member of the channel
-    let is_member =
-        ChannelMember::is_member(pool.get_ref(), *channel_id, current_user.id).await?;
+    let is_member = ChannelMember::is_member(pool.get_ref(), *channel_id, current_user.id).await?;
     if !is_member {
         return Err(ApiError::Authorization(
             "You are not a member of this channel".to_string(),

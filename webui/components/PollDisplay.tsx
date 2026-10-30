@@ -8,10 +8,9 @@ import type { Poll } from '@/lib/types';
 
 interface PollDisplayProps {
   poll: Poll;
-  messageId: string;
 }
 
-export default function PollDisplay({ poll, messageId }: PollDisplayProps) {
+export default function PollDisplay({ poll }: PollDisplayProps) {
   const { user } = useAuth();
   const [voting, setVoting] = useState(false);
   const [localPoll, setLocalPoll] = useState(poll);
@@ -23,7 +22,6 @@ export default function PollDisplay({ poll, messageId }: PollDisplayProps) {
   }
 
   const hasVoted = localPoll.user_votes && localPoll.user_votes.length > 0;
-  const maxVotes = Math.max(...localPoll.options.map((o) => o.votes), 1);
 
   const handleVote = async (optionIndex: number) => {
     if (localPoll.closed || voting) return;
@@ -32,7 +30,7 @@ export default function PollDisplay({ poll, messageId }: PollDisplayProps) {
       setVoting(true);
       const updated = await apiClient.votePoll(localPoll.id, optionIndex);
       setLocalPoll(updated);
-    } catch (error) {
+    } catch {
       toastManager.error('Failed to vote');
     } finally {
       setVoting(false);
@@ -47,7 +45,7 @@ export default function PollDisplay({ poll, messageId }: PollDisplayProps) {
       // Refetch to get updated results
       const updated = await apiClient.getPoll(localPoll.id);
       setLocalPoll(updated);
-    } catch (error) {
+    } catch {
       toastManager.error('Failed to remove vote');
     } finally {
       setVoting(false);
@@ -59,7 +57,7 @@ export default function PollDisplay({ poll, messageId }: PollDisplayProps) {
       setClosing(true);
       const updated = await apiClient.closePoll(localPoll.id);
       setLocalPoll(updated);
-    } catch (error) {
+    } catch {
       toastManager.error('Failed to close poll');
     } finally {
       setClosing(false);

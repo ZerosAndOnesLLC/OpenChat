@@ -28,7 +28,10 @@ pub async fn get_user_from_cache(
     let mut conn = match redis_pool.get().await {
         Ok(c) => c,
         Err(e) => {
-            tracing::warn!("Redis pool error fetching user cache, falling back to DB: {}", e);
+            tracing::warn!(
+                "Redis pool error fetching user cache, falling back to DB: {}",
+                e
+            );
             return Ok(None);
         }
     };
@@ -46,8 +49,9 @@ pub async fn get_user_from_cache(
     match cached {
         Some(json) => {
             super::metrics::record_hit(redis_pool, super::metrics::CacheType::Users).await;
-            let user: User = serde_json::from_str(&json)
-                .map_err(|e| crate::errors::ApiError::Internal(format!("Cache deserialization error: {}", e)))?;
+            let user: User = serde_json::from_str(&json).map_err(|e| {
+                crate::errors::ApiError::Internal(format!("Cache deserialization error: {}", e))
+            })?;
             Ok(Some(user))
         }
         None => {
@@ -58,16 +62,16 @@ pub async fn get_user_from_cache(
 }
 
 /// Store user in cache
-pub async fn set_user_in_cache(
-    redis_pool: &RedisPool,
-    user: &User,
-) -> ApiResult<()> {
-    let mut conn = redis_pool.get().await
+pub async fn set_user_in_cache(redis_pool: &RedisPool, user: &User) -> ApiResult<()> {
+    let mut conn = redis_pool
+        .get()
+        .await
         .map_err(|e| crate::errors::ApiError::Internal(format!("Redis pool error: {}", e)))?;
 
     let key = user_cache_key(user.org_id, user.id);
-    let json = serde_json::to_string(user)
-        .map_err(|e| crate::errors::ApiError::Internal(format!("Cache serialization error: {}", e)))?;
+    let json = serde_json::to_string(user).map_err(|e| {
+        crate::errors::ApiError::Internal(format!("Cache serialization error: {}", e))
+    })?;
 
     let _: () = conn.set_ex(&key, json, USER_CACHE_TTL).await?;
 
@@ -80,7 +84,9 @@ pub async fn invalidate_user_cache(
     org_id: Uuid,
     user_id: Uuid,
 ) -> ApiResult<()> {
-    let mut conn = redis_pool.get().await
+    let mut conn = redis_pool
+        .get()
+        .await
         .map_err(|e| crate::errors::ApiError::Internal(format!("Redis pool error: {}", e)))?;
 
     let key = user_cache_key(org_id, user_id);
@@ -91,11 +97,10 @@ pub async fn invalidate_user_cache(
 
 /// Invalidate all user caches for an organization
 #[allow(dead_code)]
-pub async fn invalidate_org_users_cache(
-    redis_pool: &RedisPool,
-    org_id: Uuid,
-) -> ApiResult<()> {
-    let mut conn = redis_pool.get().await
+pub async fn invalidate_org_users_cache(redis_pool: &RedisPool, org_id: Uuid) -> ApiResult<()> {
+    let mut conn = redis_pool
+        .get()
+        .await
         .map_err(|e| crate::errors::ApiError::Internal(format!("Redis pool error: {}", e)))?;
 
     let pattern = format!("{}:{}:user:*", USER_CACHE_PREFIX, org_id);
@@ -126,7 +131,10 @@ pub async fn get_user_by_tv_id_from_cache(
     let mut conn = match redis_pool.get().await {
         Ok(c) => c,
         Err(e) => {
-            tracing::warn!("Redis pool error fetching user by TV ID cache, falling back to DB: {}", e);
+            tracing::warn!(
+                "Redis pool error fetching user by TV ID cache, falling back to DB: {}",
+                e
+            );
             return Ok(None);
         }
     };
@@ -137,15 +145,19 @@ pub async fn get_user_by_tv_id_from_cache(
     let user_id: Option<String> = match conn.get(&index_key).await {
         Ok(val) => val,
         Err(e) => {
-            tracing::warn!("Redis error fetching user TV index, falling back to DB: {}", e);
+            tracing::warn!(
+                "Redis error fetching user TV index, falling back to DB: {}",
+                e
+            );
             return Ok(None);
         }
     };
 
     match user_id {
         Some(id_str) => {
-            let user_id = Uuid::parse_str(&id_str)
-                .map_err(|e| crate::errors::ApiError::Internal(format!("Invalid UUID in cache: {}", e)))?;
+            let user_id = Uuid::parse_str(&id_str).map_err(|e| {
+                crate::errors::ApiError::Internal(format!("Invalid UUID in cache: {}", e))
+            })?;
             get_user_from_cache(redis_pool, org_id, user_id).await
         }
         None => {
@@ -156,19 +168,20 @@ pub async fn get_user_by_tv_id_from_cache(
 }
 
 /// Store user in cache with TV user ID index
-pub async fn set_user_with_tv_index_in_cache(
-    redis_pool: &RedisPool,
-    user: &User,
-) -> ApiResult<()> {
+pub async fn set_user_with_tv_index_in_cache(redis_pool: &RedisPool, user: &User) -> ApiResult<()> {
     // Store the main user data
     set_user_in_cache(redis_pool, user).await?;
 
     // Store the tv_user_id -> user_id index
-    let mut conn = redis_pool.get().await
+    let mut conn = redis_pool
+        .get()
+        .await
         .map_err(|e| crate::errors::ApiError::Internal(format!("Redis pool error: {}", e)))?;
 
     let index_key = tv_user_index_key(user.org_id, user.tv_user_id);
-    let _: () = conn.set_ex(&index_key, user.id.to_string(), USER_CACHE_TTL).await?;
+    let _: () = conn
+        .set_ex(&index_key, user.id.to_string(), USER_CACHE_TTL)
+        .await?;
 
     Ok(())
 }

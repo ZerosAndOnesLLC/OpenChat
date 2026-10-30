@@ -166,7 +166,8 @@ impl AuditLog {
 
         if let Some(user_id) = filters.user_id {
             query.push_str(" AND user_id = $1");
-            sqlx_query = sqlx::query_scalar::<_, i64>(sqlx::AssertSqlSafe(query.clone())).bind(user_id);
+            sqlx_query =
+                sqlx::query_scalar::<_, i64>(sqlx::AssertSqlSafe(query.clone())).bind(user_id);
         }
 
         if let Some(ref action) = filters.action {

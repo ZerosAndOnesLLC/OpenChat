@@ -290,9 +290,33 @@ export default function WorkflowExecutionHistory({ workflowId }: WorkflowExecuti
     }
   }, [workflowId]);
 
+  // Start over whenever the workflow changes (adjusted during render).
+  const [loadedFor, setLoadedFor] = useState(workflowId);
+  if (loadedFor !== workflowId) {
+    setLoadedFor(workflowId);
+    setLoading(true);
+    setError(null);
+  }
+
   useEffect(() => {
-    fetchExecutions(0, true);
-  }, [fetchExecutions]);
+    let cancelled = false;
+    apiClient.listWorkflowExecutions(workflowId, PAGE_SIZE, 0)
+      .then((results) => {
+        if (cancelled) return;
+        setHasMore(results.length === PAGE_SIZE);
+        setExecutions(results);
+        setOffset(results.length);
+      })
+      .catch((err) => {
+        if (!cancelled) setError(err instanceof Error ? err.message : 'Failed to load execution history');
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [workflowId]);
 
   const handleRefresh = () => {
     setOffset(0);

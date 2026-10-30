@@ -1,4 +1,4 @@
-use actix_web::{web, HttpMessage, HttpRequest, HttpResponse};
+use actix_web::{HttpMessage, HttpRequest, HttpResponse, web};
 use serde::{Deserialize, Serialize};
 use sqlx::PgPool;
 use uuid::Uuid;
@@ -65,10 +65,7 @@ impl From<Channel> for ChannelResponse {
 }
 
 /// GET /api/channels - List channels where the user is a member
-pub async fn list_channels(
-    pool: web::Data<PgPool>,
-    req: HttpRequest,
-) -> ApiResult<HttpResponse> {
+pub async fn list_channels(pool: web::Data<PgPool>, req: HttpRequest) -> ApiResult<HttpResponse> {
     let claims = req
         .extensions()
         .get::<TokenClaims>()
@@ -81,7 +78,8 @@ pub async fn list_channels(
         .ok_or_else(|| ApiError::NotFound("Current user not found".to_string()))?;
 
     // Only return channels where the user is a member
-    let channels = Channel::list_by_user_membership(pool.get_ref(), claims.org_id, current_user.id).await?;
+    let channels =
+        Channel::list_by_user_membership(pool.get_ref(), claims.org_id, current_user.id).await?;
     let response: Vec<ChannelResponse> = channels.into_iter().map(ChannelResponse::from).collect();
 
     Ok(HttpResponse::Ok().json(response))
@@ -155,7 +153,10 @@ pub async fn get_channel(
         .ok_or_else(|| ApiError::Authentication("Missing authentication".to_string()))?;
 
     // Try to get from cache first
-    if let Some(channel) = channel_cache::get_channel_from_cache(redis_pool.get_ref(), claims.org_id, *channel_id).await? {
+    if let Some(channel) =
+        channel_cache::get_channel_from_cache(redis_pool.get_ref(), claims.org_id, *channel_id)
+            .await?
+    {
         return Ok(HttpResponse::Ok().json(ChannelResponse::from(channel)));
     }
 
@@ -213,7 +214,10 @@ pub async fn update_channel(
     .await?;
 
     // Invalidate cache after update
-    if let Err(e) = channel_cache::invalidate_channel_cache(redis_pool.get_ref(), channel.org_id, *channel_id).await {
+    if let Err(e) =
+        channel_cache::invalidate_channel_cache(redis_pool.get_ref(), channel.org_id, *channel_id)
+            .await
+    {
         tracing::warn!("Failed to invalidate channel cache: {}", e);
     }
 
@@ -282,10 +286,19 @@ pub async fn delete_channel(
     }
 
     // Invalidate cache after deletion
-    if let Err(e) = channel_cache::invalidate_channel_cache(redis_pool.get_ref(), channel.org_id, *channel_id).await {
+    if let Err(e) =
+        channel_cache::invalidate_channel_cache(redis_pool.get_ref(), channel.org_id, *channel_id)
+            .await
+    {
         tracing::warn!("Failed to invalidate channel cache: {}", e);
     }
-    if let Err(e) = channel_cache::invalidate_channel_members_cache(redis_pool.get_ref(), channel.org_id, *channel_id).await {
+    if let Err(e) = channel_cache::invalidate_channel_members_cache(
+        redis_pool.get_ref(),
+        channel.org_id,
+        *channel_id,
+    )
+    .await
+    {
         tracing::warn!("Failed to invalidate channel members cache: {}", e);
     }
 
@@ -306,7 +319,13 @@ pub async fn list_members(
         .ok_or_else(|| ApiError::Authentication("Missing authentication".to_string()))?;
 
     // Try to get from cache first
-    if let Some(members) = channel_cache::get_channel_members_from_cache(redis_pool.get_ref(), claims.org_id, *channel_id).await? {
+    if let Some(members) = channel_cache::get_channel_members_from_cache(
+        redis_pool.get_ref(),
+        claims.org_id,
+        *channel_id,
+    )
+    .await?
+    {
         return Ok(HttpResponse::Ok().json(members));
     }
 
@@ -319,7 +338,14 @@ pub async fn list_members(
     let members = ChannelMember::list_by_channel(pool.get_ref(), *channel_id).await?;
 
     // Store in cache for next time
-    if let Err(e) = channel_cache::set_channel_members_in_cache(redis_pool.get_ref(), claims.org_id, *channel_id, &members).await {
+    if let Err(e) = channel_cache::set_channel_members_in_cache(
+        redis_pool.get_ref(),
+        claims.org_id,
+        *channel_id,
+        &members,
+    )
+    .await
+    {
         tracing::warn!("Failed to cache channel members: {}", e);
     }
 
@@ -380,7 +406,13 @@ pub async fn add_member(
     }
 
     // Invalidate members cache after adding a new member
-    if let Err(e) = channel_cache::invalidate_channel_members_cache(redis_pool.get_ref(), channel.org_id, *channel_id).await {
+    if let Err(e) = channel_cache::invalidate_channel_members_cache(
+        redis_pool.get_ref(),
+        channel.org_id,
+        *channel_id,
+    )
+    .await
+    {
         tracing::warn!("Failed to invalidate channel members cache: {}", e);
     }
 
@@ -424,8 +456,13 @@ pub async fn add_member(
         });
         tokio::spawn(async move {
             crate::services::workflow_engine::check_triggers(
-                pool.get_ref(), ws.get_ref(), org_id, "channel_join", trigger_data,
-            ).await;
+                pool.get_ref(),
+                ws.get_ref(),
+                org_id,
+                "channel_join",
+                trigger_data,
+            )
+            .await;
         });
     }
 
@@ -486,7 +523,13 @@ pub async fn remove_member(
     }
 
     // Invalidate members cache after removing a member
-    if let Err(e) = channel_cache::invalidate_channel_members_cache(redis_pool.get_ref(), channel.org_id, channel_id).await {
+    if let Err(e) = channel_cache::invalidate_channel_members_cache(
+        redis_pool.get_ref(),
+        channel.org_id,
+        channel_id,
+    )
+    .await
+    {
         tracing::warn!("Failed to invalidate channel members cache: {}", e);
     }
 
@@ -521,7 +564,8 @@ pub async fn list_public_channels(
         .ok_or_else(|| ApiError::NotFound("Current user not found".to_string()))?;
 
     // Only return public channels the user is NOT already a member of
-    let channels = Channel::list_public_channels(pool.get_ref(), claims.org_id, current_user.id).await?;
+    let channels =
+        Channel::list_public_channels(pool.get_ref(), claims.org_id, current_user.id).await?;
     let response: Vec<ChannelResponse> = channels.into_iter().map(ChannelResponse::from).collect();
 
     Ok(HttpResponse::Ok().json(response))
@@ -561,7 +605,8 @@ pub async fn join_channel(
     // Only public channels can be joined
     if channel.channel_type != "public" {
         return Err(ApiError::BadRequest(
-            "Only public channels can be joined. Private channels require an invitation.".to_string(),
+            "Only public channels can be joined. Private channels require an invitation."
+                .to_string(),
         ));
     }
 
@@ -590,7 +635,13 @@ pub async fn join_channel(
     }
 
     // Invalidate members cache after adding a new member
-    if let Err(e) = channel_cache::invalidate_channel_members_cache(redis_pool.get_ref(), channel.org_id, *channel_id).await {
+    if let Err(e) = channel_cache::invalidate_channel_members_cache(
+        redis_pool.get_ref(),
+        channel.org_id,
+        *channel_id,
+    )
+    .await
+    {
         tracing::warn!("Failed to invalidate channel members cache: {}", e);
     }
 
@@ -620,8 +671,13 @@ pub async fn join_channel(
         });
         tokio::spawn(async move {
             crate::services::workflow_engine::check_triggers(
-                pool.get_ref(), ws.get_ref(), org_id, "channel_join", trigger_data,
-            ).await;
+                pool.get_ref(),
+                ws.get_ref(),
+                org_id,
+                "channel_join",
+                trigger_data,
+            )
+            .await;
         });
     }
 
@@ -672,20 +728,18 @@ pub async fn leave_channel(
     let member_count = members.len();
 
     // Handle creator leaving based on channel type
-    if channel.created_by == current_user.id {
-        if channel.channel_type == "private" {
-            // For private channels, archive if creator leaves (they're usually the last member)
-            // If there are other members, the channel will be archived
-            if member_count > 1 {
-                // Archive the channel when creator leaves a private channel
-                Channel::archive(pool.get_ref(), *channel_id).await?;
-            } else {
-                // Creator is the only member, archive the channel
-                Channel::archive(pool.get_ref(), *channel_id).await?;
-            }
+    if channel.created_by == current_user.id && channel.channel_type == "private" {
+        // For private channels, archive if creator leaves (they're usually the last member)
+        // If there are other members, the channel will be archived
+        if member_count > 1 {
+            // Archive the channel when creator leaves a private channel
+            Channel::archive(pool.get_ref(), *channel_id).await?;
+        } else {
+            // Creator is the only member, archive the channel
+            Channel::archive(pool.get_ref(), *channel_id).await?;
         }
-        // For public channels, creator can leave freely
     }
+    // For public channels, creator can leave freely
 
     // Remove user from channel
     ChannelMember::remove(pool.get_ref(), *channel_id, current_user.id).await?;
@@ -709,7 +763,13 @@ pub async fn leave_channel(
     }
 
     // Invalidate members cache after leaving
-    if let Err(e) = channel_cache::invalidate_channel_members_cache(redis_pool.get_ref(), channel.org_id, *channel_id).await {
+    if let Err(e) = channel_cache::invalidate_channel_members_cache(
+        redis_pool.get_ref(),
+        channel.org_id,
+        *channel_id,
+    )
+    .await
+    {
         tracing::warn!("Failed to invalidate channel members cache: {}", e);
     }
 

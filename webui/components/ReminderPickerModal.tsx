@@ -63,7 +63,7 @@ export default function ReminderPickerModal({ isOpen, onClose, messageId }: Remi
       });
       toastManager.success('Reminder set');
       onClose();
-    } catch (error) {
+    } catch {
       toastManager.error('Failed to set reminder');
     } finally {
       setLoading(false);

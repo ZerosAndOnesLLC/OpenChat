@@ -30,7 +30,7 @@ export default function NotificationManager() {
 
   useEffect(() => {
     // Subscribe to store changes to detect new messages
-    const unsub = useWebSocketStore.subscribe((state, prevState) => {
+    const unsub = useWebSocketStore.subscribe((state) => {
       // Skip until initial state is loaded
       if (!state.initialStateLoaded) return;
 

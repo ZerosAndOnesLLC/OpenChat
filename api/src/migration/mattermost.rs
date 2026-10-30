@@ -1,4 +1,4 @@
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use reqwest::{Client, StatusCode};
 use sqlx::{PgPool, Row, postgres::PgPoolOptions};
 use std::time::Duration;
@@ -18,10 +18,11 @@ pub struct MattermostClient {
 impl MattermostClient {
     pub async fn new(connection: MattermostConnection) -> Result<Self> {
         match &connection {
-            MattermostConnection::Api { server_url, access_token } => {
-                let http_client = Client::builder()
-                    .timeout(Duration::from_secs(30))
-                    .build()?;
+            MattermostConnection::Api {
+                server_url,
+                access_token,
+            } => {
+                let http_client = Client::builder().timeout(Duration::from_secs(30)).build()?;
 
                 // Validate connection
                 let url = format!("{}/api/v4/users/me", server_url.trim_end_matches('/'));
@@ -62,7 +63,10 @@ impl MattermostClient {
 
     pub async fn get_server_version(&self) -> Result<String> {
         match &self.connection {
-            MattermostConnection::Api { server_url, access_token } => {
+            MattermostConnection::Api {
+                server_url,
+                access_token,
+            } => {
                 let client = self.http_client.as_ref().unwrap();
                 let url = format!("{}/api/v4/system/ping", server_url.trim_end_matches('/'));
                 let resp: serde_json::Value = client
@@ -72,14 +76,20 @@ impl MattermostClient {
                     .await?
                     .json()
                     .await?;
-                Ok(resp.get("status").and_then(|s| s.as_str()).unwrap_or("unknown").to_string())
+                Ok(resp
+                    .get("status")
+                    .and_then(|s| s.as_str())
+                    .unwrap_or("unknown")
+                    .to_string())
             }
             MattermostConnection::Database { .. } => {
                 let pool = self.db_pool.as_ref().unwrap();
                 let row = sqlx::query("SELECT value FROM public.systems WHERE name = 'Version'")
                     .fetch_optional(pool)
                     .await?;
-                Ok(row.map(|r| r.get::<String, _>("value")).unwrap_or_else(|| "unknown".to_string()))
+                Ok(row
+                    .map(|r| r.get::<String, _>("value"))
+                    .unwrap_or_else(|| "unknown".to_string()))
             }
         }
     }
@@ -87,7 +97,10 @@ impl MattermostClient {
     /// Get all users (excluding deleted and bots)
     pub async fn get_users(&self) -> Result<Vec<MmUser>> {
         match &self.connection {
-            MattermostConnection::Api { server_url, access_token } => {
+            MattermostConnection::Api {
+                server_url,
+                access_token,
+            } => {
                 let client = self.http_client.as_ref().unwrap();
                 let mut all_users = Vec::new();
                 let mut page = 0;
@@ -117,10 +130,10 @@ impl MattermostClient {
                 }
 
                 // Filter out system/bot users
-                Ok(all_users.into_iter().filter(|u| {
-                    !u.email.ends_with("@localhost") &&
-                    !u.username.contains("bot")
-                }).collect())
+                Ok(all_users
+                    .into_iter()
+                    .filter(|u| !u.email.ends_with("@localhost") && !u.username.contains("bot"))
+                    .collect())
             }
             MattermostConnection::Database { .. } => {
                 let pool = self.db_pool.as_ref().unwrap();
@@ -132,20 +145,23 @@ impl MattermostClient {
                     AND email NOT LIKE '%@localhost'
                     AND username NOT LIKE '%bot%'
                     ORDER BY createat
-                    "#
+                    "#,
                 )
                 .fetch_all(pool)
                 .await?;
 
-                Ok(rows.iter().map(|r| MmUser {
-                    id: r.get("id"),
-                    username: r.get("username"),
-                    email: r.get("email"),
-                    first_name: r.get("firstname"),
-                    last_name: r.get("lastname"),
-                    nickname: r.get("nickname"),
-                    delete_at: r.get::<i64, _>("deleteat"),
-                }).collect())
+                Ok(rows
+                    .iter()
+                    .map(|r| MmUser {
+                        id: r.get("id"),
+                        username: r.get("username"),
+                        email: r.get("email"),
+                        first_name: r.get("firstname"),
+                        last_name: r.get("lastname"),
+                        nickname: r.get("nickname"),
+                        delete_at: r.get::<i64, _>("deleteat"),
+                    })
+                    .collect())
             }
         }
     }
@@ -153,7 +169,10 @@ impl MattermostClient {
     /// Get all channels (public and private, excluding deleted)
     pub async fn get_channels(&self) -> Result<Vec<MmChannel>> {
         match &self.connection {
-            MattermostConnection::Api { server_url, access_token } => {
+            MattermostConnection::Api {
+                server_url,
+                access_token,
+            } => {
                 let client = self.http_client.as_ref().unwrap();
 
                 // First get all teams
@@ -214,23 +233,26 @@ impl MattermostClient {
                     WHERE deleteat = 0
                     AND type IN ('O', 'P', 'D', 'G')
                     ORDER BY createat
-                    "#
+                    "#,
                 )
                 .fetch_all(pool)
                 .await?;
 
-                Ok(rows.iter().map(|r| MmChannel {
-                    id: r.get("id"),
-                    team_id: r.get::<Option<String>, _>("teamid").unwrap_or_default(),
-                    name: r.get("name"),
-                    display_name: r.get("displayname"),
-                    channel_type: r.get::<String, _>("type"),
-                    header: r.get("header"),
-                    purpose: r.get("purpose"),
-                    creator_id: r.get::<Option<String>, _>("creatorid").unwrap_or_default(),
-                    delete_at: r.get::<i64, _>("deleteat"),
-                    total_msg_count: r.get::<i64, _>("totalmsgcount"),
-                }).collect())
+                Ok(rows
+                    .iter()
+                    .map(|r| MmChannel {
+                        id: r.get("id"),
+                        team_id: r.get::<Option<String>, _>("teamid").unwrap_or_default(),
+                        name: r.get("name"),
+                        display_name: r.get("displayname"),
+                        channel_type: r.get::<String, _>("type"),
+                        header: r.get("header"),
+                        purpose: r.get("purpose"),
+                        creator_id: r.get::<Option<String>, _>("creatorid").unwrap_or_default(),
+                        delete_at: r.get::<i64, _>("deleteat"),
+                        total_msg_count: r.get::<i64, _>("totalmsgcount"),
+                    })
+                    .collect())
             }
         }
     }
@@ -238,7 +260,10 @@ impl MattermostClient {
     /// Get channel members
     pub async fn get_channel_members(&self, channel_id: &str) -> Result<Vec<MmChannelMember>> {
         match &self.connection {
-            MattermostConnection::Api { server_url, access_token } => {
+            MattermostConnection::Api {
+                server_url,
+                access_token,
+            } => {
                 let client = self.http_client.as_ref().unwrap();
                 let mut all_members = Vec::new();
                 let mut page = 0;
@@ -277,25 +302,36 @@ impl MattermostClient {
                     SELECT channelid, userid, roles
                     FROM public.channelmembers
                     WHERE channelid = $1
-                    "#
+                    "#,
                 )
                 .bind(channel_id)
                 .fetch_all(pool)
                 .await?;
 
-                Ok(rows.iter().map(|r| MmChannelMember {
-                    channel_id: r.get("channelid"),
-                    user_id: r.get("userid"),
-                    roles: r.get("roles"),
-                }).collect())
+                Ok(rows
+                    .iter()
+                    .map(|r| MmChannelMember {
+                        channel_id: r.get("channelid"),
+                        user_id: r.get("userid"),
+                        roles: r.get("roles"),
+                    })
+                    .collect())
             }
         }
     }
 
     /// Get posts for a channel with pagination
-    pub async fn get_channel_posts(&self, channel_id: &str, page: i32, per_page: i32) -> Result<Vec<MmPost>> {
+    pub async fn get_channel_posts(
+        &self,
+        channel_id: &str,
+        page: i32,
+        per_page: i32,
+    ) -> Result<Vec<MmPost>> {
         match &self.connection {
-            MattermostConnection::Api { server_url, access_token } => {
+            MattermostConnection::Api {
+                server_url,
+                access_token,
+            } => {
                 let client = self.http_client.as_ref().unwrap();
                 let url = format!(
                     "{}/api/v4/channels/{}/posts?page={}&per_page={}",
@@ -314,7 +350,9 @@ impl MattermostClient {
                     .await?;
 
                 // Return posts in order
-                let posts: Vec<MmPost> = post_list.order.iter()
+                let posts: Vec<MmPost> = post_list
+                    .order
+                    .iter()
                     .filter_map(|id| post_list.posts.get(id).cloned())
                     .filter(|p| !p.is_deleted() && !p.is_system_message())
                     .collect();
@@ -335,7 +373,7 @@ impl MattermostClient {
                     AND (type IS NULL OR type = '')
                     ORDER BY createat ASC
                     LIMIT $2 OFFSET $3
-                    "#
+                    "#,
                 )
                 .bind(channel_id)
                 .bind(per_page as i64)
@@ -343,11 +381,11 @@ impl MattermostClient {
                 .fetch_all(pool)
                 .await?;
 
-                Ok(rows.iter().map(|r| {
-                    let file_ids_str: Option<String> = r.get("fileids");
-                    let file_ids = file_ids_str
-                        .filter(|s| !s.is_empty())
-                        .map(|s| {
+                Ok(rows
+                    .iter()
+                    .map(|r| {
+                        let file_ids_str: Option<String> = r.get("fileids");
+                        let file_ids = file_ids_str.filter(|s| !s.is_empty()).map(|s| {
                             s.trim_matches(|c| c == '[' || c == ']')
                                 .split(',')
                                 .map(|s| s.trim().trim_matches('"').to_string())
@@ -355,22 +393,25 @@ impl MattermostClient {
                                 .collect()
                         });
 
-                    MmPost {
-                        id: r.get("id"),
-                        channel_id: r.get("channelid"),
-                        user_id: r.get("userid"),
-                        message: r.get("message"),
-                        root_id: r.get::<Option<String>, _>("rootid").filter(|s| !s.is_empty()),
-                        create_at: r.get("createat"),
-                        update_at: r.get("updateat"),
-                        edit_at: r.get::<i64, _>("editat"),
-                        delete_at: r.get("deleteat"),
-                        is_pinned: r.get("ispinned"),
-                        file_ids,
-                        has_reactions: r.get("hasreactions"),
-                        post_type: r.get::<Option<String>, _>("type"),
-                    }
-                }).collect())
+                        MmPost {
+                            id: r.get("id"),
+                            channel_id: r.get("channelid"),
+                            user_id: r.get("userid"),
+                            message: r.get("message"),
+                            root_id: r
+                                .get::<Option<String>, _>("rootid")
+                                .filter(|s| !s.is_empty()),
+                            create_at: r.get("createat"),
+                            update_at: r.get("updateat"),
+                            edit_at: r.get::<i64, _>("editat"),
+                            delete_at: r.get("deleteat"),
+                            is_pinned: r.get("ispinned"),
+                            file_ids,
+                            has_reactions: r.get("hasreactions"),
+                            post_type: r.get::<Option<String>, _>("type"),
+                        }
+                    })
+                    .collect())
             }
         }
     }
@@ -412,7 +453,7 @@ impl MattermostClient {
                     r#"
                     SELECT COUNT(*) FROM public.posts
                     WHERE channelid = $1 AND deleteat = 0 AND (type IS NULL OR type = '')
-                    "#
+                    "#,
                 )
                 .bind(channel_id)
                 .fetch_one(pool)
@@ -425,7 +466,10 @@ impl MattermostClient {
     /// Get channel by ID
     pub async fn get_channel_by_id(&self, channel_id: &str) -> Result<Option<MmChannel>> {
         match &self.connection {
-            MattermostConnection::Api { server_url, access_token } => {
+            MattermostConnection::Api {
+                server_url,
+                access_token,
+            } => {
                 let client = self.http_client.as_ref().unwrap();
                 let url = format!(
                     "{}/api/v4/channels/{}",
@@ -454,7 +498,7 @@ impl MattermostClient {
                            creatorid, deleteat, totalmsgcount
                     FROM public.channels
                     WHERE id = $1
-                    "#
+                    "#,
                 )
                 .bind(channel_id)
                 .fetch_optional(pool)
@@ -479,7 +523,10 @@ impl MattermostClient {
     /// Get file info
     pub async fn get_file_info(&self, file_id: &str) -> Result<Option<MmFileInfo>> {
         match &self.connection {
-            MattermostConnection::Api { server_url, access_token } => {
+            MattermostConnection::Api {
+                server_url,
+                access_token,
+            } => {
                 let client = self.http_client.as_ref().unwrap();
                 let url = format!(
                     "{}/api/v4/files/{}/info",
@@ -507,7 +554,7 @@ impl MattermostClient {
                     SELECT id, postid, name, extension, size, mimetype, deleteat
                     FROM public.fileinfo
                     WHERE id = $1
-                    "#
+                    "#,
                 )
                 .bind(file_id)
                 .fetch_optional(pool)
@@ -529,7 +576,10 @@ impl MattermostClient {
     /// Download file content
     pub async fn download_file(&self, file_id: &str) -> Result<bytes::Bytes> {
         match &self.connection {
-            MattermostConnection::Api { server_url, access_token } => {
+            MattermostConnection::Api {
+                server_url,
+                access_token,
+            } => {
                 let client = self.http_client.as_ref().unwrap();
                 let url = format!(
                     "{}/api/v4/files/{}",
@@ -551,7 +601,9 @@ impl MattermostClient {
             }
             MattermostConnection::Database { .. } => {
                 // DB mode doesn't have file content - need file path
-                Err(anyhow!("File download not supported in database mode. Use API mode or provide file storage path."))
+                Err(anyhow!(
+                    "File download not supported in database mode. Use API mode or provide file storage path."
+                ))
             }
         }
     }
@@ -559,7 +611,10 @@ impl MattermostClient {
     /// Get reactions for a post
     pub async fn get_post_reactions(&self, post_id: &str) -> Result<Vec<MmReaction>> {
         match &self.connection {
-            MattermostConnection::Api { server_url, access_token } => {
+            MattermostConnection::Api {
+                server_url,
+                access_token,
+            } => {
                 let client = self.http_client.as_ref().unwrap();
                 let url = format!(
                     "{}/api/v4/posts/{}/reactions",
@@ -584,18 +639,21 @@ impl MattermostClient {
                     SELECT userid, postid, emojiname, createat
                     FROM public.reactions
                     WHERE postid = $1 AND deleteat = 0
-                    "#
+                    "#,
                 )
                 .bind(post_id)
                 .fetch_all(pool)
                 .await?;
 
-                Ok(rows.iter().map(|r| MmReaction {
-                    user_id: r.get("userid"),
-                    post_id: r.get("postid"),
-                    emoji_name: r.get("emojiname"),
-                    create_at: r.get("createat"),
-                }).collect())
+                Ok(rows
+                    .iter()
+                    .map(|r| MmReaction {
+                        user_id: r.get("userid"),
+                        post_id: r.get("postid"),
+                        emoji_name: r.get("emojiname"),
+                        create_at: r.get("createat"),
+                    })
+                    .collect())
             }
         }
     }
@@ -606,8 +664,14 @@ impl MattermostClient {
             MattermostConnection::Api { .. } => {
                 let users = self.get_users().await?.len() as i64;
                 let channels = self.get_channels().await?;
-                let channel_count = channels.iter().filter(|c| c.is_public() || c.is_private()).count() as i64;
-                let dm_count = channels.iter().filter(|c| c.is_direct() || c.is_group()).count() as i64;
+                let channel_count = channels
+                    .iter()
+                    .filter(|c| c.is_public() || c.is_private())
+                    .count() as i64;
+                let dm_count = channels
+                    .iter()
+                    .filter(|c| c.is_direct() || c.is_group())
+                    .count() as i64;
 
                 // Message count is harder via API, estimate from channels
                 let mut total_messages: i64 = 0;

@@ -2,6 +2,7 @@
 
 import StatusIndicator from './StatusIndicator';
 import type { User } from '@/lib/types';
+import Image from 'next/image';
 
 interface UserAvatarProps {
   user: User | { display_name: string; status?: 'online' | 'offline' | 'away' | 'dnd'; avatar_url?: string };
@@ -41,9 +42,11 @@ export default function UserAvatar({ user, size = 'md', showStatus = true }: Use
         className={`${sizeClass} flex flex-shrink-0 items-center justify-center rounded-full bg-blue-600 font-semibold text-white`}
       >
         {user.avatar_url ? (
-          <img
+          <Image
             src={user.avatar_url}
             alt={user.display_name}
+            width={64}
+            height={64}
             className="h-full w-full rounded-full object-cover"
           />
         ) : (

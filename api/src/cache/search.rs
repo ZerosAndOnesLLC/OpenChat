@@ -12,7 +12,13 @@ const SEARCH_CACHE_PREFIX: &str = "openchat:search";
 
 /// Build cache key for search results
 /// Uses a hash of the query parameters to create a unique key
-fn search_cache_key(org_id: &str, query: &str, scope: &str, channel_id: Option<&str>, dm_id: Option<&str>) -> String {
+fn search_cache_key(
+    org_id: &str,
+    query: &str,
+    scope: &str,
+    channel_id: Option<&str>,
+    dm_id: Option<&str>,
+) -> String {
     let mut hasher = DefaultHasher::new();
     org_id.hash(&mut hasher);
     query.hash(&mut hasher);
@@ -52,8 +58,9 @@ pub async fn get_search_results_from_cache(
 
     match cached {
         Some(json) => {
-            let results: SearchResult = serde_json::from_str(&json)
-                .map_err(|e| crate::errors::ApiError::Internal(format!("Cache deserialization error: {}", e)))?;
+            let results: SearchResult = serde_json::from_str(&json).map_err(|e| {
+                crate::errors::ApiError::Internal(format!("Cache deserialization error: {}", e))
+            })?;
             Ok(Some(results))
         }
         None => Ok(None),
@@ -70,12 +77,15 @@ pub async fn set_search_results_in_cache(
     dm_id: Option<&str>,
     results: &SearchResult,
 ) -> ApiResult<()> {
-    let mut conn = redis_pool.get().await
+    let mut conn = redis_pool
+        .get()
+        .await
         .map_err(|e| crate::errors::ApiError::Internal(format!("Redis pool error: {}", e)))?;
 
     let key = search_cache_key(org_id, query, scope, channel_id, dm_id);
-    let json = serde_json::to_string(results)
-        .map_err(|e| crate::errors::ApiError::Internal(format!("Cache serialization error: {}", e)))?;
+    let json = serde_json::to_string(results).map_err(|e| {
+        crate::errors::ApiError::Internal(format!("Cache serialization error: {}", e))
+    })?;
 
     let _: () = conn.set_ex(&key, json, SEARCH_CACHE_TTL).await?;
 

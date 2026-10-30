@@ -1,20 +1,18 @@
 use actix_web::{
-    dev::{forward_ready, Service, ServiceRequest, ServiceResponse, Transform},
     Error, HttpMessage,
+    dev::{Service, ServiceRequest, ServiceResponse, Transform, forward_ready},
 };
 use futures_util::future::LocalBoxFuture;
 use redis::AsyncCommands;
 use sqlx::PgPool;
 use std::{
-    future::{ready, Ready},
+    future::{Ready, ready},
     rc::Rc,
 };
 use tracing::error;
 
 use crate::{
-    db::RedisPool,
-    errors::ApiError,
-    models::role::user_has_permission,
+    db::RedisPool, errors::ApiError, models::role::user_has_permission,
     services::tv_api::TokenClaims,
 };
 
@@ -159,7 +157,10 @@ async fn check_permission_cached(
     let mut conn = match redis_pool.get().await {
         Ok(c) => c,
         Err(e) => {
-            tracing::warn!("Redis pool error in permission check, skipping cache: {}", e);
+            tracing::warn!(
+                "Redis pool error in permission check, skipping cache: {}",
+                e
+            );
             // Fall through to database check
             let has_perm = user_has_permission(pool, roles, permission).await?;
             return Ok(has_perm);
@@ -185,7 +186,10 @@ async fn check_permission_cached(
 
     // Store in cache (ignore errors)
     let cache_value = if has_perm { "1" } else { "0" };
-    if let Err(e) = conn.set_ex::<_, _, ()>(&cache_key, cache_value, PERMISSION_CACHE_TTL).await {
+    if let Err(e) = conn
+        .set_ex::<_, _, ()>(&cache_key, cache_value, PERMISSION_CACHE_TTL)
+        .await
+    {
         tracing::warn!("Failed to cache permission check: {}", e);
     }
 
@@ -194,10 +198,10 @@ async fn check_permission_cached(
 
 /// Helper function to invalidate permission cache when roles or permissions are updated
 #[allow(dead_code)]
-pub async fn invalidate_permission_cache(
-    redis_pool: &RedisPool,
-) -> Result<(), ApiError> {
-    let mut conn = redis_pool.get().await
+pub async fn invalidate_permission_cache(redis_pool: &RedisPool) -> Result<(), ApiError> {
+    let mut conn = redis_pool
+        .get()
+        .await
         .map_err(|e| ApiError::Internal(format!("Redis pool error: {}", e)))?;
 
     // Delete all permission cache keys

@@ -1,4 +1,4 @@
-use actix_web::{web, HttpMessage, HttpRequest, HttpResponse};
+use actix_web::{HttpMessage, HttpRequest, HttpResponse, web};
 use sqlx::PgPool;
 use uuid::Uuid;
 
@@ -38,13 +38,8 @@ pub async fn set_channel_notification_pref(
         ));
     }
 
-    let pref = NotificationPref::upsert_channel(
-        pool.get_ref(),
-        current_user.id,
-        *channel_id,
-        data,
-    )
-    .await?;
+    let pref = NotificationPref::upsert_channel(pool.get_ref(), current_user.id, *channel_id, data)
+        .await?;
 
     // Invalidate cache
     if let Err(e) = prefs_cache::invalidate_user_prefs_cache(
@@ -76,12 +71,8 @@ pub async fn get_channel_notification_pref(
         .await?
         .ok_or_else(|| ApiError::NotFound("Current user not found".to_string()))?;
 
-    let pref = NotificationPref::get_for_channel(
-        pool.get_ref(),
-        current_user.id,
-        *channel_id,
-    )
-    .await?;
+    let pref =
+        NotificationPref::get_for_channel(pool.get_ref(), current_user.id, *channel_id).await?;
 
     match pref {
         Some(p) => Ok(HttpResponse::Ok().json(p)),
@@ -118,13 +109,7 @@ pub async fn set_dm_notification_pref(
         ));
     }
 
-    let pref = NotificationPref::upsert_dm(
-        pool.get_ref(),
-        current_user.id,
-        *dm_id,
-        data,
-    )
-    .await?;
+    let pref = NotificationPref::upsert_dm(pool.get_ref(), current_user.id, *dm_id, data).await?;
 
     // Invalidate cache
     if let Err(e) = prefs_cache::invalidate_user_prefs_cache(
@@ -156,12 +141,7 @@ pub async fn get_dm_notification_pref(
         .await?
         .ok_or_else(|| ApiError::NotFound("Current user not found".to_string()))?;
 
-    let pref = NotificationPref::get_for_dm(
-        pool.get_ref(),
-        current_user.id,
-        *dm_id,
-    )
-    .await?;
+    let pref = NotificationPref::get_for_dm(pool.get_ref(), current_user.id, *dm_id).await?;
 
     match pref {
         Some(p) => Ok(HttpResponse::Ok().json(p)),

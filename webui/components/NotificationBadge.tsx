@@ -13,18 +13,13 @@ export default function NotificationBadge() {
 
   // Load initial count on mount
   useEffect(() => {
-    loadCount();
+    apiClient.getUnreadNotificationCount()
+      .then((data) => {
+        // Update the WebSocket store with initial count
+        useWebSocketStore.setState({ notificationCount: data.count });
+      })
+      .catch((error) => console.error('Failed to load notification count:', error));
   }, []);
-
-  const loadCount = async () => {
-    try {
-      const data = await apiClient.getUnreadNotificationCount();
-      // Update the WebSocket store with initial count
-      useWebSocketStore.setState({ notificationCount: data.count });
-    } catch (error) {
-      console.error('Failed to load notification count:', error);
-    }
-  };
 
   const handleClick = () => {
     setIsOpen(!isOpen);

@@ -31,6 +31,27 @@ pub struct IncomingWebhookWithUrl {
     pub url: String,
 }
 
+/// Fields for [`IncomingWebhook::create`].
+pub struct NewIncomingWebhook<'a> {
+    pub org_id: Uuid,
+    pub channel_id: Uuid,
+    pub display_name: &'a str,
+    pub description: Option<&'a str>,
+    pub icon_url: Option<&'a str>,
+    pub username: Option<&'a str>,
+    pub created_by: Uuid,
+}
+
+/// Partial update for [`IncomingWebhook::update`]; `None` keeps the stored value.
+pub struct IncomingWebhookUpdate<'a> {
+    pub display_name: Option<&'a str>,
+    pub description: Option<&'a str>,
+    pub icon_url: Option<&'a str>,
+    pub username: Option<&'a str>,
+    pub channel_id: Option<Uuid>,
+    pub enabled: Option<bool>,
+}
+
 impl IncomingWebhook {
     /// Generate a secure random token for webhooks
     fn generate_token() -> String {
@@ -41,16 +62,16 @@ impl IncomingWebhook {
     }
 
     /// Create a new incoming webhook
-    pub async fn create(
-        pool: &PgPool,
-        org_id: Uuid,
-        channel_id: Uuid,
-        display_name: &str,
-        description: Option<&str>,
-        icon_url: Option<&str>,
-        username: Option<&str>,
-        created_by: Uuid,
-    ) -> ApiResult<IncomingWebhook> {
+    pub async fn create(pool: &PgPool, new: NewIncomingWebhook<'_>) -> ApiResult<IncomingWebhook> {
+        let NewIncomingWebhook {
+            org_id,
+            channel_id,
+            display_name,
+            description,
+            icon_url,
+            username,
+            created_by,
+        } = new;
         let token = Self::generate_token();
 
         let webhook = sqlx::query_as::<_, IncomingWebhook>(
@@ -76,12 +97,11 @@ impl IncomingWebhook {
 
     /// Get a webhook by ID
     pub async fn get_by_id(pool: &PgPool, id: Uuid) -> ApiResult<Option<IncomingWebhook>> {
-        let webhook = sqlx::query_as::<_, IncomingWebhook>(
-            "SELECT * FROM incoming_webhooks WHERE id = $1",
-        )
-        .bind(id)
-        .fetch_optional(pool)
-        .await?;
+        let webhook =
+            sqlx::query_as::<_, IncomingWebhook>("SELECT * FROM incoming_webhooks WHERE id = $1")
+                .bind(id)
+                .fetch_optional(pool)
+                .await?;
 
         Ok(webhook)
     }
@@ -116,7 +136,10 @@ impl IncomingWebhook {
 
     /// List webhooks for a specific channel
     #[allow(dead_code)]
-    pub async fn list_by_channel(pool: &PgPool, channel_id: Uuid) -> ApiResult<Vec<IncomingWebhook>> {
+    pub async fn list_by_channel(
+        pool: &PgPool,
+        channel_id: Uuid,
+    ) -> ApiResult<Vec<IncomingWebhook>> {
         let webhooks = sqlx::query_as::<_, IncomingWebhook>(
             r#"
             SELECT * FROM incoming_webhooks
@@ -135,13 +158,16 @@ impl IncomingWebhook {
     pub async fn update(
         pool: &PgPool,
         id: Uuid,
-        display_name: Option<&str>,
-        description: Option<&str>,
-        icon_url: Option<&str>,
-        username: Option<&str>,
-        channel_id: Option<Uuid>,
-        enabled: Option<bool>,
+        changes: IncomingWebhookUpdate<'_>,
     ) -> ApiResult<IncomingWebhook> {
+        let IncomingWebhookUpdate {
+            display_name,
+            description,
+            icon_url,
+            username,
+            channel_id,
+            enabled,
+        } = changes;
         let webhook = sqlx::query_as::<_, IncomingWebhook>(
             r#"
             UPDATE incoming_webhooks

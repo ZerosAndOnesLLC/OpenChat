@@ -17,12 +17,16 @@ impl StorageType {
             StorageType::S3 => "s3",
         }
     }
+}
 
-    pub fn from_str(s: &str) -> Option<Self> {
+impl std::str::FromStr for StorageType {
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s {
-            "local" => Some(StorageType::Local),
-            "s3" => Some(StorageType::S3),
-            _ => None,
+            "local" => Ok(StorageType::Local),
+            "s3" => Ok(StorageType::S3),
+            other => Err(format!("unknown storage type: {other}")),
         }
     }
 }

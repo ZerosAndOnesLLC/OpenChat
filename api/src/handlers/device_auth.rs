@@ -1,22 +1,19 @@
-use actix_web::{web, HttpMessage, HttpRequest, HttpResponse};
 use crate::db::RedisPool;
+use actix_web::{HttpMessage, HttpRequest, HttpResponse, web};
 use serde::{Deserialize, Serialize};
 use sqlx::PgPool;
 use std::sync::Arc;
 use uuid::Uuid;
 
 use crate::{
-    cache::rate_limit::{check_rate_limit, check_rate_limit_by_ip, RateLimitType},
+    cache::rate_limit::{RateLimitType, check_rate_limit, check_rate_limit_by_ip},
     config::Config,
     errors::{ApiError, ApiResult},
-    models::{
-        device::{DeviceSession},
-        user::User,
-    },
+    models::{device::DeviceSession, user::User},
     services::{
         device_pairing,
         device_token::generate_device_token,
-        tv_api::{TokenClaims, TvApiClient}
+        tv_api::{TokenClaims, TvApiClient},
     },
     utils::crypto::{derive_key_from_secret, encrypt},
 };
@@ -24,12 +21,12 @@ use crate::{
 /// Extract IP address from request, checking X-Forwarded-For header first (for ALB)
 fn get_client_ip(req: &HttpRequest) -> String {
     // Check X-Forwarded-For header first (for ALB)
-    if let Some(forwarded_for) = req.headers().get("x-forwarded-for") {
-        if let Ok(forwarded_str) = forwarded_for.to_str() {
-            // Take the first IP in the chain
-            if let Some(first_ip) = forwarded_str.split(',').next() {
-                return first_ip.trim().to_string();
-            }
+    if let Some(forwarded_for) = req.headers().get("x-forwarded-for")
+        && let Ok(forwarded_str) = forwarded_for.to_str()
+    {
+        // Take the first IP in the chain
+        if let Some(first_ip) = forwarded_str.split(',').next() {
+            return first_ip.trim().to_string();
         }
     }
 
@@ -134,7 +131,7 @@ pub async fn generate_code(
         .ok_or_else(|| ApiError::Authentication("Missing authentication".to_string()))?;
 
     // Check rate limit (3 requests per minute per user)
-    
+
     let (allowed, remaining, reset_time) = check_rate_limit(
         redis_pool.get_ref(),
         claims.user_id,
@@ -155,8 +152,13 @@ pub async fn generate_code(
         .ok_or_else(|| ApiError::NotFound("User not found".to_string()))?;
 
     // Generate pairing code with user's roles from TV token
-    let pairing_code =
-        device_pairing::generate_pairing_code(pool.get_ref(), user.id, claims.org_id, claims.roles.clone()).await?;
+    let pairing_code = device_pairing::generate_pairing_code(
+        pool.get_ref(),
+        user.id,
+        claims.org_id,
+        claims.roles.clone(),
+    )
+    .await?;
 
     // Calculate seconds until expiration
     let expires_in = (pairing_code.expires_at - chrono::Utc::now()).num_seconds();
@@ -185,7 +187,7 @@ pub async fn verify_code(
 ) -> ApiResult<HttpResponse> {
     // Check rate limit by IP address (5 requests per minute per IP)
     let client_ip = get_client_ip(&req);
-    
+
     let (allowed, remaining, reset_time) = check_rate_limit_by_ip(
         redis_pool.get_ref(),
         &client_ip,
@@ -247,10 +249,7 @@ pub async fn verify_code(
 /// GET /api/auth/device/sessions
 /// Get all device sessions for the current user
 /// Requires: Valid JWT
-pub async fn get_sessions(
-    pool: web::Data<PgPool>,
-    req: HttpRequest,
-) -> ApiResult<HttpResponse> {
+pub async fn get_sessions(pool: web::Data<PgPool>, req: HttpRequest) -> ApiResult<HttpResponse> {
     // Get claims from request extensions
     let claims = req
         .extensions()

@@ -46,6 +46,11 @@ function ChannelItem({
   const preference = notifPref?.preference || 'all';
   const isMuted = preference === 'nothing' || (notifPref?.mute_until ? new Date(notifPref.mute_until) > new Date() : false);
 
+  // Once the WebSocket initial state has loaded it owns the unread count.
+  if (initialStateLoaded && !initiallyLoaded) {
+    setInitiallyLoaded(true);
+  }
+
   // Load initial unread count only if WebSocket initial state hasn't loaded
   useEffect(() => {
     if (!initiallyLoaded && !initialStateLoaded) {
@@ -60,8 +65,6 @@ function ChannelItem({
       }).catch((error) => {
         console.error('Failed to load initial unread count:', error);
       });
-    } else if (initialStateLoaded) {
-      setInitiallyLoaded(true);
     }
   }, [channel.id, initiallyLoaded, initialStateLoaded]);
 
@@ -109,7 +112,7 @@ function ChannelItem({
     return (
       <div className="rounded bg-gray-800 p-2 text-xs">
         <p className="mb-2 text-gray-300">
-          Leave this private channel? It will be archived if you're the last member.
+          Leave this private channel? It will be archived if you&apos;re the last member.
         </p>
         <div className="flex gap-2">
           <button

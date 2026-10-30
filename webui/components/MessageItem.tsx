@@ -251,7 +251,7 @@ export default function MessageItem({ message, onReply, onOpenThread, onPin, onB
 
           {/* Poll Display */}
           {message.poll && (
-            <PollDisplay poll={message.poll} messageId={message.id} />
+            <PollDisplay poll={message.poll} />
           )}
 
           {/* Link Previews */}

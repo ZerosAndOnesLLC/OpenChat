@@ -24,23 +24,29 @@ export default function NotificationsPanel({ isOpen, onClose }: NotificationsPan
   const [loading, setLoading] = useState(false);
   const [filter, setFilter] = useState<'all' | 'unread'>('unread');
 
-  useEffect(() => {
-    if (isOpen) {
-      loadNotifications();
-    }
-  }, [isOpen, filter]);
+  // Which list should be on screen; null while the panel is closed.
+  const requestKey = isOpen ? filter : null;
+  const [requestedKey, setRequestedKey] = useState<typeof requestKey>(null);
+  if (requestedKey !== requestKey) {
+    setRequestedKey(requestKey);
+    if (requestKey) setLoading(true);
+  }
 
-  const loadNotifications = async () => {
-    setLoading(true);
-    try {
-      const data = await apiClient.listNotifications(50, 0, filter === 'unread');
-      setNotifications(data.notifications);
-    } catch (error) {
-      console.error('Failed to load notifications:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
+  useEffect(() => {
+    if (!requestKey) return;
+    let cancelled = false;
+    apiClient.listNotifications(50, 0, requestKey === 'unread')
+      .then((data) => {
+        if (!cancelled) setNotifications(data.notifications);
+      })
+      .catch((error) => console.error('Failed to load notifications:', error))
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [requestKey]);
 
   const markAsRead = async (notificationId: string) => {
     try {

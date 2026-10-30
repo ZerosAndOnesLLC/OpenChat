@@ -37,7 +37,7 @@ sqlx = { version = "0.9.0", features = [
 ] }
 
 # Redis (Caching + Pub/Sub)
-redis = { version = "1.7.1", features = [
+redis = { version = "1.8.0", features = [
     "tokio-comp",
     "connection-manager",
     "streams",
@@ -90,5 +90,4 @@ image = "0.25"
 flate2 = "1.1"
 
 # LiveKit (Voice/Video Calling)
-livekit-api = "0.8"
-livekit-protocol = "0.8"
+livekit-api = "0.10"

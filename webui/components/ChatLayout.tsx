@@ -17,6 +17,19 @@ const SIDEBAR_MAX_WIDTH = 400;
 const SIDEBAR_DEFAULT_WIDTH = 256;
 const SIDEBAR_WIDTH_KEY = 'openchat-sidebar-width';
 
+/** Sidebar width saved in localStorage, or the default when unset/invalid. */
+function loadSidebarWidth(): number {
+  if (typeof window === 'undefined') return SIDEBAR_DEFAULT_WIDTH;
+  const savedWidth = localStorage.getItem(SIDEBAR_WIDTH_KEY);
+  if (savedWidth) {
+    const width = parseInt(savedWidth, 10);
+    if (width >= SIDEBAR_MIN_WIDTH && width <= SIDEBAR_MAX_WIDTH) {
+      return width;
+    }
+  }
+  return SIDEBAR_DEFAULT_WIDTH;
+}
+
 export default function ChatLayout() {
   const router = useRouter();
   const { currentCall } = useWebSocketStore();
@@ -24,7 +37,7 @@ export default function ChatLayout() {
   const [activeDm, setActiveDm] = useState<DirectMessage | null>(null);
   const [showShortcutsHelp, setShowShortcutsHelp] = useState(false);
   const [showQuickSwitcher, setShowQuickSwitcher] = useState(false);
-  const [sidebarWidth, setSidebarWidth] = useState(SIDEBAR_DEFAULT_WIDTH);
+  const [sidebarWidth, setSidebarWidth] = useState(loadSidebarWidth);
   const [isResizing, setIsResizing] = useState(false);
   const resizeRef = useRef<{ startX: number; startWidth: number } | null>(null);
 
@@ -43,17 +56,6 @@ export default function ChatLayout() {
   const handleLeaveChannel = () => {
     setActiveChannel(null);
   };
-
-  // Load sidebar width from localStorage
-  useEffect(() => {
-    const savedWidth = localStorage.getItem(SIDEBAR_WIDTH_KEY);
-    if (savedWidth) {
-      const width = parseInt(savedWidth, 10);
-      if (width >= SIDEBAR_MIN_WIDTH && width <= SIDEBAR_MAX_WIDTH) {
-        setSidebarWidth(width);
-      }
-    }
-  }, []);
 
   // Handle resize start
   const handleResizeStart = useCallback((e: React.MouseEvent) => {

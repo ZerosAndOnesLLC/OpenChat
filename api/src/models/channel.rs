@@ -47,7 +47,11 @@ impl Channel {
     }
 
     /// List channels where the user is a member (excludes archived)
-    pub async fn list_by_user_membership(pool: &PgPool, org_id: Uuid, user_id: Uuid) -> ApiResult<Vec<Channel>> {
+    pub async fn list_by_user_membership(
+        pool: &PgPool,
+        org_id: Uuid,
+        user_id: Uuid,
+    ) -> ApiResult<Vec<Channel>> {
         let channels = sqlx::query_as::<_, Channel>(
             r#"
             SELECT c.* FROM channels c
@@ -66,7 +70,11 @@ impl Channel {
 
     /// List public channels in an organization (for browsing/discovery)
     /// Excludes channels the user is already a member of and archived channels
-    pub async fn list_public_channels(pool: &PgPool, org_id: Uuid, user_id: Uuid) -> ApiResult<Vec<Channel>> {
+    pub async fn list_public_channels(
+        pool: &PgPool,
+        org_id: Uuid,
+        user_id: Uuid,
+    ) -> ApiResult<Vec<Channel>> {
         let channels = sqlx::query_as::<_, Channel>(
             r#"
             SELECT c.* FROM channels c

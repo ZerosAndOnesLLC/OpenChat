@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { apiClient } from '@/lib/api';
 import type { SlashCommand } from '@/lib/types';
 
@@ -16,38 +16,44 @@ export default function SlashCommandAutocomplete({
   onSelect,
 }: SlashCommandAutocompleteProps) {
   const [commands, setCommands] = useState<SlashCommand[]>([]);
-  const [showSuggestions, setShowSuggestions] = useState(false);
   const [selectedIndex, setSelectedIndex] = useState(0);
-  const [query, setQuery] = useState('');
+  // Set when the user dismisses (Escape) or picks a command; cleared as soon
+  // as the text or cursor moves again.
+  const [dismissed, setDismissed] = useState(false);
 
   useEffect(() => {
-    loadCommands();
+    let cancelled = false;
+    apiClient.listCommands()
+      .then((cmds) => {
+        if (!cancelled) setCommands(cmds);
+      })
+      .catch((error) => console.error('Failed to load commands:', error));
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
-  const loadCommands = async () => {
-    try {
-      const cmds = await apiClient.listCommands();
-      setCommands(cmds);
-    } catch (error) {
-      console.error('Failed to load commands:', error);
-    }
-  };
+  // Re-open the list and reset the highlight whenever the text or cursor
+  // changes (adjusted during render rather than in an effect).
+  const [prevInput, setPrevInput] = useState({ textValue, cursorPosition });
+  if (prevInput.textValue !== textValue || prevInput.cursorPosition !== cursorPosition) {
+    setPrevInput({ textValue, cursorPosition });
+    setSelectedIndex(0);
+    setDismissed(false);
+  }
 
-  useEffect(() => {
-    // Only trigger at the start of input
-    const match = textValue.match(/^\/(\w*)$/);
-    if (match) {
-      setQuery(match[1]);
-      setShowSuggestions(true);
-      setSelectedIndex(0);
-    } else {
-      setShowSuggestions(false);
-    }
-  }, [textValue, cursorPosition]);
+  // Only trigger at the start of input
+  const match = textValue.match(/^\/(\w*)$/);
+  const query = match ? match[1] : '';
+  const showSuggestions = match !== null && !dismissed;
 
-  const filtered = commands
-    .filter((cmd) => cmd.name.toLowerCase().startsWith(query.toLowerCase()))
-    .slice(0, 10);
+  const filtered = useMemo(
+    () =>
+      commands
+        .filter((cmd) => cmd.name.toLowerCase().startsWith(query.toLowerCase()))
+        .slice(0, 10),
+    [commands, query],
+  );
 
   useEffect(() => {
     if (!showSuggestions || filtered.length === 0) return;
@@ -70,11 +76,11 @@ export default function SlashCommandAutocomplete({
             e.preventDefault();
             e.stopPropagation();
             onSelect(`/${filtered[selectedIndex].name} `);
-            setShowSuggestions(false);
+            setDismissed(true);
           }
           break;
         case 'Escape':
-          setShowSuggestions(false);
+          setDismissed(true);
           break;
       }
     };
@@ -98,7 +104,7 @@ export default function SlashCommandAutocomplete({
             key={cmd.name}
             onClick={() => {
               onSelect(`/${cmd.name} `);
-              setShowSuggestions(false);
+              setDismissed(true);
             }}
             className={`w-full flex items-start px-3 py-2 hover:bg-gray-700 transition-colors ${
               index === selectedIndex ? 'bg-blue-900/30' : ''

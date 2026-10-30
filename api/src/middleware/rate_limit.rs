@@ -1,18 +1,18 @@
+use crate::db::RedisPool;
 use actix_web::{
-    body::{BoxBody, EitherBody},
-    dev::{forward_ready, Service, ServiceRequest, ServiceResponse, Transform},
     Error, HttpMessage, HttpResponse,
+    body::{BoxBody, EitherBody},
+    dev::{Service, ServiceRequest, ServiceResponse, Transform, forward_ready},
 };
 use futures_util::future::LocalBoxFuture;
-use crate::db::RedisPool;
 use std::{
-    future::{ready, Ready},
+    future::{Ready, ready},
     rc::Rc,
 };
 use tracing::{error, warn};
 
 use crate::{
-    cache::rate_limit::{check_rate_limit, RateLimitType},
+    cache::rate_limit::{RateLimitType, check_rate_limit},
     services::tv_api::TokenClaims,
 };
 
@@ -67,7 +67,7 @@ where
     fn new_transform(&self, service: S) -> Self::Future {
         ready(Ok(RateLimitMiddlewareService {
             service: Rc::new(service),
-            limit_type: self.limit_type.clone(),
+            limit_type: self.limit_type,
             enabled: self.enabled,
         }))
     }
@@ -93,7 +93,7 @@ where
 
     fn call(&self, req: ServiceRequest) -> Self::Future {
         let service = self.service.clone();
-        let limit_type = self.limit_type.clone();
+        let limit_type = self.limit_type;
         let enabled = self.enabled;
 
         Box::pin(async move {
@@ -167,18 +167,19 @@ where
             let headers = res.headers_mut();
             headers.insert(
                 actix_web::http::header::HeaderName::from_static("x-ratelimit-limit"),
-                actix_web::http::header::HeaderValue::from_str(&format!("{}", limit_type.config().max_requests))
-                    .unwrap(),
+                actix_web::http::header::HeaderValue::from_str(&format!(
+                    "{}",
+                    limit_type.config().max_requests
+                ))
+                .unwrap(),
             );
             headers.insert(
                 actix_web::http::header::HeaderName::from_static("x-ratelimit-remaining"),
-                actix_web::http::header::HeaderValue::from_str(&format!("{}", remaining))
-                    .unwrap(),
+                actix_web::http::header::HeaderValue::from_str(&format!("{}", remaining)).unwrap(),
             );
             headers.insert(
                 actix_web::http::header::HeaderName::from_static("x-ratelimit-reset"),
-                actix_web::http::header::HeaderValue::from_str(&format!("{}", reset_time))
-                    .unwrap(),
+                actix_web::http::header::HeaderValue::from_str(&format!("{}", reset_time)).unwrap(),
             );
 
             Ok(res.map_into_left_body())

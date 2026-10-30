@@ -4,7 +4,8 @@ import { useState, useEffect } from 'react';
 import dynamic from 'next/dynamic';
 import { CustomEmoji } from '@/lib/types';
 import { apiClient } from '@/lib/api';
-import { Theme } from 'emoji-picker-react';
+import { Theme, type EmojiClickData } from 'emoji-picker-react';
+import Image from 'next/image';
 
 // Dynamically import EmojiPicker to avoid SSR issues
 const EmojiPicker = dynamic(() => import('emoji-picker-react'), { ssr: false });
@@ -20,21 +21,21 @@ export default function CustomEmojiPicker({ onEmojiClick, onClose }: CustomEmoji
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    loadCustomEmojis();
+    let cancelled = false;
+    apiClient.getCustomEmojis()
+      .then((emojis) => {
+        if (!cancelled) setCustomEmojis(emojis);
+      })
+      .catch((error) => console.error('Failed to load custom emojis:', error))
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
-  const loadCustomEmojis = async () => {
-    try {
-      const emojis = await apiClient.getCustomEmojis();
-      setCustomEmojis(emojis);
-    } catch (error) {
-      console.error('Failed to load custom emojis:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleStandardEmojiClick = (emojiData: any) => {
+  const handleStandardEmojiClick = (emojiData: EmojiClickData) => {
     onEmojiClick(emojiData.emoji);
     onClose();
   };
@@ -101,9 +102,11 @@ export default function CustomEmojiPicker({ onEmojiClick, onClose }: CustomEmoji
                     className="w-12 h-12 flex items-center justify-center hover:bg-gray-100 dark:hover:bg-gray-700 rounded transition-colors"
                     title={`:${emoji.name}:`}
                   >
-                    <img
+                    <Image
                       src={apiClient.getEmojiImage(emoji.id)}
                       alt={emoji.name}
+                      width={32}
+                      height={32}
                       className="w-8 h-8 object-contain"
                     />
                   </button>

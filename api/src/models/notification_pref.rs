@@ -56,10 +56,7 @@ impl NotificationPref {
         Ok(pref)
     }
 
-    pub async fn list_by_user(
-        pool: &PgPool,
-        user_id: Uuid,
-    ) -> ApiResult<Vec<NotificationPref>> {
+    pub async fn list_by_user(pool: &PgPool, user_id: Uuid) -> ApiResult<Vec<NotificationPref>> {
         let prefs = sqlx::query_as::<_, NotificationPref>(
             "SELECT * FROM notification_preferences WHERE user_id = $1",
         )
@@ -163,11 +160,7 @@ impl NotificationPref {
         Ok(pref)
     }
 
-    pub async fn delete_channel(
-        pool: &PgPool,
-        user_id: Uuid,
-        channel_id: Uuid,
-    ) -> ApiResult<bool> {
+    pub async fn delete_channel(pool: &PgPool, user_id: Uuid, channel_id: Uuid) -> ApiResult<bool> {
         let result = sqlx::query(
             "DELETE FROM notification_preferences WHERE user_id = $1 AND channel_id = $2",
         )
@@ -179,18 +172,13 @@ impl NotificationPref {
         Ok(result.rows_affected() > 0)
     }
 
-    pub async fn delete_dm(
-        pool: &PgPool,
-        user_id: Uuid,
-        dm_id: Uuid,
-    ) -> ApiResult<bool> {
-        let result = sqlx::query(
-            "DELETE FROM notification_preferences WHERE user_id = $1 AND dm_id = $2",
-        )
-        .bind(user_id)
-        .bind(dm_id)
-        .execute(pool)
-        .await?;
+    pub async fn delete_dm(pool: &PgPool, user_id: Uuid, dm_id: Uuid) -> ApiResult<bool> {
+        let result =
+            sqlx::query("DELETE FROM notification_preferences WHERE user_id = $1 AND dm_id = $2")
+                .bind(user_id)
+                .bind(dm_id)
+                .execute(pool)
+                .await?;
 
         Ok(result.rows_affected() > 0)
     }
@@ -206,10 +194,10 @@ impl NotificationPref {
         };
 
         // Check mute_until first — if muted and not expired, suppress
-        if let Some(mute_until) = pref.mute_until {
-            if Utc::now() < mute_until {
-                return false;
-            }
+        if let Some(mute_until) = pref.mute_until
+            && Utc::now() < mute_until
+        {
+            return false;
         }
 
         match pref.preference.as_str() {

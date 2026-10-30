@@ -15,11 +15,7 @@ pub struct Bookmark {
 
 impl Bookmark {
     /// Bookmark a message for a user
-    pub async fn create(
-        pool: &PgPool,
-        user_id: Uuid,
-        message_id: Uuid,
-    ) -> ApiResult<Bookmark> {
+    pub async fn create(pool: &PgPool, user_id: Uuid, message_id: Uuid) -> ApiResult<Bookmark> {
         let bookmark = sqlx::query_as::<_, Bookmark>(
             r#"
             INSERT INTO bookmarks (id, user_id, message_id)
@@ -39,24 +35,18 @@ impl Bookmark {
 
     /// Remove a bookmark
     pub async fn delete(pool: &PgPool, user_id: Uuid, message_id: Uuid) -> ApiResult<()> {
-        sqlx::query(
-            "DELETE FROM bookmarks WHERE user_id = $1 AND message_id = $2",
-        )
-        .bind(user_id)
-        .bind(message_id)
-        .execute(pool)
-        .await?;
+        sqlx::query("DELETE FROM bookmarks WHERE user_id = $1 AND message_id = $2")
+            .bind(user_id)
+            .bind(message_id)
+            .execute(pool)
+            .await?;
 
         Ok(())
     }
 
     /// Check if a message is bookmarked by a user
     #[allow(dead_code)]
-    pub async fn is_bookmarked(
-        pool: &PgPool,
-        user_id: Uuid,
-        message_id: Uuid,
-    ) -> ApiResult<bool> {
+    pub async fn is_bookmarked(pool: &PgPool, user_id: Uuid, message_id: Uuid) -> ApiResult<bool> {
         let result = sqlx::query_scalar::<_, bool>(
             "SELECT EXISTS(SELECT 1 FROM bookmarks WHERE user_id = $1 AND message_id = $2)",
         )

@@ -1,10 +1,10 @@
-use serde::{Deserialize, Serialize};
-use tauri::State;
-use std::sync::Mutex;
-use std::path::PathBuf;
-use std::fs;
 use base64::{Engine as _, engine::general_purpose};
-use chrono::{DateTime, Utc, Duration};
+use chrono::{DateTime, Duration, Utc};
+use serde::{Deserialize, Serialize};
+use std::fs;
+use std::path::PathBuf;
+use std::sync::Mutex;
+use tauri::State;
 
 const KEYRING_SERVICE: &str = "openchat-desktop";
 const KEYRING_USERNAME: &str = "auth-credentials";
@@ -30,8 +30,7 @@ fn store_credentials_to_file(json_str: &str) -> Result<(), String> {
     // Encode as base64 for basic obfuscation
     let encoded = general_purpose::STANDARD.encode(json_str.as_bytes());
 
-    fs::write(&path, encoded)
-        .map_err(|e| format!("Failed to write credentials file: {}", e))?;
+    fs::write(&path, encoded).map_err(|e| format!("Failed to write credentials file: {}", e))?;
 
     log::info!("store_credentials_to_file: saved to {:?}", path);
     Ok(())
@@ -42,7 +41,10 @@ fn read_credentials_from_file() -> Option<String> {
     let path = get_credentials_path()?;
 
     if !path.exists() {
-        log::info!("read_credentials_from_file: file does not exist at {:?}", path);
+        log::info!(
+            "read_credentials_from_file: file does not exist at {:?}",
+            path
+        );
         return None;
     }
 
@@ -50,17 +52,20 @@ fn read_credentials_from_file() -> Option<String> {
     let decoded = general_purpose::STANDARD.decode(encoded.trim()).ok()?;
     let json_str = String::from_utf8(decoded).ok()?;
 
-    log::info!("read_credentials_from_file: successfully read from {:?}", path);
+    log::info!(
+        "read_credentials_from_file: successfully read from {:?}",
+        path
+    );
     Some(json_str)
 }
 
 /// Deletes the credentials file
 fn delete_credentials_file() {
-    if let Some(path) = get_credentials_path() {
-        if path.exists() {
-            let _ = fs::remove_file(&path);
-            log::info!("delete_credentials_file: removed {:?}", path);
-        }
+    if let Some(path) = get_credentials_path()
+        && path.exists()
+    {
+        let _ = fs::remove_file(&path);
+        log::info!("delete_credentials_file: removed {:?}", path);
     }
 }
 
@@ -73,10 +78,10 @@ pub fn read_stored_credentials_sync() -> Option<StoredCredentials> {
     }
 
     // Try file fallback
-    if let Some(json_str) = read_credentials_from_file() {
-        if let Ok(creds) = serde_json::from_str::<StoredCredentials>(&json_str) {
-            return Some(creds);
-        }
+    if let Some(json_str) = read_credentials_from_file()
+        && let Ok(creds) = serde_json::from_str::<StoredCredentials>(&json_str)
+    {
+        return Some(creds);
     }
 
     None
@@ -160,7 +165,7 @@ pub async fn verify_pairing_code(
     };
 
     let response = client
-        .post(&format!("{}/api/auth/device/verify-code", api_url))
+        .post(format!("{}/api/auth/device/verify-code", api_url))
         .json(&request_body)
         .send()
         .await
@@ -168,7 +173,10 @@ pub async fn verify_pairing_code(
 
     if !response.status().is_success() {
         let status = response.status();
-        let error_text = response.text().await.unwrap_or_else(|_| "Unknown error".to_string());
+        let error_text = response
+            .text()
+            .await
+            .unwrap_or_else(|_| "Unknown error".to_string());
         return Err(format!("Verification failed ({}): {}", status, error_text));
     }
 
@@ -186,7 +194,8 @@ pub async fn verify_pairing_code(
         auth_response.api_url.clone(),
         auth_response.webui_url.clone(),
         state,
-    ).await?;
+    )
+    .await?;
 
     Ok(auth_response)
 }
@@ -195,7 +204,9 @@ pub async fn verify_pairing_code(
 /// Returns None if no credentials exist or if they have expired (365-day expiry).
 /// Checks in-memory cache first, then OS keychain, then file fallback.
 #[tauri::command]
-pub async fn get_stored_credentials(state: State<'_, AppState>) -> Result<Option<StoredCredentials>, String> {
+pub async fn get_stored_credentials(
+    state: State<'_, AppState>,
+) -> Result<Option<StoredCredentials>, String> {
     log::info!("get_stored_credentials: checking for stored credentials");
 
     // First check in-memory state
@@ -263,7 +274,10 @@ pub async fn get_stored_credentials(state: State<'_, AppState>) -> Result<Option
                 return Ok(Some(creds));
             }
             Err(e) => {
-                log::error!("get_stored_credentials: failed to parse file credentials: {}", e);
+                log::error!(
+                    "get_stored_credentials: failed to parse file credentials: {}",
+                    e
+                );
             }
         }
     }
@@ -280,8 +294,13 @@ fn clear_credentials_internal(state: &State<'_, AppState>) -> Result<(), String>
     if let Ok(entry) = keyring_core::Entry::new(KEYRING_SERVICE, KEYRING_USERNAME) {
         match entry.delete_credential() {
             Ok(_) => log::info!("clear_credentials_internal: cleared keychain"),
-            Err(keyring_core::Error::NoEntry) => log::info!("clear_credentials_internal: no keychain entry to clear"),
-            Err(e) => log::warn!("clear_credentials_internal: failed to clear keychain: {}", e),
+            Err(keyring_core::Error::NoEntry) => {
+                log::info!("clear_credentials_internal: no keychain entry to clear")
+            }
+            Err(e) => log::warn!(
+                "clear_credentials_internal: failed to clear keychain: {}",
+                e
+            ),
         }
     }
 
@@ -308,7 +327,11 @@ pub async fn store_credentials(
     webui_url: String,
     state: State<'_, AppState>,
 ) -> Result<(), String> {
-    log::info!("store_credentials: storing credentials for user {} with api_url {}", user.email, api_url);
+    log::info!(
+        "store_credentials: storing credentials for user {} with api_url {}",
+        user.email,
+        api_url
+    );
 
     let credentials = StoredCredentials {
         access_token,
@@ -334,10 +357,16 @@ pub async fn store_credentials(
     // Log keychain result but don't fail if file storage worked
     match keychain_result {
         Ok(_) => {
-            log::info!("store_credentials: successfully stored in keychain, expires_at: {}", credentials.expires_at);
+            log::info!(
+                "store_credentials: successfully stored in keychain, expires_at: {}",
+                credentials.expires_at
+            );
         }
         Err(e) => {
-            log::warn!("store_credentials: keychain storage failed (using file fallback): {}", e);
+            log::warn!(
+                "store_credentials: keychain storage failed (using file fallback): {}",
+                e
+            );
         }
     }
 
@@ -352,19 +381,20 @@ pub async fn store_credentials(
 
 /// Helper to store in OS keychain
 fn store_in_keychain(json_str: &str) -> Result<(), String> {
-    log::info!("store_in_keychain: accessing keychain service '{}' with username '{}'", KEYRING_SERVICE, KEYRING_USERNAME);
-    let entry = keyring_core::Entry::new(KEYRING_SERVICE, KEYRING_USERNAME)
-        .map_err(|e| {
-            log::error!("store_in_keychain: failed to access keychain: {}", e);
-            format!("Failed to access keychain: {}", e)
-        })?;
+    log::info!(
+        "store_in_keychain: accessing keychain service '{}' with username '{}'",
+        KEYRING_SERVICE,
+        KEYRING_USERNAME
+    );
+    let entry = keyring_core::Entry::new(KEYRING_SERVICE, KEYRING_USERNAME).map_err(|e| {
+        log::error!("store_in_keychain: failed to access keychain: {}", e);
+        format!("Failed to access keychain: {}", e)
+    })?;
 
-    entry
-        .set_password(json_str)
-        .map_err(|e| {
-            log::error!("store_in_keychain: failed to store in keychain: {}", e);
-            format!("Failed to store credentials: {}", e)
-        })?;
+    entry.set_password(json_str).map_err(|e| {
+        log::error!("store_in_keychain: failed to store in keychain: {}", e);
+        format!("Failed to store credentials: {}", e)
+    })?;
 
     Ok(())
 }
@@ -383,14 +413,14 @@ pub async fn get_stored_token(state: State<'_, AppState>) -> Result<Option<Strin
 
     // First check in-memory state
     {
-        if let Ok(creds_guard) = state.credentials.lock() {
-            if let Some(ref creds) = *creds_guard {
-                if chrono::Utc::now() < creds.expires_at {
-                    log::info!("get_stored_token: found valid token in memory cache");
-                    return Ok(Some(creds.access_token.clone()));
-                } else {
-                    log::info!("get_stored_token: in-memory token expired");
-                }
+        if let Ok(creds_guard) = state.credentials.lock()
+            && let Some(ref creds) = *creds_guard
+        {
+            if chrono::Utc::now() < creds.expires_at {
+                log::info!("get_stored_token: found valid token in memory cache");
+                return Ok(Some(creds.access_token.clone()));
+            } else {
+                log::info!("get_stored_token: in-memory token expired");
             }
         }
     }
@@ -399,14 +429,20 @@ pub async fn get_stored_token(state: State<'_, AppState>) -> Result<Option<Strin
     log::info!("get_stored_token: checking OS keychain");
     if let Some(creds) = read_from_keychain() {
         if chrono::Utc::now() < creds.expires_at {
-            log::info!("get_stored_token: keychain token valid, expires_at: {}", creds.expires_at);
+            log::info!(
+                "get_stored_token: keychain token valid, expires_at: {}",
+                creds.expires_at
+            );
             // Update in-memory state
             if let Ok(mut creds_guard) = state.credentials.lock() {
                 *creds_guard = Some(creds.clone());
             }
             return Ok(Some(creds.access_token));
         } else {
-            log::info!("get_stored_token: keychain token expired at {}", creds.expires_at);
+            log::info!(
+                "get_stored_token: keychain token expired at {}",
+                creds.expires_at
+            );
         }
     }
 
@@ -416,14 +452,20 @@ pub async fn get_stored_token(state: State<'_, AppState>) -> Result<Option<Strin
         match serde_json::from_str::<StoredCredentials>(&json_str) {
             Ok(creds) => {
                 if chrono::Utc::now() < creds.expires_at {
-                    log::info!("get_stored_token: file token valid, expires_at: {}", creds.expires_at);
+                    log::info!(
+                        "get_stored_token: file token valid, expires_at: {}",
+                        creds.expires_at
+                    );
                     // Update in-memory state
                     if let Ok(mut creds_guard) = state.credentials.lock() {
                         *creds_guard = Some(creds.clone());
                     }
                     return Ok(Some(creds.access_token));
                 } else {
-                    log::info!("get_stored_token: file token expired at {}", creds.expires_at);
+                    log::info!(
+                        "get_stored_token: file token expired at {}",
+                        creds.expires_at
+                    );
                 }
             }
             Err(e) => {
@@ -484,7 +526,10 @@ pub struct TokenValidationResult {
 }
 
 #[tauri::command]
-pub async fn validate_token(api_url: String, token: String) -> Result<TokenValidationResult, String> {
+pub async fn validate_token(
+    api_url: String,
+    token: String,
+) -> Result<TokenValidationResult, String> {
     log::info!("validate_token: validating token with API at {}", api_url);
     let client = reqwest::Client::builder()
         .timeout(std::time::Duration::from_secs(10))
@@ -509,9 +554,14 @@ pub async fn validate_token(api_url: String, token: String) -> Result<TokenValid
                     definitive: true,
                     error: None,
                 })
-            } else if status == reqwest::StatusCode::UNAUTHORIZED || status == reqwest::StatusCode::FORBIDDEN {
+            } else if status == reqwest::StatusCode::UNAUTHORIZED
+                || status == reqwest::StatusCode::FORBIDDEN
+            {
                 // Definitive rejection - token is invalid
-                log::info!("validate_token: server rejected token with status {}", status);
+                log::info!(
+                    "validate_token: server rejected token with status {}",
+                    status
+                );
                 Ok(TokenValidationResult {
                     valid: false,
                     definitive: true,
@@ -520,7 +570,11 @@ pub async fn validate_token(api_url: String, token: String) -> Result<TokenValid
             } else {
                 // Server error or other issue - not a definitive rejection
                 let body = response.text().await.unwrap_or_default();
-                log::warn!("validate_token: server returned status {}, treating as uncertain: {}", status, body);
+                log::warn!(
+                    "validate_token: server returned status {}, treating as uncertain: {}",
+                    status,
+                    body
+                );
                 Ok(TokenValidationResult {
                     valid: false,
                     definitive: false,
@@ -546,11 +600,12 @@ pub async fn process_deep_link_payload(
     state: State<'_, AppState>,
 ) -> Result<AuthResponse, String> {
     // Decode base64 payload
-    let decoded = general_purpose::STANDARD.decode(&encrypted_payload)
+    let decoded = general_purpose::STANDARD
+        .decode(&encrypted_payload)
         .map_err(|e| format!("Failed to decode payload: {}", e))?;
 
-    let payload_str = String::from_utf8(decoded)
-        .map_err(|e| format!("Invalid payload format: {}", e))?;
+    let payload_str =
+        String::from_utf8(decoded).map_err(|e| format!("Invalid payload format: {}", e))?;
 
     let payload: DeepLinkPayload = serde_json::from_str(&payload_str)
         .map_err(|e| format!("Failed to parse payload: {}", e))?;
@@ -562,21 +617,28 @@ pub async fn process_deep_link_payload(
     }
 
     // Get api_url from payload (required for new deep links)
-    let api_url = payload.api_url
+    let api_url = payload
+        .api_url
         .ok_or("Deep link missing api_url - please generate a new link")?;
-    let webui_url = payload.webui_url
+    let webui_url = payload
+        .webui_url
         .ok_or("Deep link missing webui_url - please generate a new link")?;
 
     // Validate the token with backend
     let validation = validate_token(api_url.clone(), payload.token.clone()).await?;
     if !validation.valid {
-        return Err(format!("Invalid token in deep link: {}", validation.error.unwrap_or_else(|| "unknown error".to_string())));
+        return Err(format!(
+            "Invalid token in deep link: {}",
+            validation
+                .error
+                .unwrap_or_else(|| "unknown error".to_string())
+        ));
     }
 
     // Fetch user info
     let client = reqwest::Client::new();
     let response = client
-        .post(&format!("{}/api/sso/userinfo", api_url))
+        .post(format!("{}/api/sso/userinfo", api_url))
         .header("Authorization", format!("Bearer {}", payload.token))
         .send()
         .await
@@ -589,18 +651,25 @@ pub async fn process_deep_link_payload(
 
     // Extract user info from the response
     let user = User {
-        id: user_json.get("sub")
+        id: user_json
+            .get("sub")
             .and_then(|v| v.as_str())
-            .ok_or("Missing 'sub' in userinfo")?.to_string(),
-        email: user_json.get("email")
+            .ok_or("Missing 'sub' in userinfo")?
+            .to_string(),
+        email: user_json
+            .get("email")
             .and_then(|v| v.as_str())
-            .ok_or("Missing 'email' in userinfo")?.to_string(),
-        name: user_json.get("name")
+            .ok_or("Missing 'email' in userinfo")?
+            .to_string(),
+        name: user_json
+            .get("name")
             .and_then(|v| v.as_str())
             .map(|s| s.to_string()),
-        org_id: user_json.get("org_id")
+        org_id: user_json
+            .get("org_id")
             .and_then(|v| v.as_str())
-            .ok_or("Missing 'org_id' in userinfo")?.to_string(),
+            .ok_or("Missing 'org_id' in userinfo")?
+            .to_string(),
     };
 
     let device_id = uuid::Uuid::new_v4().to_string();
@@ -613,7 +682,8 @@ pub async fn process_deep_link_payload(
         api_url.clone(),
         webui_url.clone(),
         state,
-    ).await?;
+    )
+    .await?;
 
     Ok(AuthResponse {
         access_token: payload.token,

@@ -1,4 +1,4 @@
-use actix_web::{web, HttpMessage, HttpRequest, HttpResponse};
+use actix_web::{HttpMessage, HttpRequest, HttpResponse, web};
 use serde::Deserialize;
 use sqlx::PgPool;
 use uuid::Uuid;
@@ -32,10 +32,7 @@ pub struct PaginationQuery {
 }
 
 /// GET /api/webhooks/outgoing
-pub async fn list_webhooks(
-    pool: web::Data<PgPool>,
-    req: HttpRequest,
-) -> ApiResult<HttpResponse> {
+pub async fn list_webhooks(pool: web::Data<PgPool>, req: HttpRequest) -> ApiResult<HttpResponse> {
     let claims = req
         .extensions()
         .get::<TokenClaims>()

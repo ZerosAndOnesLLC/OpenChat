@@ -1,4 +1,4 @@
-use actix_web::{web, HttpMessage, HttpRequest, HttpResponse};
+use actix_web::{HttpMessage, HttpRequest, HttpResponse, web};
 use chrono::{Duration, Utc};
 use serde::{Deserialize, Serialize};
 use sqlx::PgPool;
@@ -68,15 +68,13 @@ pub async fn update_my_status(
     }
 
     // Calculate clear_at if clear_after_minutes is provided
-    let clear_at = body
-        .clear_after_minutes
-        .and_then(|minutes| {
-            if minutes > 0 {
-                Some(Utc::now() + Duration::minutes(minutes as i64))
-            } else {
-                None
-            }
-        });
+    let clear_at = body.clear_after_minutes.and_then(|minutes| {
+        if minutes > 0 {
+            Some(Utc::now() + Duration::minutes(minutes as i64))
+        } else {
+            None
+        }
+    });
 
     // Parse back_at if provided
     let back_at = body
@@ -98,7 +96,12 @@ pub async fn update_my_status(
     .await?;
 
     // Invalidate cache
-    let _ = cache::user_status::invalidate_status(redis_pool.get_ref(), current_user.org_id, current_user.id).await;
+    let _ = cache::user_status::invalidate_status(
+        redis_pool.get_ref(),
+        current_user.org_id,
+        current_user.id,
+    )
+    .await;
 
     // Broadcast status change via WebSocket
     ws_server.do_send(BroadcastMessage {
@@ -135,7 +138,9 @@ pub async fn get_user_status(
         .ok_or_else(|| ApiError::NotFound("Current user not found".to_string()))?;
 
     // Check cache first
-    if let Ok(Some(cached_status)) = cache::user_status::get_status(redis_pool.get_ref(), current_user.org_id, *user_id).await {
+    if let Ok(Some(cached_status)) =
+        cache::user_status::get_status(redis_pool.get_ref(), current_user.org_id, *user_id).await
+    {
         return Ok(HttpResponse::Ok().json(cached_status));
     }
 
@@ -165,7 +170,13 @@ pub async fn get_user_status(
 
     // Cache the result
     let response = UserStatusResponse::from(user_status.clone());
-    let _ = cache::user_status::set_status(redis_pool.get_ref(), current_user.org_id, *user_id, &response).await;
+    let _ = cache::user_status::set_status(
+        redis_pool.get_ref(),
+        current_user.org_id,
+        *user_id,
+        &response,
+    )
+    .await;
 
     Ok(HttpResponse::Ok().json(response))
 }
@@ -184,10 +195,8 @@ pub async fn get_active_users(
     // Get all active users in the org
     let statuses = UserStatus::get_active_users(pool.get_ref(), claims.org_id).await?;
 
-    let response: Vec<UserStatusResponse> = statuses
-        .into_iter()
-        .map(UserStatusResponse::from)
-        .collect();
+    let response: Vec<UserStatusResponse> =
+        statuses.into_iter().map(UserStatusResponse::from).collect();
 
     Ok(HttpResponse::Ok().json(response))
 }
@@ -212,7 +221,12 @@ pub async fn set_online(
     let user_status = UserStatus::set_online(pool.get_ref(), current_user.id).await?;
 
     // Invalidate cache
-    let _ = cache::user_status::invalidate_status(redis_pool.get_ref(), current_user.org_id, current_user.id).await;
+    let _ = cache::user_status::invalidate_status(
+        redis_pool.get_ref(),
+        current_user.org_id,
+        current_user.id,
+    )
+    .await;
 
     // Broadcast status change
     ws_server.do_send(BroadcastMessage {
@@ -249,7 +263,12 @@ pub async fn set_away(
     let user_status = UserStatus::set_away(pool.get_ref(), current_user.id).await?;
 
     // Invalidate cache
-    let _ = cache::user_status::invalidate_status(redis_pool.get_ref(), current_user.org_id, current_user.id).await;
+    let _ = cache::user_status::invalidate_status(
+        redis_pool.get_ref(),
+        current_user.org_id,
+        current_user.id,
+    )
+    .await;
 
     // Broadcast status change
     ws_server.do_send(BroadcastMessage {
@@ -286,7 +305,12 @@ pub async fn set_offline(
     let user_status = UserStatus::set_offline(pool.get_ref(), current_user.id).await?;
 
     // Invalidate cache
-    let _ = cache::user_status::invalidate_status(redis_pool.get_ref(), current_user.org_id, current_user.id).await;
+    let _ = cache::user_status::invalidate_status(
+        redis_pool.get_ref(),
+        current_user.org_id,
+        current_user.id,
+    )
+    .await;
 
     // Broadcast status change
     ws_server.do_send(BroadcastMessage {

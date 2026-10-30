@@ -174,7 +174,12 @@ impl WsSessionData {
                     message_id,
                 });
             }
-            ClientMessage::EditMessage { message_id, content, encrypted_content, encryption_metadata } => {
+            ClientMessage::EditMessage {
+                message_id,
+                content,
+                encrypted_content,
+                encryption_metadata,
+            } => {
                 self.server.do_send(server::EditMessage {
                     user_id: self.user_id,
                     org_id: self.org_id,
@@ -222,9 +227,7 @@ pub async fn handle_ws_session(
     let (tx, mut rx) = mpsc::unbounded_channel::<ServerMessage>();
 
     // Create session address for receiving broadcasts from WsServer
-    let session_addr = WsSessionHandle {
-        tx: tx.clone(),
-    };
+    let session_addr = WsSessionHandle { tx: tx.clone() };
     let session_addr = actix::Actor::start(session_addr);
 
     // Register with server
@@ -250,7 +253,11 @@ pub async fn handle_ws_session(
                 let _ = tx_clone.send(initial_state);
             }
             Err(e) => {
-                tracing::error!("Failed to load initial state for user {}: {}", user_id_clone, e);
+                tracing::error!(
+                    "Failed to load initial state for user {}: {}",
+                    user_id_clone,
+                    e
+                );
                 let error_msg = ServerMessage::Error {
                     message: "Failed to load initial state".to_string(),
                 };
@@ -277,10 +284,10 @@ pub async fn handle_ws_session(
     // Spawn task to write messages to WebSocket
     let write_task = tokio::spawn(async move {
         while let Some(msg) = rx.recv().await {
-            if let Ok(json) = serde_json::to_string(&msg) {
-                if session_clone.text(json).await.is_err() {
-                    break;
-                }
+            if let Ok(json) = serde_json::to_string(&msg)
+                && session_clone.text(json).await.is_err()
+            {
+                break;
             }
         }
     });
@@ -366,7 +373,10 @@ async fn load_initial_state(
     org_id: Uuid,
     user_id: Uuid,
 ) -> Result<ServerMessage, Box<dyn std::error::Error>> {
-    use crate::models::{call::Call, channel::Channel, direct_message::DirectMessage, notification_pref::NotificationPref};
+    use crate::models::{
+        call::Call, channel::Channel, direct_message::DirectMessage,
+        notification_pref::NotificationPref,
+    };
     use crate::websocket::messages::NotificationPrefInfo;
 
     // Fetch channels, DMs, notification preferences, and active calls in parallel

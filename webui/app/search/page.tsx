@@ -20,31 +20,38 @@ function SearchContent() {
   const router = useRouter();
   const [messages, setMessages] = useState<Message[]>([]);
   const [totalCount, setTotalCount] = useState(0);
-  const [loading, setLoading] = useState(false);
   const [scope, setScope] = useState<'all' | 'channel' | 'dm'>('all');
 
   const query = searchParams.get('q') || '';
 
-  useEffect(() => {
-    if (query) {
-      performSearch(query);
-    }
-  }, [query, scope]);
+  // Key of the last search whose results are on screen; while it differs
+  // from the current query + scope a search is in flight.
+  const searchKey = `${scope}:${query}`;
+  const [completedKey, setCompletedKey] = useState<string | null>(null);
+  const loading = query !== '' && completedKey !== searchKey;
 
-  const performSearch = async (searchQuery: string) => {
-    setLoading(true);
-    try {
-      const data = await apiClient.searchMessages(searchQuery, scope, undefined, undefined, 50);
-      setMessages(data.messages);
-      setTotalCount(data.total_count);
-    } catch (error) {
-      console.error('Search failed:', error);
-      setMessages([]);
-      setTotalCount(0);
-    } finally {
-      setLoading(false);
-    }
-  };
+  useEffect(() => {
+    if (!query) return;
+    let cancelled = false;
+    apiClient.searchMessages(query, scope, undefined, undefined, 50)
+      .then((data) => {
+        if (cancelled) return;
+        setMessages(data.messages);
+        setTotalCount(data.total_count);
+      })
+      .catch((error) => {
+        if (cancelled) return;
+        console.error('Search failed:', error);
+        setMessages([]);
+        setTotalCount(0);
+      })
+      .finally(() => {
+        if (!cancelled) setCompletedKey(`${scope}:${query}`);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [query, scope]);
 
   const handleSearch = (newQuery: string) => {
     router.push(`/search?q=${encodeURIComponent(newQuery)}`);

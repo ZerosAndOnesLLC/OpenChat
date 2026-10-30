@@ -1,4 +1,4 @@
-use actix_web::{web, HttpMessage, HttpRequest, HttpResponse};
+use actix_web::{HttpMessage, HttpRequest, HttpResponse, web};
 use serde_json::json;
 use sqlx::PgPool;
 use uuid::Uuid;
@@ -25,13 +25,14 @@ pub async fn get_retention_policies(
 
     let org_id = claims.org_id;
 
-    let policies: Vec<RetentionPolicy> = sqlx::query_as(
-        "SELECT * FROM retention_policies WHERE org_id = $1 ORDER BY policy_type",
-    )
-    .bind(org_id)
-    .fetch_all(db.get_ref())
-    .await
-    .map_err(|e| ApiError::Internal(format!("Failed to fetch retention policies: {}", e)))?;
+    let policies: Vec<RetentionPolicy> =
+        sqlx::query_as("SELECT * FROM retention_policies WHERE org_id = $1 ORDER BY policy_type")
+            .bind(org_id)
+            .fetch_all(db.get_ref())
+            .await
+            .map_err(|e| {
+                ApiError::Internal(format!("Failed to fetch retention policies: {}", e))
+            })?;
 
     Ok(HttpResponse::Ok().json(RetentionPolicyResponse { policies }))
 }
@@ -70,14 +71,15 @@ pub async fn update_retention_policy(
     }
 
     // Get old policy for audit log
-    let old_policy: Option<RetentionPolicy> = sqlx::query_as(
-        "SELECT * FROM retention_policies WHERE org_id = $1 AND policy_type = $2",
-    )
-    .bind(org_id)
-    .bind(&payload.policy_type)
-    .fetch_optional(db.get_ref())
-    .await
-    .map_err(|e| ApiError::Internal(format!("Failed to fetch old retention policy: {}", e)))?;
+    let old_policy: Option<RetentionPolicy> =
+        sqlx::query_as("SELECT * FROM retention_policies WHERE org_id = $1 AND policy_type = $2")
+            .bind(org_id)
+            .bind(&payload.policy_type)
+            .fetch_optional(db.get_ref())
+            .await
+            .map_err(|e| {
+                ApiError::Internal(format!("Failed to fetch old retention policy: {}", e))
+            })?;
 
     // Upsert retention policy
     let policy: RetentionPolicy = sqlx::query_as(
@@ -150,27 +152,27 @@ pub async fn create_legal_hold(
         .ok_or_else(|| ApiError::NotFound("Current user not found".to_string()))?;
 
     // Verify channel exists and belongs to org
-    let channel_exists: bool = sqlx::query_scalar(
-        "SELECT EXISTS(SELECT 1 FROM channels WHERE id = $1 AND org_id = $2)",
-    )
-    .bind(channel_id)
-    .bind(org_id)
-    .fetch_one(db.get_ref())
-    .await
-    .map_err(|e| ApiError::Internal(format!("Failed to verify channel: {}", e)))?;
+    let channel_exists: bool =
+        sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM channels WHERE id = $1 AND org_id = $2)")
+            .bind(channel_id)
+            .bind(org_id)
+            .fetch_one(db.get_ref())
+            .await
+            .map_err(|e| ApiError::Internal(format!("Failed to verify channel: {}", e)))?;
 
     if !channel_exists {
         return Err(ApiError::NotFound("Channel not found".to_string()));
     }
 
     // Check if there's already an active legal hold
-    let existing_hold: Option<LegalHold> = sqlx::query_as(
-        "SELECT * FROM legal_holds WHERE channel_id = $1 AND enabled = TRUE",
-    )
-    .bind(channel_id)
-    .fetch_optional(db.get_ref())
-    .await
-    .map_err(|e| ApiError::Internal(format!("Failed to check existing legal hold: {}", e)))?;
+    let existing_hold: Option<LegalHold> =
+        sqlx::query_as("SELECT * FROM legal_holds WHERE channel_id = $1 AND enabled = TRUE")
+            .bind(channel_id)
+            .fetch_optional(db.get_ref())
+            .await
+            .map_err(|e| {
+                ApiError::Internal(format!("Failed to check existing legal hold: {}", e))
+            })?;
 
     if existing_hold.is_some() {
         return Err(ApiError::BadRequest(
@@ -230,26 +232,24 @@ pub async fn get_legal_hold(
     let channel_id = channel_id.into_inner();
 
     // Verify channel exists and belongs to org
-    let channel_exists: bool = sqlx::query_scalar(
-        "SELECT EXISTS(SELECT 1 FROM channels WHERE id = $1 AND org_id = $2)",
-    )
-    .bind(channel_id)
-    .bind(org_id)
-    .fetch_one(db.get_ref())
-    .await
-    .map_err(|e| ApiError::Internal(format!("Failed to verify channel: {}", e)))?;
+    let channel_exists: bool =
+        sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM channels WHERE id = $1 AND org_id = $2)")
+            .bind(channel_id)
+            .bind(org_id)
+            .fetch_one(db.get_ref())
+            .await
+            .map_err(|e| ApiError::Internal(format!("Failed to verify channel: {}", e)))?;
 
     if !channel_exists {
         return Err(ApiError::NotFound("Channel not found".to_string()));
     }
 
-    let legal_hold: Option<LegalHold> = sqlx::query_as(
-        "SELECT * FROM legal_holds WHERE channel_id = $1 AND enabled = TRUE",
-    )
-    .bind(channel_id)
-    .fetch_optional(db.get_ref())
-    .await
-    .map_err(|e| ApiError::Internal(format!("Failed to fetch legal hold: {}", e)))?;
+    let legal_hold: Option<LegalHold> =
+        sqlx::query_as("SELECT * FROM legal_holds WHERE channel_id = $1 AND enabled = TRUE")
+            .bind(channel_id)
+            .fetch_optional(db.get_ref())
+            .await
+            .map_err(|e| ApiError::Internal(format!("Failed to fetch legal hold: {}", e)))?;
 
     if let Some(hold) = legal_hold {
         Ok(HttpResponse::Ok().json(hold))
@@ -279,14 +279,13 @@ pub async fn disable_legal_hold(
         .ok_or_else(|| ApiError::NotFound("Current user not found".to_string()))?;
 
     // Verify channel exists and belongs to org
-    let channel_exists: bool = sqlx::query_scalar(
-        "SELECT EXISTS(SELECT 1 FROM channels WHERE id = $1 AND org_id = $2)",
-    )
-    .bind(channel_id)
-    .bind(org_id)
-    .fetch_one(db.get_ref())
-    .await
-    .map_err(|e| ApiError::Internal(format!("Failed to verify channel: {}", e)))?;
+    let channel_exists: bool =
+        sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM channels WHERE id = $1 AND org_id = $2)")
+            .bind(channel_id)
+            .bind(org_id)
+            .fetch_one(db.get_ref())
+            .await
+            .map_err(|e| ApiError::Internal(format!("Failed to verify channel: {}", e)))?;
 
     if !channel_exists {
         return Err(ApiError::NotFound("Channel not found".to_string()));

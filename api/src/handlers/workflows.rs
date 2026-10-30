@@ -1,4 +1,4 @@
-use actix_web::{web, HttpMessage, HttpRequest, HttpResponse};
+use actix_web::{HttpMessage, HttpRequest, HttpResponse, web};
 use serde::{Deserialize, Serialize};
 use sqlx::PgPool;
 use uuid::Uuid;
@@ -6,7 +6,9 @@ use uuid::Uuid;
 use crate::{
     errors::{ApiError, ApiResult},
     models::user::User,
-    models::workflow::{Workflow, WorkflowExecution, WorkflowExecutionStep, WorkflowForm, WorkflowStep},
+    models::workflow::{
+        Workflow, WorkflowExecution, WorkflowExecutionStep, WorkflowForm, WorkflowStep,
+    },
     services::{tv_api::TokenClaims, workflow_engine},
     websocket::server::WsServer,
 };
@@ -206,10 +208,7 @@ impl From<WorkflowExecutionStep> for ExecutionStepResponse {
 }
 
 /// GET /api/workflows
-pub async fn list_workflows(
-    pool: web::Data<PgPool>,
-    req: HttpRequest,
-) -> ApiResult<HttpResponse> {
+pub async fn list_workflows(pool: web::Data<PgPool>, req: HttpRequest) -> ApiResult<HttpResponse> {
     let claims = req
         .extensions()
         .get::<TokenClaims>()
@@ -217,7 +216,8 @@ pub async fn list_workflows(
         .ok_or_else(|| ApiError::Authentication("Missing authentication".to_string()))?;
 
     let workflows = Workflow::list_by_org(pool.get_ref(), claims.org_id).await?;
-    let response: Vec<WorkflowListItem> = workflows.into_iter().map(WorkflowListItem::from).collect();
+    let response: Vec<WorkflowListItem> =
+        workflows.into_iter().map(WorkflowListItem::from).collect();
 
     Ok(HttpResponse::Ok().json(response))
 }
@@ -369,12 +369,12 @@ pub async fn update_workflow(
         ));
     }
 
-    if let Some(ref name) = body.name {
-        if name.trim().is_empty() || name.len() > 255 {
-            return Err(ApiError::BadRequest(
-                "Workflow name must be 1-255 characters".to_string(),
-            ));
-        }
+    if let Some(ref name) = body.name
+        && (name.trim().is_empty() || name.len() > 255)
+    {
+        return Err(ApiError::BadRequest(
+            "Workflow name must be 1-255 characters".to_string(),
+        ));
     }
 
     if let Some(ref trigger_type) = body.trigger_type {
@@ -547,8 +547,12 @@ pub async fn list_executions(
     let limit = query.limit.unwrap_or(20).min(100);
     let offset = query.offset.unwrap_or(0);
 
-    let executions = WorkflowExecution::list_by_workflow(pool.get_ref(), *workflow_id, limit, offset).await?;
-    let response: Vec<ExecutionResponse> = executions.into_iter().map(ExecutionResponse::from).collect();
+    let executions =
+        WorkflowExecution::list_by_workflow(pool.get_ref(), *workflow_id, limit, offset).await?;
+    let response: Vec<ExecutionResponse> = executions
+        .into_iter()
+        .map(ExecutionResponse::from)
+        .collect();
 
     Ok(HttpResponse::Ok().json(response))
 }
@@ -582,13 +586,20 @@ pub async fn get_execution(
         .ok_or_else(|| ApiError::NotFound("Execution not found".to_string()))?;
 
     if execution.workflow_id != workflow_id {
-        return Err(ApiError::NotFound("Execution not found for this workflow".to_string()));
+        return Err(ApiError::NotFound(
+            "Execution not found for this workflow".to_string(),
+        ));
     }
 
     let exec_steps = WorkflowExecutionStep::list_by_execution(pool.get_ref(), execution_id).await?;
 
     let mut response = ExecutionResponse::from(execution);
-    response.steps = Some(exec_steps.into_iter().map(ExecutionStepResponse::from).collect());
+    response.steps = Some(
+        exec_steps
+            .into_iter()
+            .map(ExecutionStepResponse::from)
+            .collect(),
+    );
 
     Ok(HttpResponse::Ok().json(response))
 }
@@ -793,10 +804,13 @@ pub async fn submit_form(
     }
 
     if form.status != "pending" {
-        return Err(ApiError::BadRequest("Form has already been submitted".to_string()));
+        return Err(ApiError::BadRequest(
+            "Form has already been submitted".to_string(),
+        ));
     }
 
-    let submitted = WorkflowForm::submit(pool.get_ref(), *form_id, current_user.id, &body.data).await?;
+    let submitted =
+        WorkflowForm::submit(pool.get_ref(), *form_id, current_user.id, &body.data).await?;
 
     // Resume workflow execution with form data
     let execution_id = submitted.execution_id;

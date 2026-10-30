@@ -5,11 +5,11 @@ pub mod retention_worker;
 pub mod scheduled_message_worker;
 pub mod status;
 pub mod webhook_worker;
-pub mod workflow_worker;
 pub mod websocket;
+pub mod workflow_worker;
 
-use std::sync::Arc;
 use sqlx::PgPool;
+use std::sync::Arc;
 
 use crate::services::livekit::LiveKitService;
 
@@ -29,5 +29,7 @@ pub fn start_background_tasks(
     tokio::spawn(websocket::run_batch_flushing_task(ws_server.clone()));
 
     // Start call cleanup task
-    tokio::spawn(call_cleanup::run_call_cleanup_task(pool, ws_server, livekit));
+    tokio::spawn(call_cleanup::run_call_cleanup_task(
+        pool, ws_server, livekit,
+    ));
 }

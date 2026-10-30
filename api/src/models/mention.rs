@@ -55,7 +55,10 @@ impl Mention {
     }
 
     /// Create multiple mentions in a batch
-    pub async fn create_batch(pool: &PgPool, mentions: Vec<CreateMention>) -> ApiResult<Vec<Mention>> {
+    pub async fn create_batch(
+        pool: &PgPool,
+        mentions: Vec<CreateMention>,
+    ) -> ApiResult<Vec<Mention>> {
         let mut created_mentions = Vec::new();
 
         for mention_data in mentions {

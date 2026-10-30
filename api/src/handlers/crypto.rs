@@ -1,4 +1,4 @@
-use actix_web::{web, HttpMessage, HttpRequest, HttpResponse};
+use actix_web::{HttpMessage, HttpRequest, HttpResponse, web};
 use serde::{Deserialize, Serialize};
 use sqlx::PgPool;
 use uuid::Uuid;
@@ -125,17 +125,25 @@ pub async fn register_device(
     body: web::Json<RegisterDeviceRequest>,
     req: HttpRequest,
 ) -> ApiResult<HttpResponse> {
-    let claims = req.extensions().get::<TokenClaims>().cloned()
+    let claims = req
+        .extensions()
+        .get::<TokenClaims>()
+        .cloned()
         .ok_or_else(|| ApiError::Authentication("Missing authentication".to_string()))?;
 
-    let user = User::get_by_tv_user_id(pool.get_ref(), claims.user_id).await?
+    let user = User::get_by_tv_user_id(pool.get_ref(), claims.user_id)
+        .await?
         .ok_or_else(|| ApiError::NotFound("User not found".to_string()))?;
 
     if body.device_id.is_empty() || body.device_id.len() > 64 {
-        return Err(ApiError::BadRequest("device_id must be 1-64 characters".to_string()));
+        return Err(ApiError::BadRequest(
+            "device_id must be 1-64 characters".to_string(),
+        ));
     }
     if body.identity_key.is_empty() || body.signing_key.is_empty() {
-        return Err(ApiError::BadRequest("identity_key and signing_key are required".to_string()));
+        return Err(ApiError::BadRequest(
+            "identity_key and signing_key are required".to_string(),
+        ));
     }
 
     let device = CryptoDevice::create(
@@ -145,13 +153,16 @@ pub async fn register_device(
         body.display_name.as_deref(),
         &body.identity_key,
         &body.signing_key,
-    ).await?;
+    )
+    .await?;
 
     // Upload one-time keys if provided
-    if let Some(ref otk) = body.one_time_keys {
-        if otk.is_object() && !otk.as_object().unwrap().is_empty() {
-            CryptoDevice::upload_one_time_keys(pool.get_ref(), user.id, &body.device_id, otk.clone()).await?;
-        }
+    if let Some(ref otk) = body.one_time_keys
+        && otk.is_object()
+        && !otk.as_object().unwrap().is_empty()
+    {
+        CryptoDevice::upload_one_time_keys(pool.get_ref(), user.id, &body.device_id, otk.clone())
+            .await?;
     }
 
     // Set fallback key if provided
@@ -171,21 +182,23 @@ pub async fn register_device(
     }
 
     // Re-fetch to get updated state
-    let device = CryptoDevice::get_by_user_and_device(pool.get_ref(), user.id, &body.device_id).await?
+    let device = CryptoDevice::get_by_user_and_device(pool.get_ref(), user.id, &body.device_id)
+        .await?
         .unwrap_or(device);
 
     Ok(HttpResponse::Created().json(DeviceResponse::from(device)))
 }
 
 /// GET /api/crypto/devices — list my devices
-pub async fn list_my_devices(
-    pool: web::Data<PgPool>,
-    req: HttpRequest,
-) -> ApiResult<HttpResponse> {
-    let claims = req.extensions().get::<TokenClaims>().cloned()
+pub async fn list_my_devices(pool: web::Data<PgPool>, req: HttpRequest) -> ApiResult<HttpResponse> {
+    let claims = req
+        .extensions()
+        .get::<TokenClaims>()
+        .cloned()
         .ok_or_else(|| ApiError::Authentication("Missing authentication".to_string()))?;
 
-    let user = User::get_by_tv_user_id(pool.get_ref(), claims.user_id).await?
+    let user = User::get_by_tv_user_id(pool.get_ref(), claims.user_id)
+        .await?
         .ok_or_else(|| ApiError::NotFound("User not found".to_string()))?;
 
     let devices = CryptoDevice::list_by_user(pool.get_ref(), user.id).await?;
@@ -200,7 +213,10 @@ pub async fn list_user_devices(
     path: web::Path<Uuid>,
     req: HttpRequest,
 ) -> ApiResult<HttpResponse> {
-    let _claims = req.extensions().get::<TokenClaims>().cloned()
+    let _claims = req
+        .extensions()
+        .get::<TokenClaims>()
+        .cloned()
         .ok_or_else(|| ApiError::Authentication("Missing authentication".to_string()))?;
 
     let target_user_id = path.into_inner();
@@ -216,10 +232,14 @@ pub async fn remove_device(
     path: web::Path<String>,
     req: HttpRequest,
 ) -> ApiResult<HttpResponse> {
-    let claims = req.extensions().get::<TokenClaims>().cloned()
+    let claims = req
+        .extensions()
+        .get::<TokenClaims>()
+        .cloned()
         .ok_or_else(|| ApiError::Authentication("Missing authentication".to_string()))?;
 
-    let user = User::get_by_tv_user_id(pool.get_ref(), claims.user_id).await?
+    let user = User::get_by_tv_user_id(pool.get_ref(), claims.user_id)
+        .await?
         .ok_or_else(|| ApiError::NotFound("User not found".to_string()))?;
 
     let device_id = path.into_inner();
@@ -234,14 +254,19 @@ pub async fn verify_device(
     path: web::Path<String>,
     req: HttpRequest,
 ) -> ApiResult<HttpResponse> {
-    let claims = req.extensions().get::<TokenClaims>().cloned()
+    let claims = req
+        .extensions()
+        .get::<TokenClaims>()
+        .cloned()
         .ok_or_else(|| ApiError::Authentication("Missing authentication".to_string()))?;
 
-    let user = User::get_by_tv_user_id(pool.get_ref(), claims.user_id).await?
+    let user = User::get_by_tv_user_id(pool.get_ref(), claims.user_id)
+        .await?
         .ok_or_else(|| ApiError::NotFound("User not found".to_string()))?;
 
     let device_id = path.into_inner();
-    let device = CryptoDevice::get_by_user_and_device(pool.get_ref(), user.id, &device_id).await?
+    let device = CryptoDevice::get_by_user_and_device(pool.get_ref(), user.id, &device_id)
+        .await?
         .ok_or_else(|| ApiError::NotFound("Device not found".to_string()))?;
 
     let device = CryptoDevice::set_verified(pool.get_ref(), device.id, true).await?;
@@ -255,15 +280,21 @@ pub async fn upload_keys(
     body: web::Json<UploadKeysRequest>,
     req: HttpRequest,
 ) -> ApiResult<HttpResponse> {
-    let claims = req.extensions().get::<TokenClaims>().cloned()
+    let claims = req
+        .extensions()
+        .get::<TokenClaims>()
+        .cloned()
         .ok_or_else(|| ApiError::Authentication("Missing authentication".to_string()))?;
 
-    let user = User::get_by_tv_user_id(pool.get_ref(), claims.user_id).await?
+    let user = User::get_by_tv_user_id(pool.get_ref(), claims.user_id)
+        .await?
         .ok_or_else(|| ApiError::NotFound("User not found".to_string()))?;
 
     // Device ID should be in the query or header; for simplicity, require it in the body
     // The client should know its own device_id
-    let device_id = req.headers().get("X-Device-Id")
+    let device_id = req
+        .headers()
+        .get("X-Device-Id")
         .and_then(|v| v.to_str().ok())
         .ok_or_else(|| ApiError::BadRequest("X-Device-Id header required".to_string()))?;
 
@@ -272,7 +303,8 @@ pub async fn upload_keys(
         user.id,
         device_id,
         body.one_time_keys.clone(),
-    ).await?;
+    )
+    .await?;
 
     Ok(HttpResponse::Ok().json(DeviceResponse::from(device)))
 }
@@ -283,17 +315,19 @@ pub async fn claim_keys(
     body: web::Json<ClaimKeysRequest>,
     req: HttpRequest,
 ) -> ApiResult<HttpResponse> {
-    let _claims = req.extensions().get::<TokenClaims>().cloned()
+    let _claims = req
+        .extensions()
+        .get::<TokenClaims>()
+        .cloned()
         .ok_or_else(|| ApiError::Authentication("Missing authentication".to_string()))?;
 
     let mut claimed_keys = Vec::new();
 
     for target in &body.devices {
-        if let Ok(Some((key_id, key))) = CryptoDevice::claim_one_time_key(
-            pool.get_ref(),
-            target.user_id,
-            &target.device_id,
-        ).await {
+        if let Ok(Some((key_id, key))) =
+            CryptoDevice::claim_one_time_key(pool.get_ref(), target.user_id, &target.device_id)
+                .await
+        {
             claimed_keys.push(ClaimedKey {
                 user_id: target.user_id,
                 device_id: target.device_id.clone(),
@@ -303,7 +337,9 @@ pub async fn claim_keys(
         }
     }
 
-    Ok(HttpResponse::Ok().json(ClaimKeysResponse { one_time_keys: claimed_keys }))
+    Ok(HttpResponse::Ok().json(ClaimKeysResponse {
+        one_time_keys: claimed_keys,
+    }))
 }
 
 /// POST /api/crypto/keys/query — query device keys for users
@@ -312,22 +348,28 @@ pub async fn query_keys(
     body: web::Json<QueryKeysRequest>,
     req: HttpRequest,
 ) -> ApiResult<HttpResponse> {
-    let _claims = req.extensions().get::<TokenClaims>().cloned()
+    let _claims = req
+        .extensions()
+        .get::<TokenClaims>()
+        .cloned()
         .ok_or_else(|| ApiError::Authentication("Missing authentication".to_string()))?;
 
     let devices = CryptoDevice::list_by_users(pool.get_ref(), &body.user_ids).await?;
 
-    let device_keys: Vec<DeviceKeyInfo> = devices.into_iter().map(|d| {
-        let otk_count = d.one_time_keys.as_object().map(|o| o.len()).unwrap_or(0);
-        DeviceKeyInfo {
-            user_id: d.user_id,
-            device_id: d.device_id,
-            identity_key: d.identity_key,
-            signing_key: d.signing_key,
-            one_time_key_count: otk_count,
-            verified: d.verified,
-        }
-    }).collect();
+    let device_keys: Vec<DeviceKeyInfo> = devices
+        .into_iter()
+        .map(|d| {
+            let otk_count = d.one_time_keys.as_object().map(|o| o.len()).unwrap_or(0);
+            DeviceKeyInfo {
+                user_id: d.user_id,
+                device_id: d.device_id,
+                identity_key: d.identity_key,
+                signing_key: d.signing_key,
+                one_time_key_count: otk_count,
+                verified: d.verified,
+            }
+        })
+        .collect();
 
     Ok(HttpResponse::Ok().json(QueryKeysResponse { device_keys }))
 }
@@ -338,16 +380,21 @@ pub async fn enable_channel_encryption(
     path: web::Path<Uuid>,
     req: HttpRequest,
 ) -> ApiResult<HttpResponse> {
-    let claims = req.extensions().get::<TokenClaims>().cloned()
+    let claims = req
+        .extensions()
+        .get::<TokenClaims>()
+        .cloned()
         .ok_or_else(|| ApiError::Authentication("Missing authentication".to_string()))?;
 
-    let user = User::get_by_tv_user_id(pool.get_ref(), claims.user_id).await?
+    let user = User::get_by_tv_user_id(pool.get_ref(), claims.user_id)
+        .await?
         .ok_or_else(|| ApiError::NotFound("User not found".to_string()))?;
 
     let channel_id = path.into_inner();
 
     // Verify channel exists
-    let channel = Channel::get_by_id(pool.get_ref(), channel_id).await?
+    let channel = Channel::get_by_id(pool.get_ref(), channel_id)
+        .await?
         .ok_or_else(|| ApiError::NotFound("Channel not found".to_string()))?;
 
     // Verify user is a member and is admin/owner
@@ -364,7 +411,9 @@ pub async fn enable_channel_encryption(
     .ok_or_else(|| ApiError::Authorization("Not a channel member".to_string()))?;
 
     if member.role != "admin" && member.role != "owner" && channel.created_by != user.id {
-        return Err(ApiError::Authorization("Only channel admins can enable encryption".to_string()));
+        return Err(ApiError::Authorization(
+            "Only channel admins can enable encryption".to_string(),
+        ));
     }
 
     let ec = EncryptedChannel::enable_encryption(pool.get_ref(), channel_id).await?;
@@ -383,7 +432,10 @@ pub async fn get_channel_encryption(
     path: web::Path<Uuid>,
     req: HttpRequest,
 ) -> ApiResult<HttpResponse> {
-    let _claims = req.extensions().get::<TokenClaims>().cloned()
+    let _claims = req
+        .extensions()
+        .get::<TokenClaims>()
+        .cloned()
         .ok_or_else(|| ApiError::Authentication("Missing authentication".to_string()))?;
 
     let channel_id = path.into_inner();

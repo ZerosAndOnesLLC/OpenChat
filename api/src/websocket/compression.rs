@@ -1,5 +1,5 @@
-use flate2::write::{GzDecoder, GzEncoder};
 use flate2::Compression;
+use flate2::write::{GzDecoder, GzEncoder};
 use std::io::Write;
 
 /// Compress data using gzip
@@ -31,12 +31,16 @@ mod tests {
 
     #[test]
     fn test_compress_decompress() {
-        let original = b"Hello, World! This is a test message that should be compressed. ".repeat(16);
+        let original =
+            b"Hello, World! This is a test message that should be compressed. ".repeat(16);
         let compressed = compress(&original).expect("Compression failed");
         let decompressed = decompress(&compressed).expect("Decompression failed");
 
         assert_eq!(original, decompressed);
-        assert!(compressed.len() < original.len(), "Compression should reduce size");
+        assert!(
+            compressed.len() < original.len(),
+            "Compression should reduce size"
+        );
     }
 
     #[test]

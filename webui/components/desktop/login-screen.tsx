@@ -20,24 +20,24 @@ interface LoginScreenProps {
   onLoginSuccess: (authResponse: AuthResponse) => void;
 }
 
+/** Default device name based on OS. */
+function defaultDeviceName(): string {
+  if (typeof navigator === 'undefined') return 'Desktop';
+  const platform = navigator.platform;
+  if (platform.includes('Win')) return 'Windows PC';
+  if (platform.includes('Mac')) return 'Mac';
+  if (platform.includes('Linux')) return 'Linux PC';
+  return 'Desktop';
+}
+
 export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
   const [code, setCode] = useState('');
-  const [deviceName, setDeviceName] = useState('');
+  const [deviceName, setDeviceName] = useState(defaultDeviceName);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showScanner, setShowScanner] = useState(false);
 
   useEffect(() => {
-    // Set default device name based on OS
-    const getDeviceName = () => {
-      const platform = navigator.platform;
-      if (platform.includes('Win')) return 'Windows PC';
-      if (platform.includes('Mac')) return 'Mac';
-      if (platform.includes('Linux')) return 'Linux PC';
-      return 'Desktop';
-    };
-    setDeviceName(getDeviceName());
-
     // Listen for deep link events
     const unlistenLogin = listen<string>('deep-link-login', async (event) => {
       setLoading(true);
@@ -240,7 +240,7 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
 
         <div className="mt-8 pt-6 border-t border-gray-200 dark:border-gray-700">
           <div className="text-center text-sm text-gray-600 dark:text-gray-400">
-            <p className="mb-2">Don't have a code?</p>
+            <p className="mb-2">Don&apos;t have a code?</p>
             <ol className="text-left space-y-1 list-decimal list-inside">
               <li>Open OpenChat in your web browser</li>
               <li>Go to Settings → Desktop App</li>

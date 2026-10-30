@@ -36,11 +36,6 @@ function base64ToArrayBuffer(base64: string): ArrayBuffer {
   return bytes.buffer;
 }
 
-async function exportKeyToBase64(key: CryptoKey): Promise<string> {
-  const exported = await crypto.subtle.exportKey('jwk', key);
-  return btoa(JSON.stringify(exported));
-}
-
 async function generateDeviceId(): Promise<string> {
   const bytes = new Uint8Array(16);
   crypto.getRandomValues(bytes);

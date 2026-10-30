@@ -32,10 +32,7 @@ pub enum PubSubEvent {
         edited_at: String,
     },
     /// Message deleted event
-    MessageDeleted {
-        message_id: Uuid,
-        org_id: Uuid,
-    },
+    MessageDeleted { message_id: Uuid, org_id: Uuid },
     /// Typing indicator
     Typing {
         user_id: Uuid,
@@ -119,7 +116,7 @@ impl RedisPubSub {
     }
 
     /// Start subscribing to Redis channels
-    async fn subscribe_to_channels(&self, ctx: &mut Context<Self>) {
+    fn subscribe_to_channels(&self, ctx: &mut Context<Self>) {
         let redis_client = self.redis_client.clone();
         let ws_server = self.ws_server.clone();
 
@@ -144,7 +141,10 @@ impl RedisPubSub {
                                 let payload: String = match msg.get_payload() {
                                     Ok(p) => p,
                                     Err(e) => {
-                                        tracing::error!("Failed to get Redis message payload: {}", e);
+                                        tracing::error!(
+                                            "Failed to get Redis message payload: {}",
+                                            e
+                                        );
                                         continue;
                                     }
                                 };
@@ -381,7 +381,7 @@ impl Actor for RedisPubSub {
 
     fn started(&mut self, ctx: &mut Self::Context) {
         tracing::info!("Redis Pub/Sub actor started");
-        let _ = self.subscribe_to_channels(ctx);
+        self.subscribe_to_channels(ctx);
     }
 }
 

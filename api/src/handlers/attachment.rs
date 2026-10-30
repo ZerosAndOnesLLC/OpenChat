@@ -1,5 +1,5 @@
 use actix_multipart::Multipart;
-use actix_web::{web, HttpMessage, HttpRequest, HttpResponse};
+use actix_web::{HttpMessage, HttpRequest, HttpResponse, web};
 use futures_util::StreamExt;
 use sqlx::PgPool;
 use std::sync::Arc;
@@ -7,8 +7,7 @@ use uuid::Uuid;
 
 use crate::errors::ApiError;
 use crate::models::attachment::{
-    is_allowed_file_type, validate_file_size, Attachment, AttachmentUploadResponse,
-    MAX_FILE_SIZE,
+    Attachment, AttachmentUploadResponse, MAX_FILE_SIZE, is_allowed_file_type, validate_file_size,
 };
 use crate::services::tv_api::TokenClaims;
 use crate::storage::StorageFactory;
@@ -37,9 +36,8 @@ pub async fn upload_attachment(
 
     // Process multipart form
     while let Some(item) = payload.next().await {
-        let mut field = item.map_err(|e| {
-            ApiError::BadRequest(format!("Failed to read multipart field: {}", e))
-        })?;
+        let mut field = item
+            .map_err(|e| ApiError::BadRequest(format!("Failed to read multipart field: {}", e)))?;
 
         let field_name = field.name();
 
@@ -47,17 +45,16 @@ pub async fn upload_attachment(
             // Read message_id field
             let mut data = Vec::new();
             while let Some(chunk) = field.next().await {
-                let chunk = chunk.map_err(|e| {
-                    ApiError::BadRequest(format!("Failed to read chunk: {}", e))
-                })?;
+                let chunk = chunk
+                    .map_err(|e| ApiError::BadRequest(format!("Failed to read chunk: {}", e)))?;
                 data.extend_from_slice(&chunk);
             }
-            let message_id_str = String::from_utf8(data).map_err(|e| {
-                ApiError::BadRequest(format!("Invalid message_id: {}", e))
-            })?;
-            message_id = Some(Uuid::parse_str(&message_id_str).map_err(|e| {
-                ApiError::BadRequest(format!("Invalid message_id UUID: {}", e))
-            })?);
+            let message_id_str = String::from_utf8(data)
+                .map_err(|e| ApiError::BadRequest(format!("Invalid message_id: {}", e)))?;
+            message_id =
+                Some(Uuid::parse_str(&message_id_str).map_err(|e| {
+                    ApiError::BadRequest(format!("Invalid message_id UUID: {}", e))
+                })?);
         } else if field_name == Some("file") {
             // Read file field
             let content_disposition = field.content_disposition();
@@ -101,9 +98,7 @@ pub async fn upload_attachment(
             }
 
             let file_size = file_data.len() as i64;
-            validate_file_size(file_size, MAX_FILE_SIZE).map_err(|e| {
-                ApiError::BadRequest(e)
-            })?;
+            validate_file_size(file_size, MAX_FILE_SIZE).map_err(ApiError::BadRequest)?;
 
             // Upload to storage
             let uploaded = storage
@@ -114,23 +109,20 @@ pub async fn upload_attachment(
         }
     }
 
-    let message_id = message_id
-        .ok_or_else(|| ApiError::BadRequest("Missing message_id".to_string()))?;
+    let message_id =
+        message_id.ok_or_else(|| ApiError::BadRequest("Missing message_id".to_string()))?;
 
     if uploaded_files.is_empty() {
         return Err(ApiError::BadRequest("No files uploaded".to_string()));
     }
 
     // Verify message exists and user has access
-    let message: Option<(Uuid,)> = sqlx::query_as(
-        "SELECT id FROM messages WHERE id = $1 AND deleted_at IS NULL",
-    )
-    .bind(message_id)
-    .fetch_optional(db.get_ref())
-    .await
-    .map_err(|e| {
-        ApiError::Internal(format!("Failed to verify message: {}", e))
-    })?;
+    let message: Option<(Uuid,)> =
+        sqlx::query_as("SELECT id FROM messages WHERE id = $1 AND deleted_at IS NULL")
+            .bind(message_id)
+            .fetch_optional(db.get_ref())
+            .await
+            .map_err(|e| ApiError::Internal(format!("Failed to verify message: {}", e)))?;
 
     if message.is_none() {
         return Err(ApiError::NotFound("Message not found".to_string()));
@@ -190,16 +182,12 @@ pub async fn download_attachment(
     let attachment_id = attachment_id.into_inner();
 
     // Fetch attachment metadata
-    let attachment: Attachment = sqlx::query_as(
-        "SELECT * FROM attachments WHERE id = $1",
-    )
-    .bind(attachment_id)
-    .fetch_optional(db.get_ref())
-    .await
-    .map_err(|e| {
-        ApiError::Internal(format!("Failed to fetch attachment: {}", e))
-    })?
-    .ok_or_else(|| ApiError::NotFound("Attachment not found".to_string()))?;
+    let attachment: Attachment = sqlx::query_as("SELECT * FROM attachments WHERE id = $1")
+        .bind(attachment_id)
+        .fetch_optional(db.get_ref())
+        .await
+        .map_err(|e| ApiError::Internal(format!("Failed to fetch attachment: {}", e)))?
+        .ok_or_else(|| ApiError::NotFound("Attachment not found".to_string()))?;
 
     // Verify user has access to the message
     let has_access: bool = sqlx::query_scalar(
@@ -223,9 +211,7 @@ pub async fn download_attachment(
     .bind(claims.user_id)
     .fetch_one(db.get_ref())
     .await
-    .map_err(|e| {
-        ApiError::Internal(format!("Failed to verify access: {}", e))
-    })?;
+    .map_err(|e| ApiError::Internal(format!("Failed to verify access: {}", e)))?;
 
     if !has_access {
         return Err(ApiError::Authorization(
@@ -267,28 +253,21 @@ pub async fn delete_attachment(
     let attachment_id = attachment_id.into_inner();
 
     // Fetch attachment metadata
-    let attachment: Attachment = sqlx::query_as(
-        "SELECT * FROM attachments WHERE id = $1",
-    )
-    .bind(attachment_id)
-    .fetch_optional(db.get_ref())
-    .await
-    .map_err(|e| {
-        ApiError::Internal(format!("Failed to fetch attachment: {}", e))
-    })?
-    .ok_or_else(|| ApiError::NotFound("Attachment not found".to_string()))?;
+    let attachment: Attachment = sqlx::query_as("SELECT * FROM attachments WHERE id = $1")
+        .bind(attachment_id)
+        .fetch_optional(db.get_ref())
+        .await
+        .map_err(|e| ApiError::Internal(format!("Failed to fetch attachment: {}", e)))?
+        .ok_or_else(|| ApiError::NotFound("Attachment not found".to_string()))?;
 
     // Verify user is the message author or has permission
-    let message_user_id: Uuid = sqlx::query_scalar(
-        "SELECT user_id FROM messages WHERE id = $1 AND deleted_at IS NULL",
-    )
-    .bind(attachment.message_id)
-    .fetch_optional(db.get_ref())
-    .await
-    .map_err(|e| {
-        ApiError::Internal(format!("Failed to fetch message: {}", e))
-    })?
-    .ok_or_else(|| ApiError::NotFound("Message not found".to_string()))?;
+    let message_user_id: Uuid =
+        sqlx::query_scalar("SELECT user_id FROM messages WHERE id = $1 AND deleted_at IS NULL")
+            .bind(attachment.message_id)
+            .fetch_optional(db.get_ref())
+            .await
+            .map_err(|e| ApiError::Internal(format!("Failed to fetch message: {}", e)))?
+            .ok_or_else(|| ApiError::NotFound("Message not found".to_string()))?;
 
     if message_user_id != claims.user_id {
         return Err(ApiError::Authorization(
@@ -307,9 +286,7 @@ pub async fn delete_attachment(
         .bind(attachment_id)
         .execute(db.get_ref())
         .await
-        .map_err(|e| {
-            ApiError::Internal(format!("Failed to delete attachment: {}", e))
-        })?;
+        .map_err(|e| ApiError::Internal(format!("Failed to delete attachment: {}", e)))?;
 
     Ok(HttpResponse::Ok().json(serde_json::json!({
         "message": "Attachment deleted successfully"
@@ -351,9 +328,7 @@ pub async fn get_message_attachments(
     .bind(claims.user_id)
     .fetch_one(db.get_ref())
     .await
-    .map_err(|e| {
-        ApiError::Internal(format!("Failed to verify access: {}", e))
-    })?;
+    .map_err(|e| ApiError::Internal(format!("Failed to verify access: {}", e)))?;
 
     if !has_access {
         return Err(ApiError::Authorization(
@@ -362,15 +337,12 @@ pub async fn get_message_attachments(
     }
 
     // Fetch attachments
-    let attachments: Vec<Attachment> = sqlx::query_as(
-        "SELECT * FROM attachments WHERE message_id = $1 ORDER BY created_at ASC",
-    )
-    .bind(message_id)
-    .fetch_all(db.get_ref())
-    .await
-    .map_err(|e| {
-        ApiError::Internal(format!("Failed to fetch attachments: {}", e))
-    })?;
+    let attachments: Vec<Attachment> =
+        sqlx::query_as("SELECT * FROM attachments WHERE message_id = $1 ORDER BY created_at ASC")
+            .bind(message_id)
+            .fetch_all(db.get_ref())
+            .await
+            .map_err(|e| ApiError::Internal(format!("Failed to fetch attachments: {}", e)))?;
 
     Ok(HttpResponse::Ok().json(attachments))
 }

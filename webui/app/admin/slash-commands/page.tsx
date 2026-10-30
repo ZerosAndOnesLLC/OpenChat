@@ -4,6 +4,33 @@ import { useState, useEffect } from 'react';
 import { apiClient } from '@/lib/api';
 import type { SlashCommand, SlashCommandFull } from '@/lib/types';
 
+interface LoadedCommands {
+  builtins: SlashCommand[];
+  customs: SlashCommandFull[];
+}
+
+async function loadCommands(): Promise<LoadedCommands> {
+  const all = await apiClient.listCommands();
+  // For customs we need to re-fetch since listCommands returns simplified info
+  // We'll use the ones with IDs as custom
+  const customList = all.filter((c) => c.handler_type === 'webhook' && c.id);
+  return {
+    builtins: all.filter((c) => c.handler_type === 'builtin'),
+    customs: customList.map((c) => ({
+      id: c.id!,
+      org_id: '',
+      command_name: c.name,
+      description: c.description,
+      usage_hint: c.usage_hint,
+      handler_type: c.handler_type,
+      response_type: 'in_channel',
+      created_by: '',
+      enabled: true,
+      created_at: '',
+    })),
+  };
+}
+
 export default function SlashCommandsPage() {
   const [builtins, setBuiltins] = useState<SlashCommand[]>([]);
   const [customs, setCustoms] = useState<SlashCommandFull[]>([]);
@@ -19,37 +46,39 @@ export default function SlashCommandsPage() {
   const [newResponseType, setNewResponseType] = useState('in_channel');
   const [creating, setCreating] = useState(false);
 
-  useEffect(() => {
-    fetchCommands();
-  }, []);
-
   const fetchCommands = async () => {
     try {
       setLoading(true);
       setError(null);
-      const all = await apiClient.listCommands();
-      setBuiltins(all.filter((c) => c.handler_type === 'builtin'));
-      // For customs we need to re-fetch since listCommands returns simplified info
-      // We'll use the ones with IDs as custom
-      const customList = all.filter((c) => c.handler_type === 'webhook' && c.id);
-      setCustoms(customList.map((c) => ({
-        id: c.id!,
-        org_id: '',
-        command_name: c.name,
-        description: c.description,
-        usage_hint: c.usage_hint,
-        handler_type: c.handler_type,
-        response_type: 'in_channel',
-        created_by: '',
-        enabled: true,
-        created_at: '',
-      })));
+      applyCommands(await loadCommands());
     } catch (err) {
       setError((err as Error).message);
     } finally {
       setLoading(false);
     }
   };
+
+  const applyCommands = ({ builtins, customs }: LoadedCommands) => {
+    setBuiltins(builtins);
+    setCustoms(customs);
+  };
+
+  useEffect(() => {
+    let cancelled = false;
+    loadCommands()
+      .then((loaded) => {
+        if (!cancelled) applyCommands(loaded);
+      })
+      .catch((err) => {
+        if (!cancelled) setError((err as Error).message);
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();

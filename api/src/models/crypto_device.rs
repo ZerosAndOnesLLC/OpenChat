@@ -149,27 +149,27 @@ impl CryptoDevice {
         };
 
         let keys = device.one_time_keys.as_object();
-        if let Some(obj) = keys {
-            if let Some((key_id, key_value)) = obj.iter().next() {
-                let key_id = key_id.clone();
-                let key_value = key_value.clone();
+        if let Some(obj) = keys
+            && let Some((key_id, key_value)) = obj.iter().next()
+        {
+            let key_id = key_id.clone();
+            let key_value = key_value.clone();
 
-                // Remove the claimed key
-                sqlx::query(
-                    r#"
+            // Remove the claimed key
+            sqlx::query(
+                r#"
                     UPDATE user_crypto_devices
                     SET one_time_keys = one_time_keys - $3, last_seen_at = NOW()
                     WHERE user_id = $1 AND device_id = $2
                     "#,
-                )
-                .bind(user_id)
-                .bind(device_id)
-                .bind(&key_id)
-                .execute(pool)
-                .await?;
+            )
+            .bind(user_id)
+            .bind(device_id)
+            .bind(&key_id)
+            .execute(pool)
+            .await?;
 
-                return Ok(Some((key_id, key_value)));
-            }
+            return Ok(Some((key_id, key_value)));
         }
 
         // No one-time keys available, return fallback key if present
@@ -180,11 +180,7 @@ impl CryptoDevice {
         Ok(None)
     }
 
-    pub async fn set_verified(
-        pool: &PgPool,
-        id: Uuid,
-        verified: bool,
-    ) -> ApiResult<CryptoDevice> {
+    pub async fn set_verified(pool: &PgPool, id: Uuid, verified: bool) -> ApiResult<CryptoDevice> {
         let device = sqlx::query_as::<_, CryptoDevice>(
             r#"
             UPDATE user_crypto_devices
@@ -221,11 +217,7 @@ impl CryptoDevice {
         Ok(())
     }
 
-    pub async fn update_last_seen(
-        pool: &PgPool,
-        user_id: Uuid,
-        device_id: &str,
-    ) -> ApiResult<()> {
+    pub async fn update_last_seen(pool: &PgPool, user_id: Uuid, device_id: &str) -> ApiResult<()> {
         sqlx::query(
             r#"
             UPDATE user_crypto_devices

@@ -1,4 +1,4 @@
-use actix_web::{web, HttpMessage, HttpRequest, HttpResponse};
+use actix_web::{HttpMessage, HttpRequest, HttpResponse, web};
 use serde::{Deserialize, Serialize};
 use sqlx::PgPool;
 use uuid::Uuid;
@@ -92,10 +92,7 @@ pub async fn save_draft(
 }
 
 /// GET /api/drafts - Get all drafts for the current user
-pub async fn get_all_drafts(
-    pool: web::Data<PgPool>,
-    req: HttpRequest,
-) -> ApiResult<HttpResponse> {
+pub async fn get_all_drafts(pool: web::Data<PgPool>, req: HttpRequest) -> ApiResult<HttpResponse> {
     let claims = req
         .extensions()
         .get::<TokenClaims>()
@@ -132,8 +129,7 @@ pub async fn get_channel_draft(
         .ok_or_else(|| ApiError::NotFound("Current user not found".to_string()))?;
 
     // Get draft
-    let draft =
-        MessageDraft::get_for_channel(pool.get_ref(), current_user.id, *channel_id).await?;
+    let draft = MessageDraft::get_for_channel(pool.get_ref(), current_user.id, *channel_id).await?;
 
     match draft {
         Some(draft) => Ok(HttpResponse::Ok().json(DraftResponse::from(draft))),

@@ -110,18 +110,17 @@ pub fn update_normal_state(window: &WebviewWindow) {
 
 /// Initializes the normal state tracker with the current window state
 pub fn init_normal_state(window: &WebviewWindow) {
-    if let Ok(mut guard) = NORMAL_STATE.lock() {
-        if guard.is_none() {
-            if let (Ok(position), Ok(size)) = (window.outer_position(), window.inner_size()) {
-                *guard = Some(WindowState {
-                    x: position.x,
-                    y: position.y,
-                    width: size.width,
-                    height: size.height,
-                    maximized: false,
-                });
-            }
-        }
+    if let Ok(mut guard) = NORMAL_STATE.lock()
+        && guard.is_none()
+        && let (Ok(position), Ok(size)) = (window.outer_position(), window.inner_size())
+    {
+        *guard = Some(WindowState {
+            x: position.x,
+            y: position.y,
+            width: size.width,
+            height: size.height,
+            maximized: false,
+        });
     }
 }
 
@@ -132,16 +131,16 @@ pub fn capture_window_state(window: &WebviewWindow) -> Option<WindowState> {
 
     if is_maximized {
         // When maximized, use the tracked normal state for position/size
-        if let Ok(guard) = NORMAL_STATE.lock() {
-            if let Some(ref normal) = *guard {
-                return Some(WindowState {
-                    x: normal.x,
-                    y: normal.y,
-                    width: normal.width,
-                    height: normal.height,
-                    maximized: true,
-                });
-            }
+        if let Ok(guard) = NORMAL_STATE.lock()
+            && let Some(ref normal) = *guard
+        {
+            return Some(WindowState {
+                x: normal.x,
+                y: normal.y,
+                width: normal.width,
+                height: normal.height,
+                maximized: true,
+            });
         }
         // Fallback: no tracked state, return default with maximized flag
         return Some(WindowState {

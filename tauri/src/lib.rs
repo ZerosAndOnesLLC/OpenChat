@@ -95,12 +95,11 @@ async fn login_success(webui_url: String, app: tauri::AppHandle) -> Result<(), S
         .map_err(|e| format!("Failed to create window: {}", e))?;
 
     // Apply maximized state after window is created
-    if use_saved {
-        if let Some(ref state) = saved_state {
-            if state.maximized {
-                let _ = chat_window.maximize();
-            }
-        }
+    if use_saved
+        && let Some(ref state) = saved_state
+        && state.maximized
+    {
+        let _ = chat_window.maximize();
     }
 
     // Set up close handler to save window state
@@ -214,12 +213,11 @@ pub fn run() {
                     let chat_window = builder.build()?;
 
                     // Apply maximized state after window is created
-                    if use_saved {
-                        if let Some(ref ws) = saved_state {
-                            if ws.maximized {
-                                let _ = chat_window.maximize();
-                            }
-                        }
+                    if use_saved
+                        && let Some(ref ws) = saved_state
+                        && ws.maximized
+                    {
+                        let _ = chat_window.maximize();
                     }
 
                     // Set up close handler to save window state
@@ -274,18 +272,18 @@ pub fn run() {
 
 /// Check if we have valid stored credentials
 fn check_stored_credentials(state: &State<'_, auth::AppState>) -> bool {
-    if let Ok(creds_guard) = state.credentials.lock() {
-        if let Some(ref creds) = *creds_guard {
-            // Check if not expired
-            return chrono::Utc::now() < creds.expires_at;
-        }
+    if let Ok(creds_guard) = state.credentials.lock()
+        && let Some(ref creds) = *creds_guard
+    {
+        // Check if not expired
+        return chrono::Utc::now() < creds.expires_at;
     }
 
     // Also check file fallback (in-memory might be empty on fresh start)
-    if let Some(creds) = auth::read_stored_credentials_sync() {
-        if chrono::Utc::now() < creds.expires_at {
-            return true;
-        }
+    if let Some(creds) = auth::read_stored_credentials_sync()
+        && chrono::Utc::now() < creds.expires_at
+    {
+        return true;
     }
 
     false
@@ -293,19 +291,18 @@ fn check_stored_credentials(state: &State<'_, auth::AppState>) -> bool {
 
 /// Get the stored Web UI URL from credentials
 fn get_stored_webui_url(state: &State<'_, auth::AppState>) -> Option<String> {
-    if let Ok(creds_guard) = state.credentials.lock() {
-        if let Some(ref creds) = *creds_guard {
-            if chrono::Utc::now() < creds.expires_at {
-                return Some(creds.webui_url.clone());
-            }
-        }
+    if let Ok(creds_guard) = state.credentials.lock()
+        && let Some(ref creds) = *creds_guard
+        && chrono::Utc::now() < creds.expires_at
+    {
+        return Some(creds.webui_url.clone());
     }
 
     // Also check file fallback
-    if let Some(creds) = auth::read_stored_credentials_sync() {
-        if chrono::Utc::now() < creds.expires_at {
-            return Some(creds.webui_url);
-        }
+    if let Some(creds) = auth::read_stored_credentials_sync()
+        && chrono::Utc::now() < creds.expires_at
+    {
+        return Some(creds.webui_url);
     }
 
     None

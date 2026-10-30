@@ -61,11 +61,11 @@ fn read_credentials_from_file() -> Option<String> {
 
 /// Deletes the credentials file
 fn delete_credentials_file() {
-    if let Some(path) = get_credentials_path() {
-        if path.exists() {
-            let _ = fs::remove_file(&path);
-            log::info!("delete_credentials_file: removed {:?}", path);
-        }
+    if let Some(path) = get_credentials_path()
+        && path.exists()
+    {
+        let _ = fs::remove_file(&path);
+        log::info!("delete_credentials_file: removed {:?}", path);
     }
 }
 
@@ -78,10 +78,10 @@ pub fn read_stored_credentials_sync() -> Option<StoredCredentials> {
     }
 
     // Try file fallback
-    if let Some(json_str) = read_credentials_from_file() {
-        if let Ok(creds) = serde_json::from_str::<StoredCredentials>(&json_str) {
-            return Some(creds);
-        }
+    if let Some(json_str) = read_credentials_from_file()
+        && let Ok(creds) = serde_json::from_str::<StoredCredentials>(&json_str)
+    {
+        return Some(creds);
     }
 
     None
@@ -413,14 +413,14 @@ pub async fn get_stored_token(state: State<'_, AppState>) -> Result<Option<Strin
 
     // First check in-memory state
     {
-        if let Ok(creds_guard) = state.credentials.lock() {
-            if let Some(ref creds) = *creds_guard {
-                if chrono::Utc::now() < creds.expires_at {
-                    log::info!("get_stored_token: found valid token in memory cache");
-                    return Ok(Some(creds.access_token.clone()));
-                } else {
-                    log::info!("get_stored_token: in-memory token expired");
-                }
+        if let Ok(creds_guard) = state.credentials.lock()
+            && let Some(ref creds) = *creds_guard
+        {
+            if chrono::Utc::now() < creds.expires_at {
+                log::info!("get_stored_token: found valid token in memory cache");
+                return Ok(Some(creds.access_token.clone()));
+            } else {
+                log::info!("get_stored_token: in-memory token expired");
             }
         }
     }

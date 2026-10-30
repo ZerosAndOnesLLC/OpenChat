@@ -1,25 +1,34 @@
 name: Tauri Desktop Release
 
+# Runs when a GitHub release tagged desktop-v<version> is published
+# (`gh release create desktop-vX.Y.Z --generate-notes`), and uploads the
+# build into that release. Re-run for an existing release with
+# workflow_dispatch and its tag.
 on:
-  push:
-    tags:
-      - 'desktop-v*'
+  release:
+    types: [published]
   workflow_dispatch:
     inputs:
-      dry_run:
-        description: 'Build installers only (no GitHub release)'
-        type: boolean
-        default: true
+      tag:
+        description: 'Existing release tag to build and upload to (e.g. desktop-v1.2.3)'
+        required: true
 
 permissions:
   contents: write
 
 concurrency:
-  group: tauri-release-${{ github.ref }}
+  group: tauri-release-${{ github.event.release.tag_name || inputs.tag }}
   cancel-in-progress: false
+
+env:
+  TAG: ${{ github.event.release.tag_name || inputs.tag }}
+  # Pinned so a new CLI release can't change a release build unannounced.
+  # Keep in the same 2.x minor as @tauri-apps/api in webui/package.json.
+  TAURI_CLI_VERSION: "2.12.4"
 
 jobs:
   build-tauri:
+    if: startsWith(github.event.release.tag_name || inputs.tag, 'desktop-v')
     strategy:
       fail-fast: false
       matrix:
@@ -45,16 +54,17 @@ jobs:
     timeout-minutes: 90
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ env.TAG }}
 
       - name: Verify tag matches Cargo.toml version
-        if: startsWith(github.ref, 'refs/tags/desktop-v')
         shell: bash
         run: |
           CARGO_VERSION=$(grep -m1 '^version' tauri/Cargo.toml | cut -d'"' -f2)
-          TAG_VERSION="${GITHUB_REF_NAME#desktop-v}"
+          TAG_VERSION="${TAG#desktop-v}"
           if [ "$CARGO_VERSION" != "$TAG_VERSION" ]; then
-            echo "::error::Tag $GITHUB_REF_NAME does not match tauri/Cargo.toml version $CARGO_VERSION"
+            echo "::error::Tag $TAG does not match tauri/Cargo.toml version $CARGO_VERSION"
             exit 1
           fi
 
@@ -82,7 +92,7 @@ jobs:
           key: ${{ matrix.target }}
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7
         with:
           node-version: '24'
           cache: npm
@@ -107,7 +117,7 @@ jobs:
       - name: Build Tauri app
         working-directory: tauri
         shell: bash
-        run: npx --yes @tauri-apps/cli@2 build --target ${{ matrix.target }}
+        run: npx --yes "@tauri-apps/cli@${TAURI_CLI_VERSION}" build --target ${{ matrix.target }}
 
       - name: Collect artifacts
         shell: bash
@@ -137,7 +147,7 @@ jobs:
           ls -la
 
       - name: Upload artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: release-${{ matrix.name }}
           path: release-artifacts/*
@@ -145,32 +155,32 @@ jobs:
 
   release:
     needs: build-tauri
-    if: startsWith(github.ref, 'refs/tags/desktop-v')
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
       - name: Download artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           merge-multiple: true
 
-      - name: Create GitHub Release
-        uses: softprops/action-gh-release@v2
-        with:
-          name: OpenChat Desktop ${{ github.ref_name }}
-          generate_release_notes: true
-          fail_on_unmatched_files: false
-          files: |
-            *.AppImage
-            *.deb
-            *.rpm
-            *.exe
-            *.msi
-            *.dmg
-            *.sha256
+      # The release already exists (gh release create made it and the tag);
+      # name it and upload the build into it.
+      - name: Upload to the GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          files=(*.AppImage *.deb *.rpm *.exe *.msi *.dmg *.sha256)
+          if [ ${#files[@]} -eq 0 ]; then
+            echo "::error::No release files downloaded"
+            exit 1
+          fi
+          gh release edit "$TAG" --repo "$GITHUB_REPOSITORY" --title "OpenChat Desktop $TAG"
+          gh release upload "$TAG" "${files[@]}" --repo "$GITHUB_REPOSITORY" --clobber
 
       - name: Prune old releases (tags are kept)
-        uses: actions/github-script@v7
+        uses: actions/github-script@v9
         with:
           script: |
             const releases = await github.paginate(github.rest.repos.listReleases, {

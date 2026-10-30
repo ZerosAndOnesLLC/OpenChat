@@ -5,9 +5,10 @@
 #       Bump the component's version (manifest + lockfile), verify it builds,
 #       and commit on the current branch. Open a PR with the result.
 #
-#   scripts/release.sh tag <api|desktop>
-#       On an up-to-date, clean main, tag the component's current version and
-#       push the tag. The push triggers the component's release workflow.
+#   scripts/release.sh release <api|desktop>
+#       On an up-to-date, clean main, create the GitHub release (and its tag)
+#       for the component's current version with `gh release create`.
+#       Publishing the release triggers the component's release workflow.
 #
 #   scripts/release.sh version <api|desktop|webui>
 #       Print the component's current version.
@@ -21,7 +22,7 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 die() { echo "error: $*" >&2; exit 1; }
 
 usage() {
-    sed -n '2,15p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
+    sed -n '2,16p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
     exit 1
 }
 
@@ -90,17 +91,17 @@ cmd_bump() {
     if [ "$component" = "webui" ]; then
         echo "Committed. Open a PR, merge it, then deploy with webui/build-and-pub-to-s3.sh"
     else
-        echo "Committed. Open a PR, merge it, then run: scripts/release.sh tag $component"
+        echo "Committed. Open a PR, merge it, then run: scripts/release.sh release $component"
     fi
 }
 
-cmd_tag() {
+cmd_release() {
     local component="$1" version tag
     tag="$(tag_prefix "$component")"
     version="$(current_version "$component")"
     tag="$tag$version"
 
-    [ "$(git -C "$ROOT" rev-parse --abbrev-ref HEAD)" = "main" ] || die "tags must be cut from main"
+    [ "$(git -C "$ROOT" rev-parse --abbrev-ref HEAD)" = "main" ] || die "releases must be cut from main"
     [ -z "$(git -C "$ROOT" status --porcelain)" ] || die "working tree is not clean"
     git -C "$ROOT" fetch --quiet --tags origin main
     [ "$(git -C "$ROOT" rev-parse HEAD)" = "$(git -C "$ROOT" rev-parse origin/main)" ] \
@@ -109,15 +110,15 @@ cmd_tag() {
         die "tag $tag already exists (bump the version first)"
     fi
 
-    git -C "$ROOT" tag -a "$tag" -m "OpenChat $component $version"
-    git -C "$ROOT" push --quiet origin "$tag"
-    echo "Pushed $tag. Watch the release: gh run list --workflow $([ "$component" = api ] && echo api-release.yml || echo tauri-release.yml) --limit 1"
+    command -v gh >/dev/null || die "the GitHub CLI (gh) is required"
+    gh release create "$tag" --target "$(git -C "$ROOT" rev-parse HEAD)" --generate-notes
+    echo "Released $tag. Watch the build: gh run list --workflow $([ "$component" = api ] && echo api-release.yml || echo tauri-release.yml) --limit 1"
 }
 
 [ $# -ge 2 ] || usage
 case "$1" in
     bump) [ $# -eq 3 ] || usage; cmd_bump "$2" "$3" ;;
-    tag) [ $# -eq 2 ] || usage; cmd_tag "$2" ;;
+    release) [ $# -eq 2 ] || usage; cmd_release "$2" ;;
     version) [ $# -eq 2 ] || usage; current_version "$2" ;;
     *) usage ;;
 esac

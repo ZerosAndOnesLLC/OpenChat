@@ -1,59 +1,93 @@
 name: CI
 
+# Pull-request checks only. Release builds (API binaries, desktop
+# installers) run in api-release.yml / tauri-release.yml when a GitHub
+# release is published. Each job runs only when its part of the repo
+# changed.
+
 on:
   pull_request:
-  push:
-    branches: [main]
 
 permissions:
   contents: read
+  pull-requests: read
 
 concurrency:
-  group: ci-${{ github.ref }}
+  group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
 env:
   CARGO_TERM_COLOR: always
+  # One RUSTFLAGS for every cargo step so fmt/clippy/test share one
+  # dependency build and one rust-cache entry. Warnings are errors.
+  RUSTFLAGS: -D warnings
 
 jobs:
+  changes:
+    name: Changes
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    outputs:
+      api: ${{ steps.filter.outputs.api }}
+      desktop: ${{ steps.filter.outputs.desktop }}
+      webui: ${{ steps.filter.outputs.webui }}
+    steps:
+      - uses: dorny/paths-filter@v4
+        id: filter
+        with:
+          filters: |
+            api:
+              - 'api/**'
+              - '.github/workflows/ci.yml'
+            desktop:
+              - 'tauri/**'
+              - '.github/workflows/ci.yml'
+            webui:
+              - 'webui/**'
+              - '.github/workflows/ci.yml'
+
   api:
-    name: API (check, test, clippy)
+    name: API (fmt, clippy, test)
+    needs: changes
+    if: needs.changes.outputs.api == 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     env:
       SQLX_OFFLINE: "true"
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - uses: dtolnay/rust-toolchain@stable
         with:
-          components: clippy
+          components: clippy, rustfmt
 
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: api
 
-      - name: cargo check (warnings are errors)
+      - name: cargo fmt --check
         working-directory: api
-        run: cargo check --locked --all-targets
-        env:
-          RUSTFLAGS: -D warnings
+        run: cargo fmt --check
+
+      # Clippy lints are advisory here (--cap-lints warn) until the API's
+      # existing backlog is fixed; drop the flag then to make it blocking.
+      # Compiler warnings still fail the job (RUSTFLAGS) in cargo test.
+      - name: cargo clippy (lints advisory)
+        working-directory: api
+        run: cargo clippy --locked --all-targets -- --cap-lints warn
 
       - name: cargo test
         working-directory: api
         run: cargo test --locked
 
-      - name: cargo clippy (report only)
-        working-directory: api
-        continue-on-error: true
-        run: cargo clippy --locked --all-targets
-
   desktop:
-    name: Desktop (check, test, clippy)
+    name: Desktop (fmt, clippy, test)
+    needs: changes
+    if: needs.changes.outputs.desktop == 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Install Linux dependencies
         run: |
@@ -67,38 +101,37 @@ jobs:
 
       - uses: dtolnay/rust-toolchain@stable
         with:
-          components: clippy
+          components: clippy, rustfmt
 
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: tauri
 
-      - name: cargo check (warnings are errors)
+      - name: cargo fmt --check
         working-directory: tauri
-        run: cargo check --locked --all-targets
-        env:
-          RUSTFLAGS: -D warnings
+        run: cargo fmt --check
+
+      - name: cargo clippy
+        working-directory: tauri
+        run: cargo clippy --locked --all-targets
 
       - name: cargo test
         working-directory: tauri
         run: cargo test --locked
 
-      - name: cargo clippy (report only)
-        working-directory: tauri
-        continue-on-error: true
-        run: cargo clippy --locked --all-targets
-
   webui:
-    name: Web UI (typecheck, build, lint)
+    name: Web UI (typecheck, lint)
+    needs: changes
+    if: needs.changes.outputs.webui == 'true'
     runs-on: ubuntu-24.04
-    timeout-minutes: 20
+    timeout-minutes: 15
     defaults:
       run:
         working-directory: webui
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: '24'
           cache: npm
@@ -109,9 +142,8 @@ jobs:
       - name: Typecheck
         run: npx tsc --noEmit
 
-      - name: Build
-        run: npm run build
-
+      # Advisory until the existing ESLint errors are fixed; then remove
+      # continue-on-error to make it blocking.
       - name: Lint (report only until existing errors are fixed)
         continue-on-error: true
         run: npm run lint

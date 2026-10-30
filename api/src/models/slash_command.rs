@@ -55,12 +55,11 @@ impl SlashCommand {
     }
 
     pub async fn get_by_id(pool: &PgPool, id: Uuid) -> ApiResult<Option<SlashCommand>> {
-        let command = sqlx::query_as::<_, SlashCommand>(
-            "SELECT * FROM slash_commands WHERE id = $1",
-        )
-        .bind(id)
-        .fetch_optional(pool)
-        .await?;
+        let command =
+            sqlx::query_as::<_, SlashCommand>("SELECT * FROM slash_commands WHERE id = $1")
+                .bind(id)
+                .fetch_optional(pool)
+                .await?;
 
         Ok(command)
     }

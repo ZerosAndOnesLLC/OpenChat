@@ -49,17 +49,19 @@ impl ScheduledMessage {
     }
 
     pub async fn get_by_id(pool: &PgPool, id: Uuid) -> ApiResult<Option<ScheduledMessage>> {
-        let row = sqlx::query_as::<_, ScheduledMessage>(
-            "SELECT * FROM scheduled_messages WHERE id = $1",
-        )
-        .bind(id)
-        .fetch_optional(pool)
-        .await?;
+        let row =
+            sqlx::query_as::<_, ScheduledMessage>("SELECT * FROM scheduled_messages WHERE id = $1")
+                .bind(id)
+                .fetch_optional(pool)
+                .await?;
 
         Ok(row)
     }
 
-    pub async fn list_pending_by_user(pool: &PgPool, user_id: Uuid) -> ApiResult<Vec<ScheduledMessage>> {
+    pub async fn list_pending_by_user(
+        pool: &PgPool,
+        user_id: Uuid,
+    ) -> ApiResult<Vec<ScheduledMessage>> {
         let rows = sqlx::query_as::<_, ScheduledMessage>(
             r#"SELECT * FROM scheduled_messages
                WHERE user_id = $1 AND sent = false

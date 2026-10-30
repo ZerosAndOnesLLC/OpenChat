@@ -1,5 +1,5 @@
-use actix_web::{web, HttpMessage, HttpRequest, HttpResponse};
 use crate::db::RedisPool;
+use actix_web::{HttpMessage, HttpRequest, HttpResponse, web};
 use serde::{Deserialize, Serialize};
 use sqlx::PgPool;
 use uuid::Uuid;
@@ -162,7 +162,10 @@ impl MessageResponse {
     }
 
     pub fn with_attachments(mut self, attachments: Vec<Attachment>) -> Self {
-        self.attachments = attachments.into_iter().map(AttachmentResponse::from).collect();
+        self.attachments = attachments
+            .into_iter()
+            .map(AttachmentResponse::from)
+            .collect();
         self
     }
 
@@ -175,7 +178,11 @@ impl MessageResponse {
 impl From<PaginatedMessages> for PaginatedMessagesResponse {
     fn from(paginated: PaginatedMessages) -> Self {
         Self {
-            messages: paginated.messages.into_iter().map(MessageResponse::from).collect(),
+            messages: paginated
+                .messages
+                .into_iter()
+                .map(MessageResponse::from)
+                .collect(),
             has_more: paginated.has_more,
             next_cursor: paginated.next_cursor,
         }
@@ -183,10 +190,7 @@ impl From<PaginatedMessages> for PaginatedMessagesResponse {
 }
 
 /// GET /api/dms - List all DMs for the current user
-pub async fn list_dms(
-    pool: web::Data<PgPool>,
-    req: HttpRequest,
-) -> ApiResult<HttpResponse> {
+pub async fn list_dms(pool: web::Data<PgPool>, req: HttpRequest) -> ApiResult<HttpResponse> {
     let claims = req
         .extensions()
         .get::<TokenClaims>()
@@ -267,7 +271,9 @@ pub async fn create_dm(
     }
 
     // Check if a DM with these exact participants already exists
-    if let Some(existing_dm) = DirectMessage::find_by_participants(pool.get_ref(), &all_participants).await? {
+    if let Some(existing_dm) =
+        DirectMessage::find_by_participants(pool.get_ref(), &all_participants).await?
+    {
         // Unhide the DM for the current user (in case it was previously hidden)
         DmParticipant::unhide_dm(pool.get_ref(), existing_dm.id, current_user.id).await?;
 
@@ -323,8 +329,6 @@ pub async fn get_dm(
         .await?
         .ok_or_else(|| ApiError::NotFound("Current user not found".to_string()))?;
 
-    
-
     // Try to get DM from cache first
     let dm = match dm_cache::get_dm_from_cache(redis_pool.get_ref(), claims.org_id, *dm_id).await? {
         Some(cached_dm) => cached_dm,
@@ -344,7 +348,8 @@ pub async fn get_dm(
     };
 
     // Verify user is a participant
-    let is_participant = DirectMessage::is_participant(pool.get_ref(), *dm_id, current_user.id).await?;
+    let is_participant =
+        DirectMessage::is_participant(pool.get_ref(), *dm_id, current_user.id).await?;
     if !is_participant {
         return Err(ApiError::Authorization(
             "You are not a participant in this DM".to_string(),
@@ -389,7 +394,8 @@ pub async fn list_dm_messages(
         .ok_or_else(|| ApiError::NotFound("DM not found".to_string()))?;
 
     // Verify user is a participant
-    let is_participant = DirectMessage::is_participant(pool.get_ref(), *dm_id, current_user.id).await?;
+    let is_participant =
+        DirectMessage::is_participant(pool.get_ref(), *dm_id, current_user.id).await?;
     if !is_participant {
         return Err(ApiError::Authorization(
             "You are not a participant in this DM".to_string(),
@@ -401,22 +407,25 @@ pub async fn list_dm_messages(
 
     // Try to get from cache if this is the first page
     let paginated = if query.cursor.is_none() {
-        
-
-        match message_cache::get_dm_messages_from_cache(redis_pool.get_ref(), claims.org_id, *dm_id).await? {
+        match message_cache::get_dm_messages_from_cache(redis_pool.get_ref(), claims.org_id, *dm_id)
+            .await?
+        {
             Some(cached) => cached,
             None => {
                 // Cache miss - fetch from database
-                let paginated = Message::list_by_dm(
-                    pool.get_ref(),
-                    *dm_id,
-                    limit,
-                    query.cursor.clone(),
-                )
-                .await?;
+                let paginated =
+                    Message::list_by_dm(pool.get_ref(), *dm_id, limit, query.cursor.clone())
+                        .await?;
 
                 // Store in cache for next time
-                if let Err(e) = message_cache::set_dm_messages_in_cache(redis_pool.get_ref(), claims.org_id, *dm_id, &paginated).await {
+                if let Err(e) = message_cache::set_dm_messages_in_cache(
+                    redis_pool.get_ref(),
+                    claims.org_id,
+                    *dm_id,
+                    &paginated,
+                )
+                .await
+                {
                     tracing::warn!("Failed to cache DM messages: {}", e);
                 }
 
@@ -425,39 +434,29 @@ pub async fn list_dm_messages(
         }
     } else {
         // Not first page - don't use cache
-        Message::list_by_dm(
-            pool.get_ref(),
-            *dm_id,
-            limit,
-            query.cursor.clone(),
-        )
-        .await?
+        Message::list_by_dm(pool.get_ref(), *dm_id, limit, query.cursor.clone()).await?
     };
 
     // Fetch users for all messages
     let user_ids: Vec<Uuid> = paginated.messages.iter().map(|m| m.user_id).collect();
     let users = if !user_ids.is_empty() {
-        sqlx::query_as::<_, User>(
-            "SELECT * FROM users WHERE id = ANY($1)"
-        )
-        .bind(&user_ids)
-        .fetch_all(pool.get_ref())
-        .await?
+        sqlx::query_as::<_, User>("SELECT * FROM users WHERE id = ANY($1)")
+            .bind(&user_ids)
+            .fetch_all(pool.get_ref())
+            .await?
     } else {
         vec![]
     };
 
     // Create a map of user_id -> User for quick lookup
-    let user_map: std::collections::HashMap<Uuid, User> = users
-        .into_iter()
-        .map(|u| (u.id, u))
-        .collect();
+    let user_map: std::collections::HashMap<Uuid, User> =
+        users.into_iter().map(|u| (u.id, u)).collect();
 
     // Fetch reactions for all messages
     let message_ids: Vec<Uuid> = paginated.messages.iter().map(|m| m.id).collect();
     let reactions = if !message_ids.is_empty() {
         sqlx::query_as::<_, Reaction>(
-            "SELECT * FROM reactions WHERE message_id = ANY($1) ORDER BY created_at"
+            "SELECT * FROM reactions WHERE message_id = ANY($1) ORDER BY created_at",
         )
         .bind(&message_ids)
         .fetch_all(pool.get_ref())
@@ -467,7 +466,8 @@ pub async fn list_dm_messages(
     };
 
     // Create a map of message_id -> Vec<Reaction> for quick lookup
-    let mut reaction_map: std::collections::HashMap<Uuid, Vec<Reaction>> = std::collections::HashMap::new();
+    let mut reaction_map: std::collections::HashMap<Uuid, Vec<Reaction>> =
+        std::collections::HashMap::new();
     for reaction in reactions {
         reaction_map
             .entry(reaction.message_id)
@@ -478,7 +478,7 @@ pub async fn list_dm_messages(
     // Fetch attachments for all messages
     let attachments = if !message_ids.is_empty() {
         sqlx::query_as::<_, Attachment>(
-            "SELECT * FROM attachments WHERE message_id = ANY($1) ORDER BY created_at"
+            "SELECT * FROM attachments WHERE message_id = ANY($1) ORDER BY created_at",
         )
         .bind(&message_ids)
         .fetch_all(pool.get_ref())
@@ -488,7 +488,8 @@ pub async fn list_dm_messages(
     };
 
     // Create a map of message_id -> Vec<Attachment> for quick lookup
-    let mut attachment_map: std::collections::HashMap<Uuid, Vec<Attachment>> = std::collections::HashMap::new();
+    let mut attachment_map: std::collections::HashMap<Uuid, Vec<Attachment>> =
+        std::collections::HashMap::new();
     for attachment in attachments {
         attachment_map
             .entry(attachment.message_id)
@@ -503,30 +504,43 @@ pub async fn list_dm_messages(
         vec![]
     };
 
-    let mut poll_map: std::collections::HashMap<Uuid, crate::handlers::messages::PollResponseEmbed> = std::collections::HashMap::new();
+    let mut poll_map: std::collections::HashMap<
+        Uuid,
+        crate::handlers::messages::PollResponseEmbed,
+    > = std::collections::HashMap::new();
     for poll in &polls {
-        let results = crate::models::poll::Poll::get_results(pool.get_ref(), poll.id, current_user.id).await?;
-        poll_map.insert(poll.message_id, crate::handlers::messages::PollResponseEmbed {
-            id: poll.id,
-            question: results.question,
-            options: results.options.into_iter().map(|o| crate::handlers::messages::PollOptionEmbed {
-                index: o.index,
-                text: o.text,
-                votes: o.votes,
-            }).collect(),
-            poll_type: results.poll_type,
-            anonymous: results.anonymous,
-            total_votes: results.total_votes,
-            user_votes: results.user_votes,
-            closed: results.closed,
-            expires_at: poll.expires_at.map(|dt| dt.to_rfc3339()),
-            created_by: poll.created_by,
-            created_at: poll.created_at.to_rfc3339(),
-        });
+        let results =
+            crate::models::poll::Poll::get_results(pool.get_ref(), poll.id, current_user.id)
+                .await?;
+        poll_map.insert(
+            poll.message_id,
+            crate::handlers::messages::PollResponseEmbed {
+                id: poll.id,
+                question: results.question,
+                options: results
+                    .options
+                    .into_iter()
+                    .map(|o| crate::handlers::messages::PollOptionEmbed {
+                        index: o.index,
+                        text: o.text,
+                        votes: o.votes,
+                    })
+                    .collect(),
+                poll_type: results.poll_type,
+                anonymous: results.anonymous,
+                total_votes: results.total_votes,
+                user_votes: results.user_votes,
+                closed: results.closed,
+                expires_at: poll.expires_at.map(|dt| dt.to_rfc3339()),
+                created_by: poll.created_by,
+                created_at: poll.created_at.to_rfc3339(),
+            },
+        );
     }
 
     // Enrich messages with user data, reactions, attachments, and polls
-    let messages_with_users: Vec<MessageResponse> = paginated.messages
+    let messages_with_users: Vec<MessageResponse> = paginated
+        .messages
         .into_iter()
         .map(|msg| {
             let mut response = MessageResponse::from(msg.clone());
@@ -578,7 +592,8 @@ pub async fn hide_dm(
         .ok_or_else(|| ApiError::NotFound("DM not found".to_string()))?;
 
     // Verify user is a participant
-    let is_participant = DirectMessage::is_participant(pool.get_ref(), *dm_id, current_user.id).await?;
+    let is_participant =
+        DirectMessage::is_participant(pool.get_ref(), *dm_id, current_user.id).await?;
     if !is_participant {
         return Err(ApiError::Authorization(
             "You are not a participant in this DM".to_string(),

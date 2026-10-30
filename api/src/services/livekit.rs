@@ -15,12 +15,12 @@ pub struct LiveKitService {
 
 impl LiveKitService {
     pub fn new(config: LiveKitConfig) -> Self {
-        let room_client = RoomClient::with_api_key(
-            &config.url,
-            &config.api_key,
-            &config.api_secret,
-        );
-        Self { config, room_client }
+        let room_client =
+            RoomClient::with_api_key(&config.url, &config.api_key, &config.api_secret);
+        Self {
+            config,
+            room_client,
+        }
     }
 
     /// Generate a LiveKit room name from org_id and call_id
@@ -83,13 +83,10 @@ impl LiveKitService {
 
     /// Delete a LiveKit room (cleanup on call end)
     pub async fn delete_room(&self, room_name: &str) -> ApiResult<()> {
-        self.room_client
-            .delete_room(room_name)
-            .await
-            .map_err(|e| {
-                error!("Failed to delete LiveKit room '{}': {}", room_name, e);
-                ApiError::Internal(format!("Failed to delete call room: {}", e))
-            })?;
+        self.room_client.delete_room(room_name).await.map_err(|e| {
+            error!("Failed to delete LiveKit room '{}': {}", room_name, e);
+            ApiError::Internal(format!("Failed to delete call room: {}", e))
+        })?;
 
         info!("Deleted LiveKit room: {}", room_name);
         Ok(())

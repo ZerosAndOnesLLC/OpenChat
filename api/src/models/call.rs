@@ -73,7 +73,10 @@ impl Call {
         Ok(call)
     }
 
-    pub async fn get_active_for_channel(pool: &PgPool, channel_id: Uuid) -> ApiResult<Option<Call>> {
+    pub async fn get_active_for_channel(
+        pool: &PgPool,
+        channel_id: Uuid,
+    ) -> ApiResult<Option<Call>> {
         let call = sqlx::query_as::<_, Call>(
             "SELECT * FROM calls WHERE channel_id = $1 AND status != 'ended' ORDER BY created_at DESC LIMIT 1",
         )
@@ -93,7 +96,10 @@ impl Call {
         Ok(call)
     }
 
-    pub async fn get_active_huddle_for_channel(pool: &PgPool, channel_id: Uuid) -> ApiResult<Option<Call>> {
+    pub async fn get_active_huddle_for_channel(
+        pool: &PgPool,
+        channel_id: Uuid,
+    ) -> ApiResult<Option<Call>> {
         let call = sqlx::query_as::<_, Call>(
             "SELECT * FROM calls WHERE channel_id = $1 AND is_huddle = true AND status != 'ended' ORDER BY created_at DESC LIMIT 1",
         )
@@ -117,15 +123,20 @@ impl Call {
             .execute(pool)
             .await?;
         // Mark all active participants as left
-        sqlx::query("UPDATE call_participants SET left_at = NOW() WHERE call_id = $1 AND left_at IS NULL")
-            .bind(id)
-            .execute(pool)
-            .await?;
+        sqlx::query(
+            "UPDATE call_participants SET left_at = NOW() WHERE call_id = $1 AND left_at IS NULL",
+        )
+        .bind(id)
+        .execute(pool)
+        .await?;
         Ok(())
     }
 
     /// Get active calls in channels the user belongs to
-    pub async fn list_active_for_user(pool: &PgPool, user_id: Uuid) -> ApiResult<Vec<ActiveCallInfo>> {
+    pub async fn list_active_for_user(
+        pool: &PgPool,
+        user_id: Uuid,
+    ) -> ApiResult<Vec<ActiveCallInfo>> {
         let calls = sqlx::query_as::<_, ActiveCallInfo>(
             r#"
             SELECT c.id, c.channel_id, c.dm_id, c.call_type, c.status, c.started_by,

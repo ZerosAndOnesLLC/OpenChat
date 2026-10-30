@@ -1,4 +1,7 @@
-use actix::{Actor, ActorFutureExt, Addr, AsyncContext, Context, Handler, Message as ActixMessage, WrapFuture};
+use actix::{
+    Actor, ActorFutureExt, Addr, AsyncContext, Context, Handler, Message as ActixMessage,
+    WrapFuture,
+};
 use sqlx::PgPool;
 use std::collections::{HashMap, HashSet, VecDeque};
 use std::sync::Arc;
@@ -82,7 +85,11 @@ pub struct WsServer {
 }
 
 impl WsServer {
-    pub fn new(db_pool: PgPool, redis_pool: crate::db::RedisPool, config: Arc<WebSocketConfig>) -> Self {
+    pub fn new(
+        db_pool: PgPool,
+        redis_pool: crate::db::RedisPool,
+        config: Arc<WebSocketConfig>,
+    ) -> Self {
         Self {
             db_pool,
             redis_pool,
@@ -113,7 +120,8 @@ impl WsServer {
     fn send_message(&mut self, session_id: &Uuid, message: ServerMessage) {
         if self.config.enable_batching {
             // Add to batch
-            let batch = self.message_batches
+            let batch = self
+                .message_batches
                 .entry(*session_id)
                 .or_insert_with(MessageBatch::new);
 
@@ -398,16 +406,50 @@ impl Handler<SendMessage> for WsServer {
 
             // Save to database
             let db_message = if let Some(cid) = channel_id {
-                if let (Some(enc_bytes), Some(enc_meta)) = (&encrypted_bytes, &encryption_metadata) {
-                    DbMessage::create_encrypted_channel_message(&db_pool, cid, user_id, &content, enc_bytes, enc_meta.clone(), parent_message_id).await
+                if let (Some(enc_bytes), Some(enc_meta)) = (&encrypted_bytes, &encryption_metadata)
+                {
+                    DbMessage::create_encrypted_channel_message(
+                        &db_pool,
+                        cid,
+                        user_id,
+                        &content,
+                        enc_bytes,
+                        enc_meta.clone(),
+                        parent_message_id,
+                    )
+                    .await
                 } else {
-                    DbMessage::create_channel_message(&db_pool, cid, user_id, &content, parent_message_id).await
+                    DbMessage::create_channel_message(
+                        &db_pool,
+                        cid,
+                        user_id,
+                        &content,
+                        parent_message_id,
+                    )
+                    .await
                 }
             } else if let Some(did) = dm_id {
-                if let (Some(enc_bytes), Some(enc_meta)) = (&encrypted_bytes, &encryption_metadata) {
-                    DbMessage::create_encrypted_dm_message(&db_pool, did, user_id, &content, enc_bytes, enc_meta.clone(), parent_message_id).await
+                if let (Some(enc_bytes), Some(enc_meta)) = (&encrypted_bytes, &encryption_metadata)
+                {
+                    DbMessage::create_encrypted_dm_message(
+                        &db_pool,
+                        did,
+                        user_id,
+                        &content,
+                        enc_bytes,
+                        enc_meta.clone(),
+                        parent_message_id,
+                    )
+                    .await
                 } else {
-                    DbMessage::create_dm_message(&db_pool, did, user_id, &content, parent_message_id).await
+                    DbMessage::create_dm_message(
+                        &db_pool,
+                        did,
+                        user_id,
+                        &content,
+                        parent_message_id,
+                    )
+                    .await
                 }
             } else {
                 tracing::error!("Message has neither channel_id nor dm_id");
@@ -489,7 +531,8 @@ impl Handler<TypingIndicator> for WsServer {
             // Send to channel subscribers (except sender)
             // Collect session IDs first to avoid borrow checker issues
             if let Some(session_ids) = self.channel_subscriptions.get(&channel_id) {
-                let session_ids: Vec<Uuid> = session_ids.iter()
+                let session_ids: Vec<Uuid> = session_ids
+                    .iter()
                     .filter(|&id| id != &msg.exclude_session)
                     .copied()
                     .collect();
@@ -521,7 +564,8 @@ impl Handler<SubscribeChannel> for WsServer {
     fn handle(&mut self, msg: SubscribeChannel, ctx: &mut Context<Self>) {
         tracing::debug!(
             "WebSocket: Session {} subscribed to channel {}",
-            msg.session_id, msg.channel_id
+            msg.session_id,
+            msg.channel_id
         );
 
         // Register subscription
@@ -540,23 +584,45 @@ impl Handler<SubscribeChannel> for WsServer {
 
         let fut = async move {
             // Try to get pins from cache first
-            let pins = match crate::cache::pins::get_pins_from_cache(&redis_pool, org_id, channel_id).await {
+            let pins = match crate::cache::pins::get_pins_from_cache(
+                &redis_pool,
+                org_id,
+                channel_id,
+            )
+            .await
+            {
                 Ok(Some(cached_pins)) => {
                     tracing::debug!("Cache hit: pins for channel {}", channel_id);
                     Ok(cached_pins)
                 }
                 Ok(None) => {
-                    tracing::debug!("Cache miss: pins for channel {}, fetching from DB", channel_id);
+                    tracing::debug!(
+                        "Cache miss: pins for channel {}, fetching from DB",
+                        channel_id
+                    );
                     // Fetch from DB
-                    match crate::models::pin::PinnedMessage::get_pins_for_channel(&pool, channel_id).await {
+                    match crate::models::pin::PinnedMessage::get_pins_for_channel(&pool, channel_id)
+                        .await
+                    {
                         Ok(db_pins) => {
                             // Cache for next time
-                            if let Err(e) = crate::cache::pins::set_pins_in_cache(&redis_pool, org_id, channel_id, &db_pins).await {
-                                tracing::warn!("Failed to cache pins for channel {}: {}", channel_id, e);
+                            if let Err(e) = crate::cache::pins::set_pins_in_cache(
+                                &redis_pool,
+                                org_id,
+                                channel_id,
+                                &db_pins,
+                            )
+                            .await
+                            {
+                                tracing::warn!(
+                                    "Failed to cache pins for channel {}: {}",
+                                    channel_id,
+                                    e
+                                );
                             }
                             Ok(db_pins)
                         }
-                        Err(e) => Err(e)
+                        Err(e) => Err(e),
                     }
                 }
                 Err(e) => {
@@ -566,27 +632,41 @@ impl Handler<SubscribeChannel> for WsServer {
             };
 
             // Try to get channel members from cache
-            let members = match crate::cache::channels::get_channel_members_from_cache(&redis_pool, org_id, channel_id).await {
+            let members = match crate::cache::channels::get_channel_members_from_cache(
+                &redis_pool,
+                org_id,
+                channel_id,
+            )
+            .await
+            {
                 Ok(Some(_cached_members)) => {
                     tracing::debug!("Cache hit: members for channel {}", channel_id);
                     // For now, still fetch from DB to get full member info with names
                     // TODO: Cache full ChannelMemberInfo objects instead
-                    crate::models::channel::ChannelMember::get_members_for_channel(&pool, channel_id).await
+                    crate::models::channel::ChannelMember::get_members_for_channel(
+                        &pool, channel_id,
+                    )
+                    .await
                 }
                 Ok(None) | Err(_) => {
                     tracing::debug!("Cache miss: members for channel {}", channel_id);
-                    crate::models::channel::ChannelMember::get_members_for_channel(&pool, channel_id).await
+                    crate::models::channel::ChannelMember::get_members_for_channel(
+                        &pool, channel_id,
+                    )
+                    .await
                 }
             };
 
             // Fetch messages and unread info (not cached yet as they change frequently)
-            let messages_fut = crate::models::message::Message::get_messages_with_details_for_channel(&pool, channel_id, 50);
-            let unread_fut = crate::models::read_status::ChannelReadStatus::get_unread_info(&pool, user_id, channel_id);
-
-            let (messages, unread_info) = tokio::join!(
-                messages_fut,
-                unread_fut
+            let messages_fut =
+                crate::models::message::Message::get_messages_with_details_for_channel(
+                    &pool, channel_id, 50,
+                );
+            let unread_fut = crate::models::read_status::ChannelReadStatus::get_unread_info(
+                &pool, user_id, channel_id,
             );
+
+            let (messages, unread_info) = tokio::join!(messages_fut, unread_fut);
 
             match (messages, pins, members, unread_info) {
                 (Ok(messages), Ok(pins), Ok(members), Ok(unread_info)) => {
@@ -607,7 +687,11 @@ impl Handler<SubscribeChannel> for WsServer {
                     })
                 }
                 (Err(e), _, _, _) | (_, Err(e), _, _) | (_, _, Err(e), _) | (_, _, _, Err(e)) => {
-                    tracing::error!("Failed to load channel data for channel {}: {}", channel_id, e);
+                    tracing::error!(
+                        "Failed to load channel data for channel {}: {}",
+                        channel_id,
+                        e
+                    );
                     Some(ServerMessage::Error {
                         message: format!("Failed to load channel data: {}", e),
                     })
@@ -639,9 +723,7 @@ impl Handler<UnsubscribeChannel> for WsServer {
     type Result = ();
 
     fn handle(&mut self, msg: UnsubscribeChannel, _: &mut Context<Self>) {
-        println!(
-            "WebSocket: A session unsubscribed from a channel"
-        );
+        println!("WebSocket: A session unsubscribed from a channel");
 
         if let Some(subscribers) = self.channel_subscriptions.get_mut(&msg.channel_id) {
             subscribers.remove(&msg.session_id);
@@ -667,7 +749,8 @@ impl Handler<SubscribeDm> for WsServer {
     fn handle(&mut self, msg: SubscribeDm, ctx: &mut Context<Self>) {
         tracing::debug!(
             "WebSocket: Session {} subscribed to DM {}",
-            msg.session_id, msg.dm_id
+            msg.session_id,
+            msg.dm_id
         );
 
         // Register subscription
@@ -684,13 +767,12 @@ impl Handler<SubscribeDm> for WsServer {
 
         let fut = async move {
             // Fetch messages and unread info
-            let messages_fut = crate::models::message::Message::get_messages_with_details_for_dm(&pool, dm_id, 50);
-            let unread_fut = crate::models::read_status::DmReadStatus::get_unread_info(&pool, user_id, dm_id);
+            let messages_fut =
+                crate::models::message::Message::get_messages_with_details_for_dm(&pool, dm_id, 50);
+            let unread_fut =
+                crate::models::read_status::DmReadStatus::get_unread_info(&pool, user_id, dm_id);
 
-            let (messages, unread_info) = tokio::join!(
-                messages_fut,
-                unread_fut
-            );
+            let (messages, unread_info) = tokio::join!(messages_fut, unread_fut);
 
             match (messages, unread_info) {
                 (Ok(messages), Ok(unread_info)) => {
@@ -741,7 +823,8 @@ impl Handler<UnsubscribeDm> for WsServer {
     fn handle(&mut self, msg: UnsubscribeDm, _: &mut Context<Self>) {
         tracing::debug!(
             "WebSocket: Session {} unsubscribed from DM {}",
-            msg.session_id, msg.dm_id
+            msg.session_id,
+            msg.dm_id
         );
 
         if let Some(subscribers) = self.dm_subscriptions.get_mut(&msg.dm_id) {
@@ -901,24 +984,35 @@ impl Handler<MarkAsRead> for WsServer {
         let last_message_id = msg.last_message_id;
 
         let fut = async move {
-            use crate::cache::read_status::{invalidate_channel_unread_cache, invalidate_dm_unread_cache};
+            use crate::cache::read_status::{
+                invalidate_channel_unread_cache, invalidate_dm_unread_cache,
+            };
             use crate::models::read_status::{ChannelReadStatus, DmReadStatus};
 
             if let Some(cid) = channel_id {
                 // Mark channel as read
-                if let Err(e) = ChannelReadStatus::mark_as_read(&db_pool, user_id, cid, last_message_id).await {
+                if let Err(e) =
+                    ChannelReadStatus::mark_as_read(&db_pool, user_id, cid, last_message_id).await
+                {
                     tracing::error!("Failed to mark channel as read: {}", e);
                     return None;
                 }
 
                 // Invalidate cache
-                if let Err(e) = invalidate_channel_unread_cache(&redis_pool, org_id, user_id, cid).await {
+                if let Err(e) =
+                    invalidate_channel_unread_cache(&redis_pool, org_id, user_id, cid).await
+                {
                     tracing::warn!("Failed to invalidate channel unread cache: {}", e);
                 }
 
                 // Get updated counts
-                let unread_count = ChannelReadStatus::get_unread_count(&db_pool, user_id, cid).await.unwrap_or(0);
-                let last_read_message_id = ChannelReadStatus::get_last_read_message_id(&db_pool, user_id, cid).await.unwrap_or(None);
+                let unread_count = ChannelReadStatus::get_unread_count(&db_pool, user_id, cid)
+                    .await
+                    .unwrap_or(0);
+                let last_read_message_id =
+                    ChannelReadStatus::get_last_read_message_id(&db_pool, user_id, cid)
+                        .await
+                        .unwrap_or(None);
 
                 Some((
                     ServerMessage::UnreadCountUpdated {
@@ -932,19 +1026,27 @@ impl Handler<MarkAsRead> for WsServer {
                 ))
             } else if let Some(did) = dm_id {
                 // Mark DM as read
-                if let Err(e) = DmReadStatus::mark_as_read(&db_pool, user_id, did, last_message_id).await {
+                if let Err(e) =
+                    DmReadStatus::mark_as_read(&db_pool, user_id, did, last_message_id).await
+                {
                     tracing::error!("Failed to mark DM as read: {}", e);
                     return None;
                 }
 
                 // Invalidate cache
-                if let Err(e) = invalidate_dm_unread_cache(&redis_pool, org_id, user_id, did).await {
+                if let Err(e) = invalidate_dm_unread_cache(&redis_pool, org_id, user_id, did).await
+                {
                     tracing::warn!("Failed to invalidate DM unread cache: {}", e);
                 }
 
                 // Get updated counts
-                let unread_count = DmReadStatus::get_unread_count(&db_pool, user_id, did).await.unwrap_or(0);
-                let last_read_message_id = DmReadStatus::get_last_read_message_id(&db_pool, user_id, did).await.unwrap_or(None);
+                let unread_count = DmReadStatus::get_unread_count(&db_pool, user_id, did)
+                    .await
+                    .unwrap_or(0);
+                let last_read_message_id =
+                    DmReadStatus::get_last_read_message_id(&db_pool, user_id, did)
+                        .await
+                        .unwrap_or(None);
 
                 Some((
                     ServerMessage::UnreadCountUpdated {
@@ -1346,10 +1448,7 @@ impl Handler<RemoveBookmark> for WsServer {
                 return None;
             }
 
-            Some((
-                ServerMessage::BookmarkRemoved { message_id },
-                user_id,
-            ))
+            Some((ServerMessage::BookmarkRemoved { message_id }, user_id))
         }
         .into_actor(self)
         .map(move |result, actor, _ctx| {
@@ -1405,7 +1504,12 @@ impl Handler<EditMessage> for WsServer {
 
             // Verify the user owns this message
             if message.user_id != user_id {
-                tracing::error!("User {} attempted to edit message {} owned by {}", user_id, message_id, message.user_id);
+                tracing::error!(
+                    "User {} attempted to edit message {} owned by {}",
+                    user_id,
+                    message_id,
+                    message.user_id
+                );
                 return None;
             }
 
@@ -1414,7 +1518,16 @@ impl Handler<EditMessage> for WsServer {
                 use base64::Engine;
                 match base64::engine::general_purpose::STANDARD.decode(ec) {
                     Ok(enc_bytes) => {
-                        match DbMessage::update_encrypted(&db_pool, message_id, &content, &enc_bytes, em.clone(), user_id).await {
+                        match DbMessage::update_encrypted(
+                            &db_pool,
+                            message_id,
+                            &content,
+                            &enc_bytes,
+                            em.clone(),
+                            user_id,
+                        )
+                        .await
+                        {
                             Ok(m) => m,
                             Err(e) => {
                                 tracing::error!("Failed to update encrypted message: {}", e);
@@ -1437,7 +1550,10 @@ impl Handler<EditMessage> for WsServer {
                 }
             };
 
-            let edited_at = updated.edited_at.map(|dt| dt.to_rfc3339()).unwrap_or_default();
+            let edited_at = updated
+                .edited_at
+                .map(|dt| dt.to_rfc3339())
+                .unwrap_or_default();
 
             Some((
                 ServerMessage::MessageEdited {
@@ -1503,7 +1619,12 @@ impl Handler<DeleteMessage> for WsServer {
 
             // Verify the user owns this message
             if message.user_id != user_id {
-                tracing::error!("User {} attempted to delete message {} owned by {}", user_id, message_id, message.user_id);
+                tracing::error!(
+                    "User {} attempted to delete message {} owned by {}",
+                    user_id,
+                    message_id,
+                    message.user_id
+                );
                 return None;
             }
 
@@ -1549,7 +1670,8 @@ impl Handler<SubscribeThread> for WsServer {
     fn handle(&mut self, msg: SubscribeThread, _: &mut Context<Self>) {
         tracing::debug!(
             "WebSocket: Session {} subscribed to thread {}",
-            msg.session_id, msg.message_id
+            msg.session_id,
+            msg.message_id
         );
 
         // Register thread subscription
@@ -1574,7 +1696,8 @@ impl Handler<UnsubscribeThread> for WsServer {
     fn handle(&mut self, msg: UnsubscribeThread, _: &mut Context<Self>) {
         tracing::debug!(
             "WebSocket: Session {} unsubscribed from thread {}",
-            msg.session_id, msg.message_id
+            msg.session_id,
+            msg.message_id
         );
 
         if let Some(subscribers) = self.thread_subscriptions.get_mut(&msg.message_id) {

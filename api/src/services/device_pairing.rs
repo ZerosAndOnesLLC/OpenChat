@@ -41,16 +41,14 @@ pub async fn generate_pairing_code(
         let code = generate_code();
 
         // Check if code already exists
-        if DevicePairingCode::get_by_code(pool, &code)
-            .await?
-            .is_some()
-        {
+        if DevicePairingCode::get_by_code(pool, &code).await?.is_some() {
             continue; // Try another code
         }
 
         // Create the pairing code
         let pairing_code =
-            DevicePairingCode::create(pool, code, user_id, org_id, expires_at, roles.clone()).await?;
+            DevicePairingCode::create(pool, code, user_id, org_id, expires_at, roles.clone())
+                .await?;
 
         return Ok(pairing_code);
     }
@@ -84,9 +82,7 @@ pub async fn verify_pairing_code(
                 "Pairing code has already been used".to_string(),
             ));
         } else {
-            return Err(ApiError::BadRequest(
-                "Pairing code has expired".to_string(),
-            ));
+            return Err(ApiError::BadRequest("Pairing code has expired".to_string()));
         }
     }
 

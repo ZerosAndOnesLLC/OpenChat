@@ -36,8 +36,9 @@ pub async fn get_sections_from_cache(
 
     match cached {
         Some(json) => {
-            let sections: Vec<ChannelSection> = serde_json::from_str(&json)
-                .map_err(|e| crate::errors::ApiError::Internal(format!("Cache deserialization error: {}", e)))?;
+            let sections: Vec<ChannelSection> = serde_json::from_str(&json).map_err(|e| {
+                crate::errors::ApiError::Internal(format!("Cache deserialization error: {}", e))
+            })?;
             Ok(Some(sections))
         }
         None => Ok(None),
@@ -50,12 +51,15 @@ pub async fn set_sections_in_cache(
     user_id: Uuid,
     sections: &[ChannelSection],
 ) -> ApiResult<()> {
-    let mut conn = redis_pool.get().await
+    let mut conn = redis_pool
+        .get()
+        .await
         .map_err(|e| crate::errors::ApiError::Internal(format!("Redis pool error: {}", e)))?;
 
     let key = cache_key(org_id, user_id);
-    let json = serde_json::to_string(sections)
-        .map_err(|e| crate::errors::ApiError::Internal(format!("Cache serialization error: {}", e)))?;
+    let json = serde_json::to_string(sections).map_err(|e| {
+        crate::errors::ApiError::Internal(format!("Cache serialization error: {}", e))
+    })?;
 
     let _: () = conn.set_ex(&key, json, CHANNEL_SECTIONS_CACHE_TTL).await?;
     Ok(())
@@ -66,7 +70,9 @@ pub async fn invalidate_sections_cache(
     org_id: Uuid,
     user_id: Uuid,
 ) -> ApiResult<()> {
-    let mut conn = redis_pool.get().await
+    let mut conn = redis_pool
+        .get()
+        .await
         .map_err(|e| crate::errors::ApiError::Internal(format!("Redis pool error: {}", e)))?;
 
     let key = cache_key(org_id, user_id);

@@ -40,10 +40,7 @@ impl MessageEdit {
     }
 
     /// Get edit history for a message
-    pub async fn list_by_message(
-        pool: &PgPool,
-        message_id: Uuid,
-    ) -> ApiResult<Vec<MessageEdit>> {
+    pub async fn list_by_message(pool: &PgPool, message_id: Uuid) -> ApiResult<Vec<MessageEdit>> {
         let edits = sqlx::query_as::<_, MessageEdit>(
             r#"
             SELECT * FROM message_edits

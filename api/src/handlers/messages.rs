@@ -1,5 +1,5 @@
-use actix_web::{web, HttpMessage, HttpRequest, HttpResponse};
 use crate::db::RedisPool;
+use actix_web::{HttpMessage, HttpRequest, HttpResponse, web};
 use serde::{Deserialize, Serialize};
 use sqlx::PgPool;
 use uuid::Uuid;
@@ -12,9 +12,9 @@ use crate::{
     models::mention::{Mention, MentionType},
     models::message::{Message, PaginatedMessages},
     models::notification::{CreateNotification, Notification, NotificationType},
+    models::notification_pref::NotificationPref,
     models::reaction::Reaction,
     models::user::User,
-    models::notification_pref::NotificationPref,
     models::user_group::UserGroup,
     services::{audit_logger::AuditLogger, mention_parser, tv_api::TokenClaims},
     websocket::{
@@ -171,7 +171,9 @@ pub struct PollOptionEmbed {
 impl From<Message> for MessageResponse {
     fn from(message: Message) -> Self {
         use base64::Engine;
-        let encrypted_content = message.encrypted_content.map(|b| base64::engine::general_purpose::STANDARD.encode(&b));
+        let encrypted_content = message
+            .encrypted_content
+            .map(|b| base64::engine::general_purpose::STANDARD.encode(&b));
         Self {
             id: message.id,
             channel_id: message.channel_id,
@@ -218,7 +220,10 @@ impl MessageResponse {
     }
 
     pub fn with_attachments(mut self, attachments: Vec<Attachment>) -> Self {
-        self.attachments = attachments.into_iter().map(AttachmentResponse::from).collect();
+        self.attachments = attachments
+            .into_iter()
+            .map(AttachmentResponse::from)
+            .collect();
         self
     }
 
@@ -243,7 +248,11 @@ pub struct PaginatedMessagesResponse {
 impl From<PaginatedMessages> for PaginatedMessagesResponse {
     fn from(paginated: PaginatedMessages) -> Self {
         Self {
-            messages: paginated.messages.into_iter().map(MessageResponse::from).collect(),
+            messages: paginated
+                .messages
+                .into_iter()
+                .map(MessageResponse::from)
+                .collect(),
             has_more: paginated.has_more,
             next_cursor: paginated.next_cursor,
         }
@@ -269,19 +278,21 @@ pub async fn send_message(
         (Some(_), Some(_)) => {
             return Err(ApiError::BadRequest(
                 "Cannot specify both channel_id and dm_id".to_string(),
-            ))
+            ));
         }
         (None, None) => {
             return Err(ApiError::BadRequest(
                 "Must specify either channel_id or dm_id".to_string(),
-            ))
+            ));
         }
         _ => {}
     }
 
     // Validate content is not empty
     if body.content.trim().is_empty() {
-        return Err(ApiError::BadRequest("Message content cannot be empty".to_string()));
+        return Err(ApiError::BadRequest(
+            "Message content cannot be empty".to_string(),
+        ));
     }
 
     // Get current user
@@ -292,8 +303,13 @@ pub async fn send_message(
     // Decode encrypted content if present
     let encrypted_bytes = if let Some(ref ec) = body.encrypted_content {
         use base64::Engine;
-        Some(base64::engine::general_purpose::STANDARD.decode(ec)
-            .map_err(|_| ApiError::BadRequest("Invalid base64 in encrypted_content".to_string()))?)
+        Some(
+            base64::engine::general_purpose::STANDARD
+                .decode(ec)
+                .map_err(|_| {
+                    ApiError::BadRequest("Invalid base64 in encrypted_content".to_string())
+                })?,
+        )
     } else {
         None
     };
@@ -305,7 +321,8 @@ pub async fn send_message(
             .ok_or_else(|| ApiError::NotFound("Channel not found".to_string()))?;
 
         // Verify user is a member of the channel
-        let is_member = ChannelMember::is_member(pool.get_ref(), channel_id, current_user.id).await?;
+        let is_member =
+            ChannelMember::is_member(pool.get_ref(), channel_id, current_user.id).await?;
         if !is_member {
             return Err(ApiError::Authorization(
                 "You are not a member of this channel".to_string(),
@@ -313,9 +330,15 @@ pub async fn send_message(
         }
 
         // Check if channel requires encryption
-        let channel_encrypted = crate::models::encrypted_channel::EncryptedChannel::is_encrypted(pool.get_ref(), channel_id).await?;
+        let channel_encrypted = crate::models::encrypted_channel::EncryptedChannel::is_encrypted(
+            pool.get_ref(),
+            channel_id,
+        )
+        .await?;
         if channel_encrypted && encrypted_bytes.is_none() {
-            return Err(ApiError::BadRequest("This channel requires encrypted messages".to_string()));
+            return Err(ApiError::BadRequest(
+                "This channel requires encrypted messages".to_string(),
+            ));
         }
 
         // Create channel message (encrypted or plaintext)
@@ -367,11 +390,13 @@ pub async fn send_message(
     };
 
     // Parse mentions from message content
-    let parsed_mentions = mention_parser::parse_mentions(&body.content, current_user.org_id, pool.get_ref()).await?;
+    let parsed_mentions =
+        mention_parser::parse_mentions(&body.content, current_user.org_id, pool.get_ref()).await?;
 
     // Create mention records
     if !parsed_mentions.is_empty() {
-        let create_mentions = mention_parser::to_create_mentions(parsed_mentions.clone(), message.id);
+        let create_mentions =
+            mention_parser::to_create_mentions(parsed_mentions.clone(), message.id);
         Mention::create_batch(pool.get_ref(), create_mentions).await?;
 
         // Collect all user IDs that may need notifications for batch pref loading
@@ -387,15 +412,19 @@ pub async fn send_message(
                 }
                 MentionType::Channel | MentionType::Here | MentionType::Everyone => {
                     if let Some(ch_id) = message.channel_id {
-                        if let Ok(ids) = mention_parser::get_channel_members(pool.get_ref(), ch_id).await {
-                            all_notif_user_ids.extend(ids.into_iter().filter(|id| *id != current_user.id));
+                        if let Ok(ids) =
+                            mention_parser::get_channel_members(pool.get_ref(), ch_id).await
+                        {
+                            all_notif_user_ids
+                                .extend(ids.into_iter().filter(|id| *id != current_user.id));
                         }
                     }
                 }
                 MentionType::Group => {
                     if let Some(group_id) = pm.mentioned_group_id {
                         if let Ok(ids) = UserGroup::get_member_ids(pool.get_ref(), group_id).await {
-                            all_notif_user_ids.extend(ids.into_iter().filter(|id| *id != current_user.id));
+                            all_notif_user_ids
+                                .extend(ids.into_iter().filter(|id| *id != current_user.id));
                         }
                     }
                 }
@@ -406,9 +435,17 @@ pub async fn send_message(
 
         // Batch-load notification preferences for all users in this channel/DM
         let notif_prefs_map = if let Some(channel_id) = message.channel_id {
-            NotificationPref::list_for_channel_users(pool.get_ref(), channel_id, &all_notif_user_ids).await.unwrap_or_default()
+            NotificationPref::list_for_channel_users(
+                pool.get_ref(),
+                channel_id,
+                &all_notif_user_ids,
+            )
+            .await
+            .unwrap_or_default()
         } else if let Some(dm_id) = message.dm_id {
-            NotificationPref::list_for_dm_users(pool.get_ref(), dm_id, &all_notif_user_ids).await.unwrap_or_default()
+            NotificationPref::list_for_dm_users(pool.get_ref(), dm_id, &all_notif_user_ids)
+                .await
+                .unwrap_or_default()
         } else {
             std::collections::HashMap::new()
         };
@@ -434,10 +471,16 @@ pub async fn send_message(
                                 channel_id: message.channel_id,
                                 dm_id: message.dm_id,
                             };
-                            let created_notif = Notification::create(pool.get_ref(), notification).await?;
+                            let created_notif =
+                                Notification::create(pool.get_ref(), notification).await?;
 
                             // Broadcast notification count update
-                            if let Ok(notif_count) = Notification::count_unread_by_user(pool.get_ref(), mentioned_user_id).await {
+                            if let Ok(notif_count) = Notification::count_unread_by_user(
+                                pool.get_ref(),
+                                mentioned_user_id,
+                            )
+                            .await
+                            {
                                 ws_server.do_send(crate::websocket::server::BroadcastToUser {
                                     org_id: current_user.org_id,
                                     user_id: mentioned_user_id,
@@ -466,7 +509,8 @@ pub async fn send_message(
                 MentionType::Channel | MentionType::Here | MentionType::Everyone => {
                     // Get all channel members and create notifications for them
                     if let Some(channel_id) = message.channel_id {
-                        let member_ids = mention_parser::get_channel_members(pool.get_ref(), channel_id).await?;
+                        let member_ids =
+                            mention_parser::get_channel_members(pool.get_ref(), channel_id).await?;
                         for member_id in member_ids {
                             // Don't notify the sender
                             if member_id != current_user.id {
@@ -483,10 +527,14 @@ pub async fn send_message(
                                     channel_id: Some(channel_id),
                                     dm_id: None,
                                 };
-                                let created_notif = Notification::create(pool.get_ref(), notification).await?;
+                                let created_notif =
+                                    Notification::create(pool.get_ref(), notification).await?;
 
                                 // Broadcast notification count and new notification
-                                if let Ok(notif_count) = Notification::count_unread_by_user(pool.get_ref(), member_id).await {
+                                if let Ok(notif_count) =
+                                    Notification::count_unread_by_user(pool.get_ref(), member_id)
+                                        .await
+                                {
                                     ws_server.do_send(crate::websocket::server::BroadcastToUser {
                                         org_id: current_user.org_id,
                                         user_id: member_id,
@@ -515,7 +563,8 @@ pub async fn send_message(
                 MentionType::Group => {
                     // Get group members and create notifications for them
                     if let Some(group_id) = parsed_mention.mentioned_group_id {
-                        let member_ids = UserGroup::get_member_ids(pool.get_ref(), group_id).await?;
+                        let member_ids =
+                            UserGroup::get_member_ids(pool.get_ref(), group_id).await?;
                         for member_id in member_ids {
                             // Don't notify the sender
                             if member_id != current_user.id {
@@ -532,10 +581,14 @@ pub async fn send_message(
                                     channel_id: message.channel_id,
                                     dm_id: message.dm_id,
                                 };
-                                let created_notif = Notification::create(pool.get_ref(), notification).await?;
+                                let created_notif =
+                                    Notification::create(pool.get_ref(), notification).await?;
 
                                 // Broadcast notification count and new notification
-                                if let Ok(notif_count) = Notification::count_unread_by_user(pool.get_ref(), member_id).await {
+                                if let Ok(notif_count) =
+                                    Notification::count_unread_by_user(pool.get_ref(), member_id)
+                                        .await
+                                {
                                     ws_server.do_send(crate::websocket::server::BroadcastToUser {
                                         org_id: current_user.org_id,
                                         user_id: member_id,
@@ -567,14 +620,26 @@ pub async fn send_message(
 
     // If this is a thread reply, create a notification for the parent message author
     if let Some(parent_message_id) = body.parent_message_id {
-        if let Ok(Some(parent_message)) = Message::get_by_id(pool.get_ref(), parent_message_id).await {
+        if let Ok(Some(parent_message)) =
+            Message::get_by_id(pool.get_ref(), parent_message_id).await
+        {
             // Don't notify if replying to your own message
             if parent_message.user_id != current_user.id {
                 // Check notification preference — thread replies count as direct mentions
                 let thread_pref = if let Some(channel_id) = message.channel_id {
-                    NotificationPref::get_for_channel(pool.get_ref(), parent_message.user_id, channel_id).await.ok().flatten()
+                    NotificationPref::get_for_channel(
+                        pool.get_ref(),
+                        parent_message.user_id,
+                        channel_id,
+                    )
+                    .await
+                    .ok()
+                    .flatten()
                 } else if let Some(dm_id) = message.dm_id {
-                    NotificationPref::get_for_dm(pool.get_ref(), parent_message.user_id, dm_id).await.ok().flatten()
+                    NotificationPref::get_for_dm(pool.get_ref(), parent_message.user_id, dm_id)
+                        .await
+                        .ok()
+                        .flatten()
                 } else {
                     None
                 };
@@ -590,7 +655,10 @@ pub async fn send_message(
                     let created_notif = Notification::create(pool.get_ref(), notification).await?;
 
                     // Broadcast notification count and new notification
-                    if let Ok(notif_count) = Notification::count_unread_by_user(pool.get_ref(), parent_message.user_id).await {
+                    if let Ok(notif_count) =
+                        Notification::count_unread_by_user(pool.get_ref(), parent_message.user_id)
+                            .await
+                    {
                         ws_server.do_send(crate::websocket::server::BroadcastToUser {
                             org_id: current_user.org_id,
                             user_id: parent_message.user_id,
@@ -618,13 +686,25 @@ pub async fn send_message(
     }
 
     // Invalidate message cache after sending a new message
-    
+
     if let Some(channel_id) = body.channel_id {
-        if let Err(e) = message_cache::invalidate_channel_messages_cache(redis_pool.get_ref(), current_user.org_id, channel_id).await {
+        if let Err(e) = message_cache::invalidate_channel_messages_cache(
+            redis_pool.get_ref(),
+            current_user.org_id,
+            channel_id,
+        )
+        .await
+        {
             tracing::warn!("Failed to invalidate channel messages cache: {}", e);
         }
     } else if let Some(dm_id) = body.dm_id {
-        if let Err(e) = message_cache::invalidate_dm_messages_cache(redis_pool.get_ref(), current_user.org_id, dm_id).await {
+        if let Err(e) = message_cache::invalidate_dm_messages_cache(
+            redis_pool.get_ref(),
+            current_user.org_id,
+            dm_id,
+        )
+        .await
+        {
             tracing::warn!("Failed to invalidate DM messages cache: {}", e);
         }
     }
@@ -654,8 +734,8 @@ pub async fn send_message(
 
     // Broadcast unread count updates to channel members (except sender)
     if let Some(channel_id) = message.channel_id {
-        use crate::websocket::server::BroadcastToUser;
         use crate::models::read_status::ChannelReadStatus;
+        use crate::websocket::server::BroadcastToUser;
 
         // Get all channel members
         let members = ChannelMember::list_by_channel(pool.get_ref(), channel_id).await?;
@@ -666,8 +746,17 @@ pub async fn send_message(
             }
 
             // Get unread count and last read message ID for this user
-            if let Ok(unread_count) = ChannelReadStatus::get_unread_count(pool.get_ref(), member.user_id, channel_id).await {
-                let last_read_message_id = ChannelReadStatus::get_last_read_message_id(pool.get_ref(), member.user_id, channel_id).await.unwrap_or(None);
+            if let Ok(unread_count) =
+                ChannelReadStatus::get_unread_count(pool.get_ref(), member.user_id, channel_id)
+                    .await
+            {
+                let last_read_message_id = ChannelReadStatus::get_last_read_message_id(
+                    pool.get_ref(),
+                    member.user_id,
+                    channel_id,
+                )
+                .await
+                .unwrap_or(None);
                 ws_server.do_send(BroadcastToUser {
                     org_id: current_user.org_id,
                     user_id: member.user_id,
@@ -681,8 +770,8 @@ pub async fn send_message(
             }
         }
     } else if let Some(dm_id) = message.dm_id {
-        use crate::websocket::server::BroadcastToUser;
         use crate::models::{direct_message::DmParticipant, read_status::DmReadStatus};
+        use crate::websocket::server::BroadcastToUser;
 
         // Get DM participants
         if let Ok(participants) = DmParticipant::list_by_dm(pool.get_ref(), dm_id).await {
@@ -693,8 +782,16 @@ pub async fn send_message(
                 }
 
                 // Get unread count and last read message ID for this participant
-                if let Ok(unread_count) = DmReadStatus::get_unread_count(pool.get_ref(), participant.user_id, dm_id).await {
-                    let last_read_message_id = DmReadStatus::get_last_read_message_id(pool.get_ref(), participant.user_id, dm_id).await.unwrap_or(None);
+                if let Ok(unread_count) =
+                    DmReadStatus::get_unread_count(pool.get_ref(), participant.user_id, dm_id).await
+                {
+                    let last_read_message_id = DmReadStatus::get_last_read_message_id(
+                        pool.get_ref(),
+                        participant.user_id,
+                        dm_id,
+                    )
+                    .await
+                    .unwrap_or(None);
                     ws_server.do_send(BroadcastToUser {
                         org_id: current_user.org_id,
                         user_id: participant.user_id,
@@ -725,8 +822,13 @@ pub async fn send_message(
         });
         tokio::spawn(async move {
             crate::services::workflow_engine::check_triggers(
-                pool.get_ref(), ws.get_ref(), org_id, "message_posted", trigger_data,
-            ).await;
+                pool.get_ref(),
+                ws.get_ref(),
+                org_id,
+                "message_posted",
+                trigger_data,
+            )
+            .await;
         });
     }
 
@@ -770,9 +872,13 @@ pub async fn list_channel_messages(
 
     // Try to get from cache if this is the first page
     let paginated = if query.cursor.is_none() {
-        
-
-        match message_cache::get_channel_messages_from_cache(redis_pool.get_ref(), current_user.org_id, *channel_id).await? {
+        match message_cache::get_channel_messages_from_cache(
+            redis_pool.get_ref(),
+            current_user.org_id,
+            *channel_id,
+        )
+        .await?
+        {
             Some(cached) => cached,
             None => {
                 // Cache miss - fetch from database
@@ -785,7 +891,14 @@ pub async fn list_channel_messages(
                 .await?;
 
                 // Store in cache for next time
-                if let Err(e) = message_cache::set_channel_messages_in_cache(redis_pool.get_ref(), current_user.org_id, *channel_id, &paginated).await {
+                if let Err(e) = message_cache::set_channel_messages_in_cache(
+                    redis_pool.get_ref(),
+                    current_user.org_id,
+                    *channel_id,
+                    &paginated,
+                )
+                .await
+                {
                     tracing::warn!("Failed to cache channel messages: {}", e);
                 }
 
@@ -794,39 +907,29 @@ pub async fn list_channel_messages(
         }
     } else {
         // Not first page - don't use cache
-        Message::list_by_channel(
-            pool.get_ref(),
-            *channel_id,
-            limit,
-            query.cursor.clone(),
-        )
-        .await?
+        Message::list_by_channel(pool.get_ref(), *channel_id, limit, query.cursor.clone()).await?
     };
 
     // Fetch users for all messages
     let user_ids: Vec<Uuid> = paginated.messages.iter().map(|m| m.user_id).collect();
     let users = if !user_ids.is_empty() {
-        sqlx::query_as::<_, User>(
-            "SELECT * FROM users WHERE id = ANY($1)"
-        )
-        .bind(&user_ids)
-        .fetch_all(pool.get_ref())
-        .await?
+        sqlx::query_as::<_, User>("SELECT * FROM users WHERE id = ANY($1)")
+            .bind(&user_ids)
+            .fetch_all(pool.get_ref())
+            .await?
     } else {
         vec![]
     };
 
     // Create a map of user_id -> User for quick lookup
-    let user_map: std::collections::HashMap<Uuid, User> = users
-        .into_iter()
-        .map(|u| (u.id, u))
-        .collect();
+    let user_map: std::collections::HashMap<Uuid, User> =
+        users.into_iter().map(|u| (u.id, u)).collect();
 
     // Fetch reactions for all messages
     let message_ids: Vec<Uuid> = paginated.messages.iter().map(|m| m.id).collect();
     let reactions = if !message_ids.is_empty() {
         sqlx::query_as::<_, Reaction>(
-            "SELECT * FROM reactions WHERE message_id = ANY($1) ORDER BY created_at"
+            "SELECT * FROM reactions WHERE message_id = ANY($1) ORDER BY created_at",
         )
         .bind(&message_ids)
         .fetch_all(pool.get_ref())
@@ -836,7 +939,8 @@ pub async fn list_channel_messages(
     };
 
     // Create a map of message_id -> Vec<Reaction> for quick lookup
-    let mut reaction_map: std::collections::HashMap<Uuid, Vec<Reaction>> = std::collections::HashMap::new();
+    let mut reaction_map: std::collections::HashMap<Uuid, Vec<Reaction>> =
+        std::collections::HashMap::new();
     for reaction in reactions {
         reaction_map
             .entry(reaction.message_id)
@@ -853,26 +957,22 @@ pub async fn list_channel_messages(
     // Fetch users for first replies
     let first_reply_user_ids: Vec<Uuid> = first_replies.values().map(|m| m.user_id).collect();
     let first_reply_users = if !first_reply_user_ids.is_empty() {
-        sqlx::query_as::<_, User>(
-            "SELECT * FROM users WHERE id = ANY($1)"
-        )
-        .bind(&first_reply_user_ids)
-        .fetch_all(pool.get_ref())
-        .await?
+        sqlx::query_as::<_, User>("SELECT * FROM users WHERE id = ANY($1)")
+            .bind(&first_reply_user_ids)
+            .fetch_all(pool.get_ref())
+            .await?
     } else {
         vec![]
     };
 
     // Create a map of user_id -> User for first reply users
-    let first_reply_user_map: std::collections::HashMap<Uuid, User> = first_reply_users
-        .into_iter()
-        .map(|u| (u.id, u))
-        .collect();
+    let first_reply_user_map: std::collections::HashMap<Uuid, User> =
+        first_reply_users.into_iter().map(|u| (u.id, u)).collect();
 
     // Fetch attachments for all messages
     let attachments = if !message_ids.is_empty() {
         sqlx::query_as::<_, Attachment>(
-            "SELECT * FROM attachments WHERE message_id = ANY($1) ORDER BY created_at"
+            "SELECT * FROM attachments WHERE message_id = ANY($1) ORDER BY created_at",
         )
         .bind(&message_ids)
         .fetch_all(pool.get_ref())
@@ -882,7 +982,8 @@ pub async fn list_channel_messages(
     };
 
     // Create a map of message_id -> Vec<Attachment> for quick lookup
-    let mut attachment_map: std::collections::HashMap<Uuid, Vec<Attachment>> = std::collections::HashMap::new();
+    let mut attachment_map: std::collections::HashMap<Uuid, Vec<Attachment>> =
+        std::collections::HashMap::new();
     for attachment in attachments {
         attachment_map
             .entry(attachment.message_id)
@@ -898,52 +999,70 @@ pub async fn list_channel_messages(
     };
 
     // Build poll results map (message_id -> PollResponseEmbed)
-    let mut poll_map: std::collections::HashMap<Uuid, PollResponseEmbed> = std::collections::HashMap::new();
+    let mut poll_map: std::collections::HashMap<Uuid, PollResponseEmbed> =
+        std::collections::HashMap::new();
     for poll in &polls {
-        let results = crate::models::poll::Poll::get_results(pool.get_ref(), poll.id, current_user.id).await?;
-        let options: Vec<crate::models::poll::PollOptionInfo> = serde_json::from_value(poll.options.clone()).unwrap_or_default();
+        let results =
+            crate::models::poll::Poll::get_results(pool.get_ref(), poll.id, current_user.id)
+                .await?;
+        let options: Vec<crate::models::poll::PollOptionInfo> =
+            serde_json::from_value(poll.options.clone()).unwrap_or_default();
         let _ = options; // used via results
-        poll_map.insert(poll.message_id, PollResponseEmbed {
-            id: poll.id,
-            question: results.question,
-            options: results.options.into_iter().map(|o| PollOptionEmbed {
-                index: o.index,
-                text: o.text,
-                votes: o.votes,
-            }).collect(),
-            poll_type: results.poll_type,
-            anonymous: results.anonymous,
-            total_votes: results.total_votes,
-            user_votes: results.user_votes,
-            closed: results.closed,
-            expires_at: poll.expires_at.map(|dt| dt.to_rfc3339()),
-            created_by: poll.created_by,
-            created_at: poll.created_at.to_rfc3339(),
-        });
+        poll_map.insert(
+            poll.message_id,
+            PollResponseEmbed {
+                id: poll.id,
+                question: results.question,
+                options: results
+                    .options
+                    .into_iter()
+                    .map(|o| PollOptionEmbed {
+                        index: o.index,
+                        text: o.text,
+                        votes: o.votes,
+                    })
+                    .collect(),
+                poll_type: results.poll_type,
+                anonymous: results.anonymous,
+                total_votes: results.total_votes,
+                user_votes: results.user_votes,
+                closed: results.closed,
+                expires_at: poll.expires_at.map(|dt| dt.to_rfc3339()),
+                created_by: poll.created_by,
+                created_at: poll.created_at.to_rfc3339(),
+            },
+        );
     }
 
     // Batch-resolve forwarded channel names
-    let forwarded_channel_ids: Vec<Uuid> = paginated.messages.iter()
+    let forwarded_channel_ids: Vec<Uuid> = paginated
+        .messages
+        .iter()
         .filter_map(|m| m.forwarded_from_channel_id)
         .collect::<std::collections::HashSet<_>>()
         .into_iter()
         .collect();
-    let forwarded_channel_names: std::collections::HashMap<Uuid, String> = if !forwarded_channel_ids.is_empty() {
-        #[derive(sqlx::FromRow)]
-        struct ChannelName { id: Uuid, name: String }
-        sqlx::query_as::<_, ChannelName>("SELECT id, name FROM channels WHERE id = ANY($1)")
-            .bind(&forwarded_channel_ids)
-            .fetch_all(pool.get_ref())
-            .await?
-            .into_iter()
-            .map(|cn| (cn.id, cn.name))
-            .collect()
-    } else {
-        std::collections::HashMap::new()
-    };
+    let forwarded_channel_names: std::collections::HashMap<Uuid, String> =
+        if !forwarded_channel_ids.is_empty() {
+            #[derive(sqlx::FromRow)]
+            struct ChannelName {
+                id: Uuid,
+                name: String,
+            }
+            sqlx::query_as::<_, ChannelName>("SELECT id, name FROM channels WHERE id = ANY($1)")
+                .bind(&forwarded_channel_ids)
+                .fetch_all(pool.get_ref())
+                .await?
+                .into_iter()
+                .map(|cn| (cn.id, cn.name))
+                .collect()
+        } else {
+            std::collections::HashMap::new()
+        };
 
     // Enrich messages with user data, reactions, reply counts, first replies, attachments, and polls
-    let messages_with_users: Vec<MessageResponse> = paginated.messages
+    let messages_with_users: Vec<MessageResponse> = paginated
+        .messages
         .into_iter()
         .map(|msg| {
             let mut response = MessageResponse::from(msg.clone());
@@ -970,7 +1089,8 @@ pub async fn list_channel_messages(
                 response = response.with_attachments(attachments.clone());
             }
             if let Some(fwd_ch_id) = msg.forwarded_from_channel_id {
-                response = response.with_forwarded_channel_name(forwarded_channel_names.get(&fwd_ch_id).cloned());
+                response = response
+                    .with_forwarded_channel_name(forwarded_channel_names.get(&fwd_ch_id).cloned());
             }
             if let Some(poll_embed) = poll_map.remove(&msg.id) {
                 response = response.with_poll(poll_embed);
@@ -1004,7 +1124,9 @@ pub async fn update_message(
 
     // Validate content is not empty
     if body.content.trim().is_empty() {
-        return Err(ApiError::BadRequest("Message content cannot be empty".to_string()));
+        return Err(ApiError::BadRequest(
+            "Message content cannot be empty".to_string(),
+        ));
     }
 
     // Get current user
@@ -1024,11 +1146,22 @@ pub async fn update_message(
     }
 
     // Update the message (encrypted or plaintext)
-    let updated_message = if let (Some(ec), Some(em)) = (&body.encrypted_content, &body.encryption_metadata) {
+    let updated_message = if let (Some(ec), Some(em)) =
+        (&body.encrypted_content, &body.encryption_metadata)
+    {
         use base64::Engine;
-        let enc_bytes = base64::engine::general_purpose::STANDARD.decode(ec)
+        let enc_bytes = base64::engine::general_purpose::STANDARD
+            .decode(ec)
             .map_err(|_| ApiError::BadRequest("Invalid base64 in encrypted_content".to_string()))?;
-        Message::update_encrypted(pool.get_ref(), *message_id, &body.content, &enc_bytes, em.clone(), current_user.id).await?
+        Message::update_encrypted(
+            pool.get_ref(),
+            *message_id,
+            &body.content,
+            &enc_bytes,
+            em.clone(),
+            current_user.id,
+        )
+        .await?
     } else {
         Message::update(pool.get_ref(), *message_id, &body.content, current_user.id).await?
     };
@@ -1036,11 +1169,23 @@ pub async fn update_message(
     // Invalidate message cache after updating
 
     if let Some(channel_id) = message.channel_id {
-        if let Err(e) = message_cache::invalidate_channel_messages_cache(redis_pool.get_ref(), current_user.org_id, channel_id).await {
+        if let Err(e) = message_cache::invalidate_channel_messages_cache(
+            redis_pool.get_ref(),
+            current_user.org_id,
+            channel_id,
+        )
+        .await
+        {
             tracing::warn!("Failed to invalidate channel messages cache: {}", e);
         }
     } else if let Some(dm_id) = message.dm_id {
-        if let Err(e) = message_cache::invalidate_dm_messages_cache(redis_pool.get_ref(), current_user.org_id, dm_id).await {
+        if let Err(e) = message_cache::invalidate_dm_messages_cache(
+            redis_pool.get_ref(),
+            current_user.org_id,
+            dm_id,
+        )
+        .await
+        {
             tracing::warn!("Failed to invalidate DM messages cache: {}", e);
         }
     }
@@ -1099,11 +1244,23 @@ pub async fn delete_message(
     // Invalidate message cache after deleting
 
     if let Some(channel_id) = message.channel_id {
-        if let Err(e) = message_cache::invalidate_channel_messages_cache(redis_pool.get_ref(), current_user.org_id, channel_id).await {
+        if let Err(e) = message_cache::invalidate_channel_messages_cache(
+            redis_pool.get_ref(),
+            current_user.org_id,
+            channel_id,
+        )
+        .await
+        {
             tracing::warn!("Failed to invalidate channel messages cache: {}", e);
         }
     } else if let Some(dm_id) = message.dm_id {
-        if let Err(e) = message_cache::invalidate_dm_messages_cache(redis_pool.get_ref(), current_user.org_id, dm_id).await {
+        if let Err(e) = message_cache::invalidate_dm_messages_cache(
+            redis_pool.get_ref(),
+            current_user.org_id,
+            dm_id,
+        )
+        .await
+        {
             tracing::warn!("Failed to invalidate DM messages cache: {}", e);
         }
     }
@@ -1135,7 +1292,8 @@ pub async fn get_message_thread(
 
     // Verify user has access to the message (is member of channel or DM)
     if let Some(channel_id) = parent_message.channel_id {
-        let is_member = ChannelMember::is_member(pool.get_ref(), channel_id, current_user.id).await?;
+        let is_member =
+            ChannelMember::is_member(pool.get_ref(), channel_id, current_user.id).await?;
         if !is_member {
             return Err(ApiError::Authorization(
                 "You are not a member of this channel".to_string(),
@@ -1153,27 +1311,23 @@ pub async fn get_message_thread(
 
     let user_ids: Vec<Uuid> = all_messages.iter().map(|m| m.user_id).collect();
     let users = if !user_ids.is_empty() {
-        sqlx::query_as::<_, User>(
-            "SELECT * FROM users WHERE id = ANY($1)"
-        )
-        .bind(&user_ids)
-        .fetch_all(pool.get_ref())
-        .await?
+        sqlx::query_as::<_, User>("SELECT * FROM users WHERE id = ANY($1)")
+            .bind(&user_ids)
+            .fetch_all(pool.get_ref())
+            .await?
     } else {
         vec![]
     };
 
     // Create a map of user_id -> User for quick lookup
-    let user_map: std::collections::HashMap<Uuid, User> = users
-        .into_iter()
-        .map(|u| (u.id, u))
-        .collect();
+    let user_map: std::collections::HashMap<Uuid, User> =
+        users.into_iter().map(|u| (u.id, u)).collect();
 
     // Fetch reactions for all messages
     let message_ids: Vec<Uuid> = all_messages.iter().map(|m| m.id).collect();
     let reactions = if !message_ids.is_empty() {
         sqlx::query_as::<_, Reaction>(
-            "SELECT * FROM reactions WHERE message_id = ANY($1) ORDER BY created_at"
+            "SELECT * FROM reactions WHERE message_id = ANY($1) ORDER BY created_at",
         )
         .bind(&message_ids)
         .fetch_all(pool.get_ref())
@@ -1183,7 +1337,8 @@ pub async fn get_message_thread(
     };
 
     // Create a map of message_id -> Vec<Reaction> for quick lookup
-    let mut reaction_map: std::collections::HashMap<Uuid, Vec<Reaction>> = std::collections::HashMap::new();
+    let mut reaction_map: std::collections::HashMap<Uuid, Vec<Reaction>> =
+        std::collections::HashMap::new();
     for reaction in reactions {
         reaction_map
             .entry(reaction.message_id)
@@ -1262,7 +1417,8 @@ pub async fn get_message_history(
 
     // Verify user has access to the message (is member of channel or DM)
     if let Some(channel_id) = message.channel_id {
-        let is_member = ChannelMember::is_member(pool.get_ref(), channel_id, current_user.id).await?;
+        let is_member =
+            ChannelMember::is_member(pool.get_ref(), channel_id, current_user.id).await?;
         if !is_member {
             return Err(ApiError::Authorization(
                 "You are not a member of this channel".to_string(),
@@ -1272,7 +1428,9 @@ pub async fn get_message_history(
     // TODO: Add DM permission check when DM functionality is fully implemented
 
     // Get edit history
-    let edits = crate::models::message_edit::MessageEdit::list_by_message(pool.get_ref(), *message_id).await?;
+    let edits =
+        crate::models::message_edit::MessageEdit::list_by_message(pool.get_ref(), *message_id)
+            .await?;
 
     Ok(HttpResponse::Ok().json(edits))
 }
@@ -1304,12 +1462,12 @@ pub async fn forward_message(
         (Some(_), Some(_)) => {
             return Err(ApiError::BadRequest(
                 "Cannot specify both channel_id and dm_id".to_string(),
-            ))
+            ));
         }
         (None, None) => {
             return Err(ApiError::BadRequest(
                 "Must specify either channel_id or dm_id".to_string(),
-            ))
+            ));
         }
         _ => {}
     }
@@ -1326,7 +1484,8 @@ pub async fn forward_message(
 
     // Verify user has access to source message
     if let Some(source_channel_id) = source_message.channel_id {
-        let is_member = ChannelMember::is_member(pool.get_ref(), source_channel_id, current_user.id).await?;
+        let is_member =
+            ChannelMember::is_member(pool.get_ref(), source_channel_id, current_user.id).await?;
         if !is_member {
             return Err(ApiError::Authorization(
                 "You are not a member of the source channel".to_string(),
@@ -1344,7 +1503,8 @@ pub async fn forward_message(
     };
 
     // Use comment as content if provided, otherwise use original message content
-    let content = body.comment
+    let content = body
+        .comment
         .as_deref()
         .filter(|c| !c.trim().is_empty())
         .unwrap_or(&source_message.content);
@@ -1357,7 +1517,8 @@ pub async fn forward_message(
             .ok_or_else(|| ApiError::NotFound("Target channel not found".to_string()))?;
 
         // Verify user is a member of target channel
-        let is_member = ChannelMember::is_member(pool.get_ref(), target_channel_id, current_user.id).await?;
+        let is_member =
+            ChannelMember::is_member(pool.get_ref(), target_channel_id, current_user.id).await?;
         if !is_member {
             return Err(ApiError::Authorization(
                 "You are not a member of the target channel".to_string(),
@@ -1389,11 +1550,23 @@ pub async fn forward_message(
 
     // Invalidate cache
     if let Some(channel_id) = forwarded_message.channel_id {
-        if let Err(e) = message_cache::invalidate_channel_messages_cache(redis_pool.get_ref(), current_user.org_id, channel_id).await {
+        if let Err(e) = message_cache::invalidate_channel_messages_cache(
+            redis_pool.get_ref(),
+            current_user.org_id,
+            channel_id,
+        )
+        .await
+        {
             tracing::warn!("Failed to invalidate channel messages cache: {}", e);
         }
     } else if let Some(dm_id) = forwarded_message.dm_id {
-        if let Err(e) = message_cache::invalidate_dm_messages_cache(redis_pool.get_ref(), current_user.org_id, dm_id).await {
+        if let Err(e) = message_cache::invalidate_dm_messages_cache(
+            redis_pool.get_ref(),
+            current_user.org_id,
+            dm_id,
+        )
+        .await
+        {
             tracing::warn!("Failed to invalidate DM messages cache: {}", e);
         }
     }

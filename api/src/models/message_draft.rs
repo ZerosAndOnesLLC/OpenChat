@@ -92,11 +92,7 @@ impl MessageDraft {
     }
 
     /// Get draft for a DM
-    pub async fn get_for_dm(
-        pool: &PgPool,
-        user_id: Uuid,
-        dm_id: Uuid,
-    ) -> ApiResult<Option<Self>> {
+    pub async fn get_for_dm(pool: &PgPool, user_id: Uuid, dm_id: Uuid) -> ApiResult<Option<Self>> {
         let draft = sqlx::query_as::<_, Self>(
             r#"
             SELECT * FROM message_drafts

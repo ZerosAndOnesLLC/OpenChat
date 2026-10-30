@@ -1,4 +1,4 @@
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use chrono::{TimeZone, Utc};
 use rand::RngExt;
 use reqwest::Client;
@@ -34,10 +34,16 @@ impl MigrationService {
     }
 
     /// Validate connection and return server info
-    pub async fn validate_connection(&self, connection: &MattermostConnection) -> Result<ValidationResponse> {
+    pub async fn validate_connection(
+        &self,
+        connection: &MattermostConnection,
+    ) -> Result<ValidationResponse> {
         match MattermostClient::new(connection.clone()).await {
             Ok(client) => {
-                let version = client.get_server_version().await.unwrap_or_else(|_| "unknown".to_string());
+                let version = client
+                    .get_server_version()
+                    .await
+                    .unwrap_or_else(|_| "unknown".to_string());
                 Ok(ValidationResponse {
                     valid: true,
                     server_version: Some(version),
@@ -68,30 +74,33 @@ impl MigrationService {
         // Build user mappings
         let mut users_will_create = 0i64;
         let mut users_will_match = 0i64;
-        let user_mappings: Vec<UserMapping> = mm_users.iter().map(|mm_user| {
-            let email_lower = mm_user.email.to_lowercase();
-            if let Some(oc_user_id) = existing_users.get(&email_lower) {
-                users_will_match += 1;
-                UserMapping {
-                    mattermost_id: mm_user.id.clone(),
-                    email: mm_user.email.clone(),
-                    username: mm_user.username.clone(),
-                    display_name: Some(mm_user.display_name()),
-                    openchat_user_id: Some(*oc_user_id),
-                    action: UserAction::Match,
+        let user_mappings: Vec<UserMapping> = mm_users
+            .iter()
+            .map(|mm_user| {
+                let email_lower = mm_user.email.to_lowercase();
+                if let Some(oc_user_id) = existing_users.get(&email_lower) {
+                    users_will_match += 1;
+                    UserMapping {
+                        mattermost_id: mm_user.id.clone(),
+                        email: mm_user.email.clone(),
+                        username: mm_user.username.clone(),
+                        display_name: Some(mm_user.display_name()),
+                        openchat_user_id: Some(*oc_user_id),
+                        action: UserAction::Match,
+                    }
+                } else {
+                    users_will_create += 1;
+                    UserMapping {
+                        mattermost_id: mm_user.id.clone(),
+                        email: mm_user.email.clone(),
+                        username: mm_user.username.clone(),
+                        display_name: Some(mm_user.display_name()),
+                        openchat_user_id: None,
+                        action: UserAction::Create,
+                    }
                 }
-            } else {
-                users_will_create += 1;
-                UserMapping {
-                    mattermost_id: mm_user.id.clone(),
-                    email: mm_user.email.clone(),
-                    username: mm_user.username.clone(),
-                    display_name: Some(mm_user.display_name()),
-                    openchat_user_id: None,
-                    action: UserAction::Create,
-                }
-            }
-        }).collect();
+            })
+            .collect();
 
         // Build channel info
         let public_channels: Vec<_> = mm_channels.iter().filter(|c| c.is_public()).collect();
@@ -101,7 +110,9 @@ impl MigrationService {
 
         let mut channel_infos = Vec::new();
         for channel in public_channels.iter().chain(private_channels.iter()) {
-            let member_count = client.get_channel_members(&channel.id).await
+            let member_count = client
+                .get_channel_members(&channel.id)
+                .await
                 .map(|m| m.len() as i64)
                 .unwrap_or(0);
 
@@ -109,7 +120,11 @@ impl MigrationService {
                 mattermost_id: channel.id.clone(),
                 name: channel.name.clone(),
                 display_name: channel.display_name.clone(),
-                channel_type: if channel.is_public() { "public".to_string() } else { "private".to_string() },
+                channel_type: if channel.is_public() {
+                    "public".to_string()
+                } else {
+                    "private".to_string()
+                },
                 member_count,
                 message_count: channel.total_msg_count,
                 selected: true,
@@ -168,7 +183,7 @@ impl MigrationService {
             r#"
             INSERT INTO migration_jobs (id, org_id, status, progress, started_at, created_by)
             VALUES ($1, $2, 'pending', $3, NOW(), $4)
-            "#
+            "#,
         )
         .bind(job_id)
         .bind(self.org_id)
@@ -188,7 +203,9 @@ impl MigrationService {
         tokio::spawn(async move {
             if let Err(e) = service.run_migration(job_id, connection, options).await {
                 tracing::error!("Migration job {} failed: {}", job_id, e);
-                let _ = service.update_job_status(job_id, MigrationStatus::Failed, Some(e.to_string())).await;
+                let _ = service
+                    .update_job_status(job_id, MigrationStatus::Failed, Some(e.to_string()))
+                    .await;
             }
         });
 
@@ -202,7 +219,8 @@ impl MigrationService {
         connection: MattermostConnection,
         options: MigrationOptions,
     ) -> Result<()> {
-        self.update_job_status(job_id, MigrationStatus::Running, None).await?;
+        self.update_job_status(job_id, MigrationStatus::Running, None)
+            .await?;
 
         let client = MattermostClient::new(connection.clone()).await?;
         let _batch_size = options.batch_size.unwrap_or(DEFAULT_BATCH_SIZE);
@@ -223,10 +241,14 @@ impl MigrationService {
 
             match self.migrate_user(mm_user, &options.user_mappings).await {
                 Ok(oc_user_id) => {
-                    id_mapping.mattermost_user_ids.insert(mm_user.id.clone(), oc_user_id);
+                    id_mapping
+                        .mattermost_user_ids
+                        .insert(mm_user.id.clone(), oc_user_id);
                 }
                 Err(e) => {
-                    progress.errors.push(format!("User {}: {}", mm_user.email, e));
+                    progress
+                        .errors
+                        .push(format!("User {}: {}", mm_user.email, e));
                 }
             }
 
@@ -238,10 +260,10 @@ impl MigrationService {
         self.update_job_progress(job_id, &progress).await?;
 
         let mm_channels = client.get_channels().await?;
-        let channels_to_migrate: Vec<_> = mm_channels.iter()
+        let channels_to_migrate: Vec<_> = mm_channels
+            .iter()
             .filter(|c| {
-                (c.is_public() || c.is_private()) &&
-                options.include_channels.contains(&c.id)
+                (c.is_public() || c.is_private()) && options.include_channels.contains(&c.id)
             })
             .collect();
 
@@ -253,10 +275,14 @@ impl MigrationService {
 
             match self.migrate_channel(&client, channel, &id_mapping).await {
                 Ok(oc_channel_id) => {
-                    id_mapping.mattermost_channel_ids.insert(channel.id.clone(), oc_channel_id);
+                    id_mapping
+                        .mattermost_channel_ids
+                        .insert(channel.id.clone(), oc_channel_id);
                 }
                 Err(e) => {
-                    progress.errors.push(format!("Channel {}: {}", channel.name, e));
+                    progress
+                        .errors
+                        .push(format!("Channel {}: {}", channel.name, e));
                 }
             }
 
@@ -268,10 +294,11 @@ impl MigrationService {
             progress.phase = "direct_messages".to_string();
             self.update_job_progress(job_id, &progress).await?;
 
-            let dms_to_migrate: Vec<_> = mm_channels.iter()
+            let dms_to_migrate: Vec<_> = mm_channels
+                .iter()
                 .filter(|c| {
-                    (c.is_direct() && options.include_dms) ||
-                    (c.is_group() && options.include_group_dms)
+                    (c.is_direct() && options.include_dms)
+                        || (c.is_group() && options.include_group_dms)
                 })
                 .collect();
 
@@ -315,9 +342,21 @@ impl MigrationService {
             for post in &posts {
                 progress.current_item = Some(format!("Message in channel"));
 
-                match self.migrate_message(&client, post, Some(*oc_channel_id), None, &id_mapping, options.include_attachments).await {
+                match self
+                    .migrate_message(
+                        &client,
+                        post,
+                        Some(*oc_channel_id),
+                        None,
+                        &id_mapping,
+                        options.include_attachments,
+                    )
+                    .await
+                {
                     Ok(oc_msg_id) => {
-                        id_mapping.mattermost_message_ids.insert(post.id.clone(), oc_msg_id);
+                        id_mapping
+                            .mattermost_message_ids
+                            .insert(post.id.clone(), oc_msg_id);
                     }
                     Err(e) => {
                         progress.errors.push(format!("Message {}: {}", post.id, e));
@@ -339,9 +378,21 @@ impl MigrationService {
             for post in &posts {
                 progress.current_item = Some(format!("Message in DM"));
 
-                match self.migrate_message(&client, post, None, Some(*oc_dm_id), &id_mapping, options.include_attachments).await {
+                match self
+                    .migrate_message(
+                        &client,
+                        post,
+                        None,
+                        Some(*oc_dm_id),
+                        &id_mapping,
+                        options.include_attachments,
+                    )
+                    .await
+                {
                     Ok(oc_msg_id) => {
-                        id_mapping.mattermost_message_ids.insert(post.id.clone(), oc_msg_id);
+                        id_mapping
+                            .mattermost_message_ids
+                            .insert(post.id.clone(), oc_msg_id);
                     }
                     Err(e) => {
                         progress.errors.push(format!("Message {}: {}", post.id, e));
@@ -360,19 +411,18 @@ impl MigrationService {
         progress.phase = "completed".to_string();
         progress.current_item = None;
         self.update_job_progress(job_id, &progress).await?;
-        self.update_job_status(job_id, MigrationStatus::Completed, None).await?;
+        self.update_job_status(job_id, MigrationStatus::Completed, None)
+            .await?;
 
         Ok(())
     }
 
     /// Get existing OpenChat users by email
     async fn get_existing_users_by_email(&self) -> Result<HashMap<String, Uuid>> {
-        let rows = sqlx::query(
-            "SELECT id, LOWER(email) as email FROM users WHERE org_id = $1"
-        )
-        .bind(self.org_id)
-        .fetch_all(&self.openchat_pool)
-        .await?;
+        let rows = sqlx::query("SELECT id, LOWER(email) as email FROM users WHERE org_id = $1")
+            .bind(self.org_id)
+            .fetch_all(&self.openchat_pool)
+            .await?;
 
         let mut map = HashMap::new();
         for row in rows {
@@ -386,7 +436,11 @@ impl MigrationService {
     }
 
     /// Migrate a single user
-    async fn migrate_user(&self, mm_user: &MmUser, overrides: &[UserMappingOverride]) -> Result<Uuid> {
+    async fn migrate_user(
+        &self,
+        mm_user: &MmUser,
+        overrides: &[UserMappingOverride],
+    ) -> Result<Uuid> {
         let email_lower = mm_user.email.to_lowercase();
 
         // Check for override
@@ -403,13 +457,12 @@ impl MigrationService {
         }
 
         // Check if user exists in OpenChat
-        let existing: Option<Uuid> = sqlx::query_scalar(
-            "SELECT id FROM users WHERE org_id = $1 AND LOWER(email) = $2"
-        )
-        .bind(self.org_id)
-        .bind(&email_lower)
-        .fetch_optional(&self.openchat_pool)
-        .await?;
+        let existing: Option<Uuid> =
+            sqlx::query_scalar("SELECT id FROM users WHERE org_id = $1 AND LOWER(email) = $2")
+                .bind(self.org_id)
+                .bind(&email_lower)
+                .fetch_optional(&self.openchat_pool)
+                .await?;
 
         if let Some(id) = existing {
             return Ok(id);
@@ -488,7 +541,8 @@ impl MigrationService {
         }
 
         let result: serde_json::Value = resp.json().await?;
-        let id_str = result.get("id")
+        let id_str = result
+            .get("id")
             .and_then(|v| v.as_str())
             .ok_or_else(|| anyhow!("No user ID in TV response"))?;
 
@@ -505,7 +559,9 @@ impl MigrationService {
         let channel_id = Uuid::new_v4();
 
         // Find creator
-        let created_by = id_mapping.mattermost_user_ids.get(&channel.creator_id)
+        let created_by = id_mapping
+            .mattermost_user_ids
+            .get(&channel.creator_id)
             .copied()
             .or_else(|| {
                 // Use first available user
@@ -513,7 +569,11 @@ impl MigrationService {
             })
             .ok_or_else(|| anyhow!("No users available to create channel"))?;
 
-        let channel_type = if channel.is_public() { "public" } else { "private" };
+        let channel_type = if channel.is_public() {
+            "public"
+        } else {
+            "private"
+        };
 
         // Create channel
         sqlx::query(
@@ -546,7 +606,7 @@ impl MigrationService {
                     INSERT INTO channel_members (id, channel_id, user_id, role, joined_at)
                     VALUES ($1, $2, $3, $4, NOW())
                     ON CONFLICT (channel_id, user_id) DO NOTHING
-                    "#
+                    "#,
                 )
                 .bind(Uuid::new_v4())
                 .bind(channel_id)
@@ -571,7 +631,8 @@ impl MigrationService {
 
         // Get participants
         let members = client.get_channel_members(&dm.id).await?;
-        let oc_members: Vec<Uuid> = members.iter()
+        let oc_members: Vec<Uuid> = members
+            .iter()
             .filter_map(|m| id_mapping.mattermost_user_ids.get(&m.user_id).copied())
             .collect();
 
@@ -586,7 +647,7 @@ impl MigrationService {
             r#"
             INSERT INTO direct_messages (id, org_id, created_by, created_at)
             VALUES ($1, $2, $3, NOW())
-            "#
+            "#,
         )
         .bind(dm_id)
         .bind(self.org_id)
@@ -601,7 +662,7 @@ impl MigrationService {
                 INSERT INTO dm_participants (id, dm_id, user_id, joined_at)
                 VALUES ($1, $2, $3, NOW())
                 ON CONFLICT (dm_id, user_id) DO NOTHING
-                "#
+                "#,
             )
             .bind(Uuid::new_v4())
             .bind(dm_id)
@@ -625,16 +686,22 @@ impl MigrationService {
     ) -> Result<Uuid> {
         let message_id = Uuid::new_v4();
 
-        let user_id = id_mapping.mattermost_user_ids.get(&post.user_id)
+        let user_id = id_mapping
+            .mattermost_user_ids
+            .get(&post.user_id)
             .copied()
             .ok_or_else(|| anyhow!("User not found for message"))?;
 
         // Handle threading
-        let parent_message_id = post.root_id.as_ref()
+        let parent_message_id = post
+            .root_id
+            .as_ref()
             .and_then(|root_id| id_mapping.mattermost_message_ids.get(root_id).copied());
 
         // Convert timestamp
-        let created_at = Utc.timestamp_millis_opt(post.create_at).single()
+        let created_at = Utc
+            .timestamp_millis_opt(post.create_at)
+            .single()
             .unwrap_or_else(Utc::now);
 
         let edited_at = if post.edit_at > 0 {
@@ -669,7 +736,7 @@ impl MigrationService {
                     INSERT INTO pinned_messages (id, channel_id, message_id, pinned_by, pinned_at)
                     VALUES ($1, $2, $3, $4, NOW())
                     ON CONFLICT (channel_id, message_id) DO NOTHING
-                    "#
+                    "#,
                 )
                 .bind(Uuid::new_v4())
                 .bind(ch_id)
@@ -690,7 +757,7 @@ impl MigrationService {
                         INSERT INTO reactions (id, message_id, user_id, emoji, created_at)
                         VALUES ($1, $2, $3, $4, NOW())
                         ON CONFLICT (message_id, user_id, emoji) DO NOTHING
-                        "#
+                        "#,
                     )
                     .bind(Uuid::new_v4())
                     .bind(message_id)
@@ -723,7 +790,9 @@ impl MigrationService {
         file_id: &str,
         message_id: Uuid,
     ) -> Result<Uuid> {
-        let file_info = client.get_file_info(file_id).await?
+        let file_info = client
+            .get_file_info(file_id)
+            .await?
             .ok_or_else(|| anyhow!("File info not found"))?;
 
         // Download file content
@@ -756,7 +825,12 @@ impl MigrationService {
     }
 
     /// Update job status
-    async fn update_job_status(&self, job_id: Uuid, status: MigrationStatus, error: Option<String>) -> Result<()> {
+    async fn update_job_status(
+        &self,
+        job_id: Uuid,
+        status: MigrationStatus,
+        error: Option<String>,
+    ) -> Result<()> {
         let status_str = match status {
             MigrationStatus::Pending => "pending",
             MigrationStatus::Running => "running",
@@ -765,7 +839,10 @@ impl MigrationService {
             MigrationStatus::Cancelled => "cancelled",
         };
 
-        if matches!(status, MigrationStatus::Completed | MigrationStatus::Failed | MigrationStatus::Cancelled) {
+        if matches!(
+            status,
+            MigrationStatus::Completed | MigrationStatus::Failed | MigrationStatus::Cancelled
+        ) {
             sqlx::query(
                 "UPDATE migration_jobs SET status = $1, error = $2, completed_at = NOW() WHERE id = $3"
             )
@@ -775,14 +852,12 @@ impl MigrationService {
             .execute(&self.openchat_pool)
             .await?;
         } else {
-            sqlx::query(
-                "UPDATE migration_jobs SET status = $1, error = $2 WHERE id = $3"
-            )
-            .bind(status_str)
-            .bind(error)
-            .bind(job_id)
-            .execute(&self.openchat_pool)
-            .await?;
+            sqlx::query("UPDATE migration_jobs SET status = $1, error = $2 WHERE id = $3")
+                .bind(status_str)
+                .bind(error)
+                .bind(job_id)
+                .execute(&self.openchat_pool)
+                .await?;
         }
 
         Ok(())
@@ -790,13 +865,11 @@ impl MigrationService {
 
     /// Update job progress
     async fn update_job_progress(&self, job_id: Uuid, progress: &MigrationProgress) -> Result<()> {
-        sqlx::query(
-            "UPDATE migration_jobs SET progress = $1 WHERE id = $2"
-        )
-        .bind(serde_json::to_value(progress)?)
-        .bind(job_id)
-        .execute(&self.openchat_pool)
-        .await?;
+        sqlx::query("UPDATE migration_jobs SET progress = $1 WHERE id = $2")
+            .bind(serde_json::to_value(progress)?)
+            .bind(job_id)
+            .execute(&self.openchat_pool)
+            .await?;
 
         Ok(())
     }
@@ -808,7 +881,7 @@ impl MigrationService {
             SELECT id, org_id, status, progress, error, started_at, completed_at, created_by
             FROM migration_jobs
             WHERE id = $1 AND org_id = $2
-            "#
+            "#,
         )
         .bind(job_id)
         .bind(self.org_id)

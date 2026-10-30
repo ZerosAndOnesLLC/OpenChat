@@ -3,8 +3,8 @@ use async_trait::async_trait;
 use aws_sdk_s3::Client as S3Client;
 use aws_sdk_s3::primitives::ByteStream;
 
-use crate::errors::ApiError;
 use super::traits::{FileStorage, StorageType, UploadedFile};
+use crate::errors::ApiError;
 
 #[derive(Clone)]
 pub struct S3Storage {
@@ -39,9 +39,7 @@ impl FileStorage for S3Storage {
             .content_type(content_type)
             .send()
             .await
-            .map_err(|e| {
-                ApiError::Internal(format!("Failed to upload to S3: {}", e))
-            })?;
+            .map_err(|e| ApiError::Internal(format!("Failed to upload to S3: {}", e)))?;
 
         Ok(UploadedFile {
             storage_type: StorageType::S3,
@@ -60,20 +58,13 @@ impl FileStorage for S3Storage {
             .key(storage_path)
             .send()
             .await
-            .map_err(|e| {
-                ApiError::NotFound(format!("Failed to download from S3: {}", e))
-            })?;
+            .map_err(|e| ApiError::NotFound(format!("Failed to download from S3: {}", e)))?;
 
         let data = result
             .body
             .collect()
             .await
-            .map_err(|e| {
-                ApiError::Internal(format!(
-                    "Failed to read S3 object body: {}",
-                    e
-                ))
-            })?;
+            .map_err(|e| ApiError::Internal(format!("Failed to read S3 object body: {}", e)))?;
 
         Ok(data.into_bytes())
     }
@@ -85,12 +76,7 @@ impl FileStorage for S3Storage {
             .key(storage_path)
             .send()
             .await
-            .map_err(|e| {
-                ApiError::Internal(format!(
-                    "Failed to delete from S3: {}",
-                    e
-                ))
-            })?;
+            .map_err(|e| ApiError::Internal(format!("Failed to delete from S3: {}", e)))?;
 
         Ok(())
     }

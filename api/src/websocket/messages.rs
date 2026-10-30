@@ -25,21 +25,13 @@ pub enum ClientMessage {
         dm_id: Option<Uuid>,
     },
     /// Subscribe to a channel for real-time updates
-    SubscribeChannel {
-        channel_id: Uuid,
-    },
+    SubscribeChannel { channel_id: Uuid },
     /// Unsubscribe from a channel
-    UnsubscribeChannel {
-        channel_id: Uuid,
-    },
+    UnsubscribeChannel { channel_id: Uuid },
     /// Subscribe to a DM for real-time updates and get DM data
-    SubscribeDm {
-        dm_id: Uuid,
-    },
+    SubscribeDm { dm_id: Uuid },
     /// Unsubscribe from a DM
-    UnsubscribeDm {
-        dm_id: Uuid,
-    },
+    UnsubscribeDm { dm_id: Uuid },
     /// Update user status
     UpdateStatus {
         status: String, // "online", "offline", "away"
@@ -53,31 +45,17 @@ pub enum ClientMessage {
         last_message_id: Option<Uuid>,
     },
     /// Add a reaction to a message
-    AddReaction {
-        message_id: Uuid,
-        emoji: String,
-    },
+    AddReaction { message_id: Uuid, emoji: String },
     /// Remove a reaction from a message
-    RemoveReaction {
-        message_id: Uuid,
-        emoji: String,
-    },
+    RemoveReaction { message_id: Uuid, emoji: String },
     /// Pin a message in a channel
-    PinMessage {
-        message_id: Uuid,
-    },
+    PinMessage { message_id: Uuid },
     /// Unpin a message from a channel
-    UnpinMessage {
-        message_id: Uuid,
-    },
+    UnpinMessage { message_id: Uuid },
     /// Add a bookmark to a message
-    AddBookmark {
-        message_id: Uuid,
-    },
+    AddBookmark { message_id: Uuid },
     /// Remove a bookmark from a message
-    RemoveBookmark {
-        message_id: Uuid,
-    },
+    RemoveBookmark { message_id: Uuid },
     /// Edit a message
     EditMessage {
         message_id: Uuid,
@@ -88,17 +66,11 @@ pub enum ClientMessage {
         encryption_metadata: Option<serde_json::Value>,
     },
     /// Delete a message
-    DeleteMessage {
-        message_id: Uuid,
-    },
+    DeleteMessage { message_id: Uuid },
     /// Subscribe to a thread for real-time updates
-    SubscribeThread {
-        message_id: Uuid,
-    },
+    SubscribeThread { message_id: Uuid },
     /// Unsubscribe from a thread
-    UnsubscribeThread {
-        message_id: Uuid,
-    },
+    UnsubscribeThread { message_id: Uuid },
 }
 
 /// Channel metadata for initial state
@@ -260,9 +232,7 @@ pub enum ServerMessage {
         encryption_metadata: Option<serde_json::Value>,
     },
     /// Message was deleted
-    MessageDeleted {
-        message_id: Uuid,
-    },
+    MessageDeleted { message_id: Uuid },
     /// User is typing
     UserTyping {
         user_id: Uuid,
@@ -271,10 +241,7 @@ pub enum ServerMessage {
         user_name: String,
     },
     /// User status changed
-    UserStatus {
-        user_id: Uuid,
-        status: String,
-    },
+    UserStatus { user_id: Uuid, status: String },
     /// Advanced user status changed (with custom message and emoji)
     StatusUpdate {
         user_id: Uuid,
@@ -295,13 +262,9 @@ pub enum ServerMessage {
         emoji: String,
     },
     /// Connection established successfully
-    Connected {
-        user_id: Uuid,
-    },
+    Connected { user_id: Uuid },
     /// Error message
-    Error {
-        message: String,
-    },
+    Error { message: String },
     /// Pong response to ping
     Pong,
     /// Unread count updated for a channel
@@ -327,9 +290,7 @@ pub enum ServerMessage {
         created_at: String,
     },
     /// Notification count updated
-    NotificationCountUpdated {
-        unread_count: i32,
-    },
+    NotificationCountUpdated { unread_count: i32 },
     /// Message was pinned
     MessagePinned {
         channel_id: Uuid,
@@ -351,9 +312,7 @@ pub enum ServerMessage {
         bookmarked_at: String,
     },
     /// Bookmark was removed (user-specific)
-    BookmarkRemoved {
-        message_id: Uuid,
-    },
+    BookmarkRemoved { message_id: Uuid },
     /// Channel was updated
     ChannelUpdated {
         channel_id: Uuid,

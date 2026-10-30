@@ -1,13 +1,13 @@
-use actix_web::{web, HttpMessage, HttpRequest, HttpResponse};
 use crate::db::RedisPool;
+use actix_web::{HttpMessage, HttpRequest, HttpResponse, web};
 use serde::{Deserialize, Serialize};
 use sqlx::PgPool;
 use uuid::Uuid;
 
 use crate::{
     cache::read_status::{
-        invalidate_channel_unread_cache, invalidate_dm_unread_cache,
-        set_channel_unread_in_cache, set_dm_unread_in_cache,
+        invalidate_channel_unread_cache, invalidate_dm_unread_cache, set_channel_unread_in_cache,
+        set_dm_unread_in_cache,
     },
     errors::{ApiError, ApiResult},
     models::{
@@ -63,11 +63,14 @@ pub async fn mark_channel_as_read(
         .await?;
 
     // Invalidate the cache
-    invalidate_channel_unread_cache(redis_pool.get_ref(), user.org_id, user.id, *channel_id).await?;
+    invalidate_channel_unread_cache(redis_pool.get_ref(), user.org_id, user.id, *channel_id)
+        .await?;
 
     // Get the new unread count and last read message ID, then broadcast via WebSocket
-    let unread_count = ChannelReadStatus::get_unread_count(pool.get_ref(), user.id, *channel_id).await?;
-    let last_read_message_id = ChannelReadStatus::get_last_read_message_id(pool.get_ref(), user.id, *channel_id).await?;
+    let unread_count =
+        ChannelReadStatus::get_unread_count(pool.get_ref(), user.id, *channel_id).await?;
+    let last_read_message_id =
+        ChannelReadStatus::get_last_read_message_id(pool.get_ref(), user.id, *channel_id).await?;
     ws_server.do_send(crate::websocket::server::BroadcastToUser {
         org_id: user.org_id,
         user_id: user.id,
@@ -110,14 +113,21 @@ pub async fn get_channel_unread_count(
         ));
     }
 
-    
-
     // Get from database (we need both unread count and last_read_message_id)
-    let unread_count = ChannelReadStatus::get_unread_count(pool.get_ref(), user.id, *channel_id).await?;
-    let last_read_message_id = ChannelReadStatus::get_last_read_message_id(pool.get_ref(), user.id, *channel_id).await?;
+    let unread_count =
+        ChannelReadStatus::get_unread_count(pool.get_ref(), user.id, *channel_id).await?;
+    let last_read_message_id =
+        ChannelReadStatus::get_last_read_message_id(pool.get_ref(), user.id, *channel_id).await?;
 
     // Store unread count in cache
-    set_channel_unread_in_cache(redis_pool.get_ref(), user.org_id, user.id, *channel_id, unread_count).await?;
+    set_channel_unread_in_cache(
+        redis_pool.get_ref(),
+        user.org_id,
+        user.id,
+        *channel_id,
+        unread_count,
+    )
+    .await?;
 
     Ok(HttpResponse::Ok().json(UnreadCountResponse {
         unread_count,
@@ -161,7 +171,8 @@ pub async fn mark_dm_as_read(
 
     // Get the new unread count and last read message ID, then broadcast via WebSocket
     let unread_count = DmReadStatus::get_unread_count(pool.get_ref(), user.id, *dm_id).await?;
-    let last_read_message_id = DmReadStatus::get_last_read_message_id(pool.get_ref(), user.id, *dm_id).await?;
+    let last_read_message_id =
+        DmReadStatus::get_last_read_message_id(pool.get_ref(), user.id, *dm_id).await?;
     ws_server.do_send(crate::websocket::server::BroadcastToUser {
         org_id: user.org_id,
         user_id: user.id,
@@ -204,14 +215,20 @@ pub async fn get_dm_unread_count(
         ));
     }
 
-    
-
     // Get from database (we need both unread count and last_read_message_id)
     let unread_count = DmReadStatus::get_unread_count(pool.get_ref(), user.id, *dm_id).await?;
-    let last_read_message_id = DmReadStatus::get_last_read_message_id(pool.get_ref(), user.id, *dm_id).await?;
+    let last_read_message_id =
+        DmReadStatus::get_last_read_message_id(pool.get_ref(), user.id, *dm_id).await?;
 
     // Store unread count in cache
-    set_dm_unread_in_cache(redis_pool.get_ref(), user.org_id, user.id, *dm_id, unread_count).await?;
+    set_dm_unread_in_cache(
+        redis_pool.get_ref(),
+        user.org_id,
+        user.id,
+        *dm_id,
+        unread_count,
+    )
+    .await?;
 
     Ok(HttpResponse::Ok().json(UnreadCountResponse {
         unread_count,

@@ -37,9 +37,15 @@ pub async fn execute(
         .ok_or_else(|| format!("User {} not found", sm.user_id))?;
 
     let message = if let Some(channel_id) = sm.channel_id {
-        Message::create_channel_message(pool, channel_id, sm.user_id, &sm.content, sm.parent_message_id)
-            .await
-            .map_err(|e| format!("Failed to create channel message: {}", e))?
+        Message::create_channel_message(
+            pool,
+            channel_id,
+            sm.user_id,
+            &sm.content,
+            sm.parent_message_id,
+        )
+        .await
+        .map_err(|e| format!("Failed to create channel message: {}", e))?
     } else if let Some(dm_id) = sm.dm_id {
         Message::create_dm_message(pool, dm_id, sm.user_id, &sm.content, sm.parent_message_id)
             .await

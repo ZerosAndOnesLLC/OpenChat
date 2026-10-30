@@ -7,7 +7,9 @@ use crate::models::channel::{Channel, ChannelMember};
 use crate::models::message::Message;
 use crate::models::reaction::Reaction;
 use crate::models::user::User;
-use crate::models::workflow::{Workflow, WorkflowExecution, WorkflowExecutionStep, WorkflowForm, WorkflowStep};
+use crate::models::workflow::{
+    Workflow, WorkflowExecution, WorkflowExecutionStep, WorkflowForm, WorkflowStep,
+};
 use crate::websocket::messages::ServerMessage;
 use crate::websocket::server::{BroadcastMessage, BroadcastToUser, WsServer};
 
@@ -22,7 +24,10 @@ pub async fn check_triggers(
     let workflows = match Workflow::find_enabled_by_trigger(pool, org_id, trigger_type).await {
         Ok(w) => w,
         Err(e) => {
-            error!("Failed to find workflows for trigger {}: {}", trigger_type, e);
+            error!(
+                "Failed to find workflows for trigger {}: {}",
+                trigger_type, e
+            );
             return;
         }
     };
@@ -58,7 +63,10 @@ fn matches_trigger_config(config: &JsonValue, data: &JsonValue) -> bool {
 
     // Channel filter
     if let Some(channel_id) = config_obj.get("channel_id").and_then(|v| v.as_str()) {
-        let data_channel = data.get("channel_id").and_then(|v| v.as_str()).unwrap_or("");
+        let data_channel = data
+            .get("channel_id")
+            .and_then(|v| v.as_str())
+            .unwrap_or("");
         if !channel_id.is_empty() && channel_id != data_channel {
             return false;
         }
@@ -87,7 +95,10 @@ fn matches_trigger_config(config: &JsonValue, data: &JsonValue) -> bool {
     // Command name filter (for slash_command)
     if let Some(command_name) = config_obj.get("command_name").and_then(|v| v.as_str()) {
         if !command_name.is_empty() {
-            let data_command = data.get("command_name").and_then(|v| v.as_str()).unwrap_or("");
+            let data_command = data
+                .get("command_name")
+                .and_then(|v| v.as_str())
+                .unwrap_or("");
             if command_name != data_command {
                 return false;
             }
@@ -130,12 +141,18 @@ async fn execute_workflow(
     // Broadcast execution started
     ws_server.do_send(BroadcastMessage {
         org_id: workflow.org_id,
-        channel_id: trigger_data.get("channel_id").and_then(|v| v.as_str()).and_then(|s| Uuid::parse_str(s).ok()),
+        channel_id: trigger_data
+            .get("channel_id")
+            .and_then(|v| v.as_str())
+            .and_then(|s| Uuid::parse_str(s).ok()),
         message: ServerMessage::WorkflowExecutionStarted {
             workflow_id: workflow.id,
             execution_id: execution.id,
             workflow_name: workflow.name.clone(),
-            channel_id: trigger_data.get("channel_id").and_then(|v| v.as_str()).and_then(|s| Uuid::parse_str(s).ok()),
+            channel_id: trigger_data
+                .get("channel_id")
+                .and_then(|v| v.as_str())
+                .and_then(|s| Uuid::parse_str(s).ok()),
         },
     });
 
@@ -146,7 +163,18 @@ async fn execute_workflow(
     });
 
     // Execute steps sequentially (starting from step 0)
-    match run_steps_from(pool, ws_server, workflow, &execution, &steps, &exec_steps, &mut context, 0).await {
+    match run_steps_from(
+        pool,
+        ws_server,
+        workflow,
+        &execution,
+        &steps,
+        &exec_steps,
+        &mut context,
+        0,
+    )
+    .await
+    {
         Ok(paused) => {
             if !paused {
                 WorkflowExecution::set_completed(pool, execution.id)
@@ -212,7 +240,17 @@ async fn run_steps_from(
 
         // Handle create_form specially — it pauses execution
         if step.action_type == "create_form" {
-            match action_create_form(pool, ws_server, workflow, execution, step, &interpolated_config, context).await {
+            match action_create_form(
+                pool,
+                ws_server,
+                workflow,
+                execution,
+                step,
+                &interpolated_config,
+                context,
+            )
+            .await
+            {
                 Ok(output) => {
                     WorkflowExecutionStep::set_completed(pool, exec_step.id, &output)
                         .await
@@ -220,7 +258,8 @@ async fn run_steps_from(
                     context["steps"][i.to_string()] = output;
 
                     // Mark execution as waiting and store resume point
-                    let _ = WorkflowExecution::set_status(pool, execution.id, "waiting_for_form").await;
+                    let _ =
+                        WorkflowExecution::set_status(pool, execution.id, "waiting_for_form").await;
                     return Ok(true); // Paused
                 }
                 Err(err) => {
@@ -232,7 +271,15 @@ async fn run_steps_from(
             }
         }
 
-        match execute_step_action(pool, ws_server, workflow.org_id, &step.action_type, &interpolated_config).await {
+        match execute_step_action(
+            pool,
+            ws_server,
+            workflow.org_id,
+            &step.action_type,
+            &interpolated_config,
+        )
+        .await
+        {
             Ok(output) => {
                 WorkflowExecutionStep::set_completed(pool, exec_step.id, &output)
                     .await
@@ -537,7 +584,10 @@ async fn action_invite_to_channel(pool: &PgPool, config: &JsonValue) -> Result<J
     }))
 }
 
-async fn action_update_channel_topic(pool: &PgPool, config: &JsonValue) -> Result<JsonValue, String> {
+async fn action_update_channel_topic(
+    pool: &PgPool,
+    config: &JsonValue,
+) -> Result<JsonValue, String> {
     let channel_id = config
         .get("channel_id")
         .and_then(|v| v.as_str())
@@ -601,10 +651,7 @@ async fn action_call_webhook(config: &JsonValue) -> Result<JsonValue, String> {
         .map_err(|e| format!("Webhook request failed: {}", e))?;
 
     let status = response.status().as_u16();
-    let response_body = response
-        .text()
-        .await
-        .unwrap_or_default();
+    let response_body = response.text().await.unwrap_or_default();
 
     // Truncate response for storage
     let truncated = if response_body.len() > 4096 {
@@ -645,13 +692,26 @@ async fn action_create_form(
     let target_user_id = config
         .get("target_user_id")
         .and_then(|v| v.as_str())
-        .or_else(|| context.get("trigger").and_then(|t| t.get("user_id")).and_then(|v| v.as_str()))
+        .or_else(|| {
+            context
+                .get("trigger")
+                .and_then(|t| t.get("user_id"))
+                .and_then(|v| v.as_str())
+        })
         .and_then(|s| Uuid::parse_str(s).ok())
         .ok_or("create_form: missing target_user_id (and no trigger.user_id available)")?;
 
-    let form = WorkflowForm::create(pool, workflow.id, step.id, execution.id, title, &fields, target_user_id)
-        .await
-        .map_err(|e| format!("Failed to create form: {}", e))?;
+    let form = WorkflowForm::create(
+        pool,
+        workflow.id,
+        step.id,
+        execution.id,
+        title,
+        &fields,
+        target_user_id,
+    )
+    .await
+    .map_err(|e| format!("Failed to create form: {}", e))?;
 
     // Send FormRequested via WS to the target user
     ws_server.do_send(BroadcastToUser {
@@ -743,7 +803,18 @@ pub async fn resume_after_form(
     // Set execution back to running
     let _ = WorkflowExecution::set_status(pool, execution.id, "running").await;
 
-    match run_steps_from(pool, ws_server, &workflow, &execution, &steps, &exec_steps, &mut context, resume_from).await {
+    match run_steps_from(
+        pool,
+        ws_server,
+        &workflow,
+        &execution,
+        &steps,
+        &exec_steps,
+        &mut context,
+        resume_from,
+    )
+    .await
+    {
         Ok(paused) => {
             if !paused {
                 let _ = WorkflowExecution::set_completed(pool, execution.id).await;
@@ -768,10 +839,7 @@ pub async fn resume_after_form(
 }
 
 async fn action_delay(config: &JsonValue) -> Result<JsonValue, String> {
-    let seconds = config
-        .get("seconds")
-        .and_then(|v| v.as_u64())
-        .unwrap_or(0);
+    let seconds = config.get("seconds").and_then(|v| v.as_u64()).unwrap_or(0);
 
     // Cap delay at 5 minutes to prevent abuse
     let capped = seconds.min(300);

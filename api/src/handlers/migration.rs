@@ -1,4 +1,4 @@
-use actix_web::{web, HttpMessage, HttpResponse, HttpRequest};
+use actix_web::{HttpMessage, HttpRequest, HttpResponse, web};
 use sqlx::PgPool;
 use uuid::Uuid;
 
@@ -24,7 +24,8 @@ pub async fn validate_connection(
         .unwrap_or_else(|_| "https://api.titanium-vault.com".to_string());
 
     // Get access token from request header
-    let auth_header = req.headers()
+    let auth_header = req
+        .headers()
         .get("Authorization")
         .and_then(|h| h.to_str().ok())
         .and_then(|h| h.strip_prefix("Bearer "))
@@ -37,7 +38,9 @@ pub async fn validate_connection(
         claims.org_id,
     );
 
-    let result = service.validate_connection(&body.connection).await
+    let result = service
+        .validate_connection(&body.connection)
+        .await
         .map_err(|e| ApiError::Internal(format!("Validation failed: {}", e)))?;
 
     Ok(HttpResponse::Ok().json(result))
@@ -58,7 +61,8 @@ pub async fn get_preview(
     let tv_api_url = std::env::var("TV_API_URL")
         .unwrap_or_else(|_| "https://api.titanium-vault.com".to_string());
 
-    let auth_header = req.headers()
+    let auth_header = req
+        .headers()
         .get("Authorization")
         .and_then(|h| h.to_str().ok())
         .and_then(|h| h.strip_prefix("Bearer "))
@@ -71,7 +75,9 @@ pub async fn get_preview(
         claims.org_id,
     );
 
-    let preview = service.get_preview(&body.connection).await
+    let preview = service
+        .get_preview(&body.connection)
+        .await
         .map_err(|e| ApiError::Internal(format!("Preview failed: {}", e)))?;
 
     Ok(HttpResponse::Ok().json(preview))
@@ -92,7 +98,8 @@ pub async fn start_migration(
     let tv_api_url = std::env::var("TV_API_URL")
         .unwrap_or_else(|_| "https://api.titanium-vault.com".to_string());
 
-    let auth_header = req.headers()
+    let auth_header = req
+        .headers()
         .get("Authorization")
         .and_then(|h| h.to_str().ok())
         .and_then(|h| h.strip_prefix("Bearer "))
@@ -110,11 +117,13 @@ pub async fn start_migration(
         claims.org_id,
     );
 
-    let job_id = service.start_migration(
-        body.connection.clone(),
-        body.options.clone(),
-        current_user.id,
-    ).await
+    let job_id = service
+        .start_migration(
+            body.connection.clone(),
+            body.options.clone(),
+            current_user.id,
+        )
+        .await
         .map_err(|e| ApiError::Internal(format!("Failed to start migration: {}", e)))?;
 
     Ok(HttpResponse::Accepted().json(serde_json::json!({
@@ -140,7 +149,8 @@ pub async fn get_job_status(
     let tv_api_url = std::env::var("TV_API_URL")
         .unwrap_or_else(|_| "https://api.titanium-vault.com".to_string());
 
-    let auth_header = req.headers()
+    let auth_header = req
+        .headers()
         .get("Authorization")
         .and_then(|h| h.to_str().ok())
         .and_then(|h| h.strip_prefix("Bearer "))
@@ -153,7 +163,9 @@ pub async fn get_job_status(
         claims.org_id,
     );
 
-    let job = service.get_job_status(job_id).await
+    let job = service
+        .get_job_status(job_id)
+        .await
         .map_err(|e| ApiError::Internal(format!("Failed to get job status: {}", e)))?;
 
     match job {
@@ -163,10 +175,7 @@ pub async fn get_job_status(
 }
 
 /// List migration jobs for org
-pub async fn list_jobs(
-    req: HttpRequest,
-    pool: web::Data<PgPool>,
-) -> ApiResult<HttpResponse> {
+pub async fn list_jobs(req: HttpRequest, pool: web::Data<PgPool>) -> ApiResult<HttpResponse> {
     let claims = req
         .extensions()
         .get::<TokenClaims>()
@@ -180,7 +189,7 @@ pub async fn list_jobs(
         WHERE org_id = $1
         ORDER BY started_at DESC
         LIMIT 20
-        "#
+        "#,
     )
     .bind(claims.org_id)
     .fetch_all(pool.get_ref())
@@ -209,7 +218,7 @@ pub async fn cancel_job(
         UPDATE migration_jobs
         SET status = 'cancelled', completed_at = NOW()
         WHERE id = $1 AND org_id = $2 AND status IN ('pending', 'running')
-        "#
+        "#,
     )
     .bind(job_id)
     .bind(claims.org_id)
@@ -218,7 +227,9 @@ pub async fn cancel_job(
     .map_err(|e| ApiError::Internal(format!("Failed to cancel job: {}", e)))?;
 
     if result.rows_affected() == 0 {
-        return Err(ApiError::NotFound("Job not found or already completed".to_string()));
+        return Err(ApiError::NotFound(
+            "Job not found or already completed".to_string(),
+        ));
     }
 
     Ok(HttpResponse::Ok().json(serde_json::json!({

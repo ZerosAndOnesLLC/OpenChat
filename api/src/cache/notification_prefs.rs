@@ -19,7 +19,10 @@ pub struct CachedPref {
 
 /// Build cache key: openchat:org:{org_id}:notif_prefs:{user_id}
 fn cache_key(org_id: Uuid, user_id: Uuid) -> String {
-    format!("{}:{}:notif_prefs:{}", NOTIFICATION_PREFS_PREFIX, org_id, user_id)
+    format!(
+        "{}:{}:notif_prefs:{}",
+        NOTIFICATION_PREFS_PREFIX, org_id, user_id
+    )
 }
 
 /// Get user notification prefs from cache.
@@ -47,15 +50,13 @@ pub async fn get_user_prefs_from_cache(
     };
 
     match data {
-        Some(json_str) => {
-            match serde_json::from_str(&json_str) {
-                Ok(map) => Ok(Some(map)),
-                Err(e) => {
-                    tracing::warn!("Failed to parse notification prefs cache: {}", e);
-                    Ok(None)
-                }
+        Some(json_str) => match serde_json::from_str(&json_str) {
+            Ok(map) => Ok(Some(map)),
+            Err(e) => {
+                tracing::warn!("Failed to parse notification prefs cache: {}", e);
+                Ok(None)
             }
-        }
+        },
         None => Ok(None),
     }
 }
@@ -67,14 +68,18 @@ pub async fn set_user_prefs_in_cache(
     user_id: Uuid,
     prefs: &HashMap<String, CachedPref>,
 ) -> ApiResult<()> {
-    let mut conn = redis_pool.get().await
+    let mut conn = redis_pool
+        .get()
+        .await
         .map_err(|e| crate::errors::ApiError::Internal(format!("Redis pool error: {}", e)))?;
 
     let key = cache_key(org_id, user_id);
     let json_str = serde_json::to_string(prefs)
         .map_err(|e| crate::errors::ApiError::Internal(format!("JSON serialize error: {}", e)))?;
 
-    let _: () = conn.set_ex(&key, json_str, NOTIFICATION_PREFS_CACHE_TTL).await?;
+    let _: () = conn
+        .set_ex(&key, json_str, NOTIFICATION_PREFS_CACHE_TTL)
+        .await?;
     Ok(())
 }
 
@@ -84,7 +89,9 @@ pub async fn invalidate_user_prefs_cache(
     org_id: Uuid,
     user_id: Uuid,
 ) -> ApiResult<()> {
-    let mut conn = redis_pool.get().await
+    let mut conn = redis_pool
+        .get()
+        .await
         .map_err(|e| crate::errors::ApiError::Internal(format!("Redis pool error: {}", e)))?;
 
     let key = cache_key(org_id, user_id);

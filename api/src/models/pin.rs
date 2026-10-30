@@ -42,24 +42,18 @@ impl PinnedMessage {
 
     /// Unpin a message from a channel
     pub async fn unpin(pool: &PgPool, channel_id: Uuid, message_id: Uuid) -> ApiResult<()> {
-        sqlx::query(
-            "DELETE FROM pinned_messages WHERE channel_id = $1 AND message_id = $2",
-        )
-        .bind(channel_id)
-        .bind(message_id)
-        .execute(pool)
-        .await?;
+        sqlx::query("DELETE FROM pinned_messages WHERE channel_id = $1 AND message_id = $2")
+            .bind(channel_id)
+            .bind(message_id)
+            .execute(pool)
+            .await?;
 
         Ok(())
     }
 
     /// Check if a message is pinned in a channel
     #[allow(dead_code)]
-    pub async fn is_pinned(
-        pool: &PgPool,
-        channel_id: Uuid,
-        message_id: Uuid,
-    ) -> ApiResult<bool> {
+    pub async fn is_pinned(pool: &PgPool, channel_id: Uuid, message_id: Uuid) -> ApiResult<bool> {
         let result = sqlx::query_scalar::<_, bool>(
             "SELECT EXISTS(SELECT 1 FROM pinned_messages WHERE channel_id = $1 AND message_id = $2)",
         )

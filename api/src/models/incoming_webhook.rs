@@ -76,12 +76,11 @@ impl IncomingWebhook {
 
     /// Get a webhook by ID
     pub async fn get_by_id(pool: &PgPool, id: Uuid) -> ApiResult<Option<IncomingWebhook>> {
-        let webhook = sqlx::query_as::<_, IncomingWebhook>(
-            "SELECT * FROM incoming_webhooks WHERE id = $1",
-        )
-        .bind(id)
-        .fetch_optional(pool)
-        .await?;
+        let webhook =
+            sqlx::query_as::<_, IncomingWebhook>("SELECT * FROM incoming_webhooks WHERE id = $1")
+                .bind(id)
+                .fetch_optional(pool)
+                .await?;
 
         Ok(webhook)
     }
@@ -116,7 +115,10 @@ impl IncomingWebhook {
 
     /// List webhooks for a specific channel
     #[allow(dead_code)]
-    pub async fn list_by_channel(pool: &PgPool, channel_id: Uuid) -> ApiResult<Vec<IncomingWebhook>> {
+    pub async fn list_by_channel(
+        pool: &PgPool,
+        channel_id: Uuid,
+    ) -> ApiResult<Vec<IncomingWebhook>> {
         let webhooks = sqlx::query_as::<_, IncomingWebhook>(
             r#"
             SELECT * FROM incoming_webhooks

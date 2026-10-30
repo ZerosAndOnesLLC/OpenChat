@@ -112,16 +112,11 @@ impl Poll {
         Ok(poll)
     }
 
-    pub async fn get_by_message_ids(
-        pool: &PgPool,
-        message_ids: &[Uuid],
-    ) -> ApiResult<Vec<Poll>> {
-        let polls = sqlx::query_as::<_, Poll>(
-            "SELECT * FROM polls WHERE message_id = ANY($1)",
-        )
-        .bind(message_ids)
-        .fetch_all(pool)
-        .await?;
+    pub async fn get_by_message_ids(pool: &PgPool, message_ids: &[Uuid]) -> ApiResult<Vec<Poll>> {
+        let polls = sqlx::query_as::<_, Poll>("SELECT * FROM polls WHERE message_id = ANY($1)")
+            .bind(message_ids)
+            .fetch_all(pool)
+            .await?;
 
         Ok(polls)
     }
@@ -152,8 +147,7 @@ impl Poll {
         }
 
         // Validate option_index
-        let options: Vec<PollOptionInfo> = serde_json::from_value(poll.options)
-            .unwrap_or_default();
+        let options: Vec<PollOptionInfo> = serde_json::from_value(poll.options).unwrap_or_default();
         if option_index < 0 || option_index >= options.len() as i32 {
             return Err(crate::errors::ApiError::BadRequest(
                 "Invalid option index".to_string(),
@@ -236,8 +230,7 @@ impl Poll {
             .await?
             .ok_or_else(|| crate::errors::ApiError::NotFound("Poll not found".to_string()))?;
 
-        let options: Vec<PollOptionInfo> =
-            serde_json::from_value(poll.options).unwrap_or_default();
+        let options: Vec<PollOptionInfo> = serde_json::from_value(poll.options).unwrap_or_default();
 
         // Get vote counts per option
         let vote_counts = sqlx::query_as::<_, VoteCount>(

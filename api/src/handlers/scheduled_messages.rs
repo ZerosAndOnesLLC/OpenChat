@@ -1,4 +1,4 @@
-use actix_web::{web, HttpMessage, HttpRequest, HttpResponse};
+use actix_web::{HttpMessage, HttpRequest, HttpResponse, web};
 use chrono::{DateTime, Utc};
 use serde::Deserialize;
 use sqlx::PgPool;
@@ -53,11 +53,15 @@ pub async fn create_scheduled_message(
     }
 
     if body.content.trim().is_empty() {
-        return Err(ApiError::BadRequest("Content must not be empty".to_string()));
+        return Err(ApiError::BadRequest(
+            "Content must not be empty".to_string(),
+        ));
     }
 
     if body.scheduled_at <= Utc::now() {
-        return Err(ApiError::BadRequest("scheduled_at must be in the future".to_string()));
+        return Err(ApiError::BadRequest(
+            "scheduled_at must be in the future".to_string(),
+        ));
     }
 
     let sm = ScheduledMessage::create(
@@ -119,16 +123,22 @@ pub async fn update_scheduled_message(
         .ok_or_else(|| ApiError::NotFound("Scheduled message not found".to_string()))?;
 
     if existing.user_id != user.id {
-        return Err(ApiError::Authorization("Not authorized to update this scheduled message".to_string()));
+        return Err(ApiError::Authorization(
+            "Not authorized to update this scheduled message".to_string(),
+        ));
     }
 
     if existing.sent {
-        return Err(ApiError::BadRequest("Cannot update a sent scheduled message".to_string()));
+        return Err(ApiError::BadRequest(
+            "Cannot update a sent scheduled message".to_string(),
+        ));
     }
 
     if let Some(ref scheduled_at) = body.scheduled_at {
         if *scheduled_at <= Utc::now() {
-            return Err(ApiError::BadRequest("scheduled_at must be in the future".to_string()));
+            return Err(ApiError::BadRequest(
+                "scheduled_at must be in the future".to_string(),
+            ));
         }
     }
 
@@ -166,11 +176,15 @@ pub async fn delete_scheduled_message(
         .ok_or_else(|| ApiError::NotFound("Scheduled message not found".to_string()))?;
 
     if existing.user_id != user.id {
-        return Err(ApiError::Authorization("Not authorized to delete this scheduled message".to_string()));
+        return Err(ApiError::Authorization(
+            "Not authorized to delete this scheduled message".to_string(),
+        ));
     }
 
     if existing.sent {
-        return Err(ApiError::BadRequest("Cannot delete a sent scheduled message".to_string()));
+        return Err(ApiError::BadRequest(
+            "Cannot delete a sent scheduled message".to_string(),
+        ));
     }
 
     ScheduledMessage::delete(pool.get_ref(), id).await?;

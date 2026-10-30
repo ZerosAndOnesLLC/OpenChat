@@ -2,16 +2,13 @@
 use sqlx::PgPool;
 use tracing::{info, warn};
 
+use super::{channels, dms, users};
 use crate::db::RedisPool;
 use crate::errors::ApiResult;
-use super::{channels, dms, users};
 
 /// Warm the cache with frequently accessed data on application startup
 /// This improves initial performance by pre-loading commonly used data
-pub async fn warm_cache(
-    db_pool: &PgPool,
-    redis_pool: &RedisPool,
-) -> ApiResult<()> {
+pub async fn warm_cache(db_pool: &PgPool, redis_pool: &RedisPool) -> ApiResult<()> {
     info!("Starting cache warming...");
 
     let start = std::time::Instant::now();
@@ -45,16 +42,16 @@ pub async fn warm_cache(
     }
 
     let duration = start.elapsed();
-    info!("Cache warming completed: {} items in {:?}", warmed_items, duration);
+    info!(
+        "Cache warming completed: {} items in {:?}",
+        warmed_items, duration
+    );
 
     Ok(())
 }
 
 /// Warm cache with active channels (channels with messages in last 7 days)
-async fn warm_active_channels(
-    db_pool: &PgPool,
-    redis_pool: &RedisPool,
-) -> ApiResult<usize> {
+async fn warm_active_channels(db_pool: &PgPool, redis_pool: &RedisPool) -> ApiResult<usize> {
     // Query for channels with recent activity (last 7 days), excluding archived
     let active_channels = sqlx::query!(
         r#"
@@ -105,7 +102,10 @@ async fn warm_active_channels(
         .fetch_all(db_pool)
         .await?;
 
-        if let Err(e) = channels::set_channel_members_in_cache(redis_pool, channel.org_id, channel.id, &members).await {
+        if let Err(e) =
+            channels::set_channel_members_in_cache(redis_pool, channel.org_id, channel.id, &members)
+                .await
+        {
             warn!("Failed to cache members for channel {}: {}", channel.id, e);
         } else {
             count += 1;
@@ -116,10 +116,7 @@ async fn warm_active_channels(
 }
 
 /// Warm cache with active DMs (DMs with messages in last 7 days)
-async fn warm_active_dms(
-    db_pool: &PgPool,
-    redis_pool: &RedisPool,
-) -> ApiResult<usize> {
+async fn warm_active_dms(db_pool: &PgPool, redis_pool: &RedisPool) -> ApiResult<usize> {
     // Query for DMs with recent activity (last 7 days)
     let active_dms = sqlx::query!(
         r#"
@@ -163,7 +160,9 @@ async fn warm_active_dms(
         .fetch_all(db_pool)
         .await?;
 
-        if let Err(e) = dms::set_dm_participants_in_cache(redis_pool, dm.org_id, dm.id, &participants).await {
+        if let Err(e) =
+            dms::set_dm_participants_in_cache(redis_pool, dm.org_id, dm.id, &participants).await
+        {
             warn!("Failed to cache participants for DM {}: {}", dm.id, e);
         } else {
             count += 1;
@@ -174,10 +173,7 @@ async fn warm_active_dms(
 }
 
 /// Warm cache with active users (users with status updates or messages in last 24 hours)
-async fn warm_active_users(
-    db_pool: &PgPool,
-    redis_pool: &RedisPool,
-) -> ApiResult<usize> {
+async fn warm_active_users(db_pool: &PgPool, redis_pool: &RedisPool) -> ApiResult<usize> {
     // Query for users with recent activity (last 24 hours)
     let active_users = sqlx::query!(
         r#"

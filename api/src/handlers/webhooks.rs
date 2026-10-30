@@ -1,4 +1,4 @@
-use actix_web::{web, HttpMessage, HttpRequest, HttpResponse};
+use actix_web::{HttpMessage, HttpRequest, HttpResponse, web};
 use serde::{Deserialize, Serialize};
 use sqlx::PgPool;
 use uuid::Uuid;
@@ -344,13 +344,15 @@ pub async fn receive_webhook(
     .await?;
 
     // Use override username/icon if provided, otherwise use webhook defaults
-    let display_name = body.username
+    let display_name = body
+        .username
         .as_ref()
         .or(webhook.username.as_ref())
         .unwrap_or(&webhook.display_name)
         .clone();
 
-    let avatar_url = body.icon_url
+    let avatar_url = body
+        .icon_url
         .as_ref()
         .or(webhook.icon_url.as_ref())
         .cloned();

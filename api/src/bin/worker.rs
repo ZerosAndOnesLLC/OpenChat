@@ -28,10 +28,9 @@ async fn main() -> anyhow::Result<()> {
         .map(|v| v != "false")
         .unwrap_or(true);
 
-    let subscriber = tracing_subscriber::fmt()
-        .with_env_filter(
-            EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("info")),
-        );
+    let subscriber = tracing_subscriber::fmt().with_env_filter(
+        EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("info")),
+    );
 
     if show_timestamps {
         subscriber.init();
@@ -65,8 +64,8 @@ async fn main() -> anyhow::Result<()> {
     info!("Redis connection established");
 
     // Initialize storage factory
-    let local_storage_path = std::env::var("LOCAL_STORAGE_PATH")
-        .unwrap_or_else(|_| "/var/openchat/uploads".to_string());
+    let local_storage_path =
+        std::env::var("LOCAL_STORAGE_PATH").unwrap_or_else(|_| "/var/openchat/uploads".to_string());
     let storage_factory = Arc::new(StorageFactory::new(db_pool.clone(), local_storage_path));
     info!("Storage factory initialized");
 
@@ -110,8 +109,9 @@ async fn main() -> anyhow::Result<()> {
     let retention_shutdown = shutdown_token.clone();
 
     let retention_handle = tokio::spawn(async move {
-        let mut interval =
-            tokio::time::interval(std::time::Duration::from_secs(RETENTION_CHECK_INTERVAL_SECS));
+        let mut interval = tokio::time::interval(std::time::Duration::from_secs(
+            RETENTION_CHECK_INTERVAL_SECS,
+        ));
         loop {
             interval.tick().await;
             if retention_shutdown.is_cancelled() {
@@ -155,10 +155,7 @@ async fn main() -> anyhow::Result<()> {
 }
 
 /// Poll for due scheduled messages and reminders, enqueue jobs for each.
-async fn poll_due_items(
-    pool: &sqlx::PgPool,
-    redis: &mut redis::aio::MultiplexedConnection,
-) {
+async fn poll_due_items(pool: &sqlx::PgPool, redis: &mut redis::aio::MultiplexedConnection) {
     // Poll due scheduled messages
     match ScheduledMessage::list_due(pool).await {
         Ok(items) => {
@@ -243,18 +240,17 @@ async fn schedule_retention_jobs(
     info!("Scheduling retention enforcement jobs");
 
     // Find orgs with enabled retention policies
-    let org_ids: Vec<(Uuid,)> = match sqlx::query_as(
-        "SELECT DISTINCT org_id FROM retention_policies WHERE enabled = true",
-    )
-    .fetch_all(pool)
-    .await
-    {
-        Ok(ids) => ids,
-        Err(e) => {
-            error!("Failed to query orgs with retention policies: {}", e);
-            return;
-        }
-    };
+    let org_ids: Vec<(Uuid,)> =
+        match sqlx::query_as("SELECT DISTINCT org_id FROM retention_policies WHERE enabled = true")
+            .fetch_all(pool)
+            .await
+        {
+            Ok(ids) => ids,
+            Err(e) => {
+                error!("Failed to query orgs with retention policies: {}", e);
+                return;
+            }
+        };
 
     for (org_id,) in &org_ids {
         if let Err(e) = job_queue::enqueue_job(

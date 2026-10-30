@@ -1,4 +1,4 @@
-use actix_web::{web, HttpRequest, HttpResponse};
+use actix_web::{HttpRequest, HttpResponse, web};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use sqlx::PgPool;
@@ -6,7 +6,11 @@ use uuid::Uuid;
 
 use crate::{
     errors::ApiResult,
-    models::{audit_log::actions, role::{Permission, Role}, user::User},
+    models::{
+        audit_log::actions,
+        role::{Permission, Role},
+        user::User,
+    },
     services::{audit_logger::AuditLogger, tv_api::TokenClaims},
 };
 

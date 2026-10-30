@@ -11,7 +11,10 @@ const MESSAGE_CACHE_PREFIX: &str = "openchat:org";
 
 /// Build cache key for channel messages: openchat:org:{org_id}:channel_messages:{channel_id}
 fn channel_messages_cache_key(org_id: Uuid, channel_id: Uuid) -> String {
-    format!("{}:{}:channel_messages:{}", MESSAGE_CACHE_PREFIX, org_id, channel_id)
+    format!(
+        "{}:{}:channel_messages:{}",
+        MESSAGE_CACHE_PREFIX, org_id, channel_id
+    )
 }
 
 /// Build cache key for DM messages: openchat:org:{org_id}:dm_messages:{dm_id}
@@ -44,8 +47,9 @@ pub async fn get_channel_messages_from_cache(
 
     match cached {
         Some(json) => {
-            let messages: PaginatedMessages = serde_json::from_str(&json)
-                .map_err(|e| crate::errors::ApiError::Internal(format!("Cache deserialization error: {}", e)))?;
+            let messages: PaginatedMessages = serde_json::from_str(&json).map_err(|e| {
+                crate::errors::ApiError::Internal(format!("Cache deserialization error: {}", e))
+            })?;
             Ok(Some(messages))
         }
         None => Ok(None),
@@ -59,12 +63,15 @@ pub async fn set_channel_messages_in_cache(
     channel_id: Uuid,
     messages: &PaginatedMessages,
 ) -> ApiResult<()> {
-    let mut conn = redis_pool.get().await
+    let mut conn = redis_pool
+        .get()
+        .await
         .map_err(|e| crate::errors::ApiError::Internal(format!("Redis pool error: {}", e)))?;
 
     let key = channel_messages_cache_key(org_id, channel_id);
-    let json = serde_json::to_string(messages)
-        .map_err(|e| crate::errors::ApiError::Internal(format!("Cache serialization error: {}", e)))?;
+    let json = serde_json::to_string(messages).map_err(|e| {
+        crate::errors::ApiError::Internal(format!("Cache serialization error: {}", e))
+    })?;
 
     let _: () = conn.set_ex(&key, json, MESSAGE_CACHE_TTL).await?;
 
@@ -77,7 +84,9 @@ pub async fn invalidate_channel_messages_cache(
     org_id: Uuid,
     channel_id: Uuid,
 ) -> ApiResult<()> {
-    let mut conn = redis_pool.get().await
+    let mut conn = redis_pool
+        .get()
+        .await
         .map_err(|e| crate::errors::ApiError::Internal(format!("Redis pool error: {}", e)))?;
 
     let key = channel_messages_cache_key(org_id, channel_id);
@@ -111,8 +120,9 @@ pub async fn get_dm_messages_from_cache(
 
     match cached {
         Some(json) => {
-            let messages: PaginatedMessages = serde_json::from_str(&json)
-                .map_err(|e| crate::errors::ApiError::Internal(format!("Cache deserialization error: {}", e)))?;
+            let messages: PaginatedMessages = serde_json::from_str(&json).map_err(|e| {
+                crate::errors::ApiError::Internal(format!("Cache deserialization error: {}", e))
+            })?;
             Ok(Some(messages))
         }
         None => Ok(None),
@@ -126,12 +136,15 @@ pub async fn set_dm_messages_in_cache(
     dm_id: Uuid,
     messages: &PaginatedMessages,
 ) -> ApiResult<()> {
-    let mut conn = redis_pool.get().await
+    let mut conn = redis_pool
+        .get()
+        .await
         .map_err(|e| crate::errors::ApiError::Internal(format!("Redis pool error: {}", e)))?;
 
     let key = dm_messages_cache_key(org_id, dm_id);
-    let json = serde_json::to_string(messages)
-        .map_err(|e| crate::errors::ApiError::Internal(format!("Cache serialization error: {}", e)))?;
+    let json = serde_json::to_string(messages).map_err(|e| {
+        crate::errors::ApiError::Internal(format!("Cache serialization error: {}", e))
+    })?;
 
     let _: () = conn.set_ex(&key, json, MESSAGE_CACHE_TTL).await?;
 
@@ -144,7 +157,9 @@ pub async fn invalidate_dm_messages_cache(
     org_id: Uuid,
     dm_id: Uuid,
 ) -> ApiResult<()> {
-    let mut conn = redis_pool.get().await
+    let mut conn = redis_pool
+        .get()
+        .await
         .map_err(|e| crate::errors::ApiError::Internal(format!("Redis pool error: {}", e)))?;
 
     let key = dm_messages_cache_key(org_id, dm_id);
@@ -155,11 +170,10 @@ pub async fn invalidate_dm_messages_cache(
 
 /// Invalidate all message cache for an organization
 #[allow(dead_code)]
-pub async fn invalidate_org_messages_cache(
-    redis_pool: &RedisPool,
-    org_id: Uuid,
-) -> ApiResult<()> {
-    let mut conn = redis_pool.get().await
+pub async fn invalidate_org_messages_cache(redis_pool: &RedisPool, org_id: Uuid) -> ApiResult<()> {
+    let mut conn = redis_pool
+        .get()
+        .await
         .map_err(|e| crate::errors::ApiError::Internal(format!("Redis pool error: {}", e)))?;
 
     let pattern = format!("{}:{}:*_messages:*", MESSAGE_CACHE_PREFIX, org_id);

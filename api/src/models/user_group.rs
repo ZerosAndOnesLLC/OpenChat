@@ -56,17 +56,19 @@ impl UserGroup {
     }
 
     pub async fn get_by_id(pool: &PgPool, id: Uuid) -> ApiResult<Option<UserGroup>> {
-        let group = sqlx::query_as::<_, UserGroup>(
-            "SELECT * FROM user_groups WHERE id = $1",
-        )
-        .bind(id)
-        .fetch_optional(pool)
-        .await?;
+        let group = sqlx::query_as::<_, UserGroup>("SELECT * FROM user_groups WHERE id = $1")
+            .bind(id)
+            .fetch_optional(pool)
+            .await?;
 
         Ok(group)
     }
 
-    pub async fn get_by_handle(pool: &PgPool, org_id: Uuid, handle: &str) -> ApiResult<Option<UserGroup>> {
+    pub async fn get_by_handle(
+        pool: &PgPool,
+        org_id: Uuid,
+        handle: &str,
+    ) -> ApiResult<Option<UserGroup>> {
         let group = sqlx::query_as::<_, UserGroup>(
             r#"
             SELECT * FROM user_groups
@@ -107,7 +109,11 @@ impl UserGroup {
         Ok(group)
     }
 
-    pub async fn update(pool: &PgPool, id: Uuid, data: UpdateUserGroup) -> ApiResult<Option<UserGroup>> {
+    pub async fn update(
+        pool: &PgPool,
+        id: Uuid,
+        data: UpdateUserGroup,
+    ) -> ApiResult<Option<UserGroup>> {
         let group = sqlx::query_as::<_, UserGroup>(
             r#"
             UPDATE user_groups
@@ -185,13 +191,12 @@ impl UserGroupMember {
     }
 
     pub async fn remove(pool: &PgPool, group_id: Uuid, user_id: Uuid) -> ApiResult<bool> {
-        let result = sqlx::query(
-            "DELETE FROM user_group_members WHERE group_id = $1 AND user_id = $2",
-        )
-        .bind(group_id)
-        .bind(user_id)
-        .execute(pool)
-        .await?;
+        let result =
+            sqlx::query("DELETE FROM user_group_members WHERE group_id = $1 AND user_id = $2")
+                .bind(group_id)
+                .bind(user_id)
+                .execute(pool)
+                .await?;
 
         Ok(result.rows_affected() > 0)
     }

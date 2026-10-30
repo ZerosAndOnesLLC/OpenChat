@@ -45,8 +45,8 @@ fn get_state_path() -> Option<PathBuf> {
 
 /// Saves the window state to disk
 pub fn save_window_state(state: &WindowState) -> Result<(), String> {
-    let path = get_state_path()
-        .ok_or_else(|| "Could not determine app data directory".to_string())?;
+    let path =
+        get_state_path().ok_or_else(|| "Could not determine app data directory".to_string())?;
 
     // Create parent directories if they don't exist
     if let Some(parent) = path.parent() {
@@ -57,8 +57,7 @@ pub fn save_window_state(state: &WindowState) -> Result<(), String> {
     let json = serde_json::to_string_pretty(state)
         .map_err(|e| format!("Failed to serialize window state: {}", e))?;
 
-    fs::write(&path, json)
-        .map_err(|e| format!("Failed to write window state: {}", e))?;
+    fs::write(&path, json).map_err(|e| format!("Failed to write window state: {}", e))?;
 
     log::info!("save_window_state: saved to {:?}", path);
     Ok(())

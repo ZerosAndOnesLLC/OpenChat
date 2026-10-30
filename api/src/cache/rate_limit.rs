@@ -101,7 +101,10 @@ pub async fn check_rate_limit(
         Ok(c) => c,
         Err(e) => {
             // Fail open - allow request if Redis is unavailable
-            tracing::warn!("Redis pool error in rate limit check, allowing request: {}", e);
+            tracing::warn!(
+                "Redis pool error in rate limit check, allowing request: {}",
+                e
+            );
             let config = limit_type.config();
             return Ok((true, config.max_requests, config.window_seconds));
         }
@@ -133,9 +136,7 @@ pub async fn check_rate_limit(
         }
         None => {
             // First request in window, set with expiry
-            let _: () = conn
-                .set_ex(&key, 1u32, config.window_seconds)
-                .await?;
+            let _: () = conn.set_ex(&key, 1u32, config.window_seconds).await?;
             (1, config.window_seconds)
         }
     };
@@ -157,7 +158,10 @@ pub async fn check_rate_limit_by_ip(
         Ok(c) => c,
         Err(e) => {
             // Fail open - allow request if Redis is unavailable
-            tracing::warn!("Redis pool error in IP rate limit check, allowing request: {}", e);
+            tracing::warn!(
+                "Redis pool error in IP rate limit check, allowing request: {}",
+                e
+            );
             let config = limit_type.config();
             return Ok((true, config.max_requests, config.window_seconds));
         }
@@ -170,7 +174,10 @@ pub async fn check_rate_limit_by_ip(
     let current: Option<u32> = match conn.get(&key).await {
         Ok(val) => val,
         Err(e) => {
-            tracing::warn!("Redis error in IP rate limit check, allowing request: {}", e);
+            tracing::warn!(
+                "Redis error in IP rate limit check, allowing request: {}",
+                e
+            );
             return Ok((true, config.max_requests, config.window_seconds));
         }
     };
@@ -189,9 +196,7 @@ pub async fn check_rate_limit_by_ip(
         }
         None => {
             // First request in window, set with expiry
-            let _: () = conn
-                .set_ex(&key, 1u32, config.window_seconds)
-                .await?;
+            let _: () = conn.set_ex(&key, 1u32, config.window_seconds).await?;
             (1, config.window_seconds)
         }
     };
@@ -207,7 +212,9 @@ pub async fn reset_rate_limit(
     user_id: Uuid,
     limit_type: RateLimitType,
 ) -> ApiResult<()> {
-    let mut conn = redis_pool.get().await
+    let mut conn = redis_pool
+        .get()
+        .await
         .map_err(|e| crate::errors::ApiError::Internal(format!("Redis pool error: {}", e)))?;
 
     let key = rate_limit_cache_key(user_id, &limit_type);

@@ -1,4 +1,4 @@
-use actix_web::{web, HttpMessage, HttpRequest, HttpResponse};
+use actix_web::{HttpMessage, HttpRequest, HttpResponse, web};
 use serde::{Deserialize, Serialize};
 use sqlx::PgPool;
 use uuid::Uuid;
@@ -203,10 +203,14 @@ pub async fn update_section(
         .await?
         .ok_or_else(|| ApiError::NotFound("Current user not found".to_string()))?;
 
-    let section =
-        ChannelSection::update(pool.get_ref(), *section_id, current_user.id, body.into_inner())
-            .await?
-            .ok_or_else(|| ApiError::NotFound("Section not found".to_string()))?;
+    let section = ChannelSection::update(
+        pool.get_ref(),
+        *section_id,
+        current_user.id,
+        body.into_inner(),
+    )
+    .await?
+    .ok_or_else(|| ApiError::NotFound("Section not found".to_string()))?;
 
     // Invalidate cache
     if let Err(e) = section_cache::invalidate_sections_cache(
@@ -277,9 +281,8 @@ pub async fn add_channel(
         .await?
         .ok_or_else(|| ApiError::NotFound("Current user not found".to_string()))?;
 
-    let item =
-        ChannelSectionItem::add(pool.get_ref(), *section_id, body.channel_id, body.position)
-            .await?;
+    let item = ChannelSectionItem::add(pool.get_ref(), *section_id, body.channel_id, body.position)
+        .await?;
 
     // Invalidate cache
     if let Err(e) = section_cache::invalidate_sections_cache(

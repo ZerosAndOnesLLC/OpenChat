@@ -16,11 +16,7 @@ pub struct Organization {
 impl Organization {
     /// Create or update an organization
     /// This is called during authentication to ensure the org exists before creating users
-    pub async fn upsert(
-        pool: &PgPool,
-        org_id: Uuid,
-        org_name: &str,
-    ) -> ApiResult<Organization> {
+    pub async fn upsert(pool: &PgPool, org_id: Uuid, org_name: &str) -> ApiResult<Organization> {
         let org = sqlx::query_as::<_, Organization>(
             r#"
             INSERT INTO organizations (id, name, created_at, updated_at)

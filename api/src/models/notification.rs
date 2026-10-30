@@ -60,7 +60,10 @@ impl Notification {
 
     /// Create multiple notifications in a batch
     #[allow(dead_code)]
-    pub async fn create_batch(pool: &PgPool, notifications: Vec<CreateNotification>) -> ApiResult<Vec<Notification>> {
+    pub async fn create_batch(
+        pool: &PgPool,
+        notifications: Vec<CreateNotification>,
+    ) -> ApiResult<Vec<Notification>> {
         let mut created_notifications = Vec::new();
 
         for notification_data in notifications {
@@ -132,7 +135,11 @@ impl Notification {
     }
 
     /// Mark a notification as read
-    pub async fn mark_as_read(pool: &PgPool, notification_id: Uuid, user_id: Uuid) -> ApiResult<()> {
+    pub async fn mark_as_read(
+        pool: &PgPool,
+        notification_id: Uuid,
+        user_id: Uuid,
+    ) -> ApiResult<()> {
         sqlx::query(
             r#"
             UPDATE notifications
@@ -150,12 +157,11 @@ impl Notification {
 
     /// Mark all notifications as read for a user
     pub async fn mark_all_as_read(pool: &PgPool, user_id: Uuid) -> ApiResult<i64> {
-        let result = sqlx::query(
-            "UPDATE notifications SET read = true WHERE user_id = $1 AND read = false",
-        )
-        .bind(user_id)
-        .execute(pool)
-        .await?;
+        let result =
+            sqlx::query("UPDATE notifications SET read = true WHERE user_id = $1 AND read = false")
+                .bind(user_id)
+                .execute(pool)
+                .await?;
 
         Ok(result.rows_affected() as i64)
     }

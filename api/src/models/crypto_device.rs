@@ -180,11 +180,7 @@ impl CryptoDevice {
         Ok(None)
     }
 
-    pub async fn set_verified(
-        pool: &PgPool,
-        id: Uuid,
-        verified: bool,
-    ) -> ApiResult<CryptoDevice> {
+    pub async fn set_verified(pool: &PgPool, id: Uuid, verified: bool) -> ApiResult<CryptoDevice> {
         let device = sqlx::query_as::<_, CryptoDevice>(
             r#"
             UPDATE user_crypto_devices
@@ -221,11 +217,7 @@ impl CryptoDevice {
         Ok(())
     }
 
-    pub async fn update_last_seen(
-        pool: &PgPool,
-        user_id: Uuid,
-        device_id: &str,
-    ) -> ApiResult<()> {
+    pub async fn update_last_seen(pool: &PgPool, user_id: Uuid, device_id: &str) -> ApiResult<()> {
         sqlx::query(
             r#"
             UPDATE user_crypto_devices

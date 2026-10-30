@@ -1,6 +1,8 @@
 use std::time::Duration;
 
-use deadpool_redis::{Config as RedisConfig, Pool as DeadpoolRedisPool, PoolConfig, Runtime, Timeouts};
+use deadpool_redis::{
+    Config as RedisConfig, Pool as DeadpoolRedisPool, PoolConfig, Runtime, Timeouts,
+};
 use redis::Client;
 use sqlx::postgres::{PgPool, PgPoolOptions};
 use uuid::Uuid;
@@ -32,9 +34,9 @@ pub fn init_redis_pool(redis_url: &str) -> ApiResult<RedisPool> {
         },
         ..Default::default()
     });
-    let pool = redis_cfg
-        .create_pool(Some(Runtime::Tokio1))
-        .map_err(|e| crate::errors::ApiError::Internal(format!("Failed to create Redis pool: {}", e)))?;
+    let pool = redis_cfg.create_pool(Some(Runtime::Tokio1)).map_err(|e| {
+        crate::errors::ApiError::Internal(format!("Failed to create Redis pool: {}", e))
+    })?;
     Ok(pool)
 }
 
@@ -49,9 +51,12 @@ pub fn init_redis_client(redis_url: &str) -> ApiResult<Client> {
 /// Note: Uses SET instead of SET LOCAL since we're not in an explicit transaction
 #[allow(dead_code)]
 pub async fn set_rls_context(pool: &PgPool, org_id: Uuid) -> ApiResult<()> {
-    sqlx::query(sqlx::AssertSqlSafe(format!("SET app.current_org_id = '{}'", org_id)))
-        .execute(pool)
-        .await?;
+    sqlx::query(sqlx::AssertSqlSafe(format!(
+        "SET app.current_org_id = '{}'",
+        org_id
+    )))
+    .execute(pool)
+    .await?;
 
     Ok(())
 }
@@ -63,8 +68,8 @@ mod tests {
     #[tokio::test]
     #[ignore] // Requires database to be running
     async fn test_pool_initialization() {
-        let database_url = std::env::var("DATABASE_URL")
-            .expect("DATABASE_URL must be set for tests");
+        let database_url =
+            std::env::var("DATABASE_URL").expect("DATABASE_URL must be set for tests");
 
         let pool = init_pool(&database_url).await;
         assert!(pool.is_ok());

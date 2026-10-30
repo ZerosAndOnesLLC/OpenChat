@@ -19,7 +19,11 @@ pub struct ParsedMention {
 
 /// Parse mentions from message content
 /// Returns a list of ParsedMention objects
-pub async fn parse_mentions(content: &str, org_id: Uuid, pool: &PgPool) -> ApiResult<Vec<ParsedMention>> {
+pub async fn parse_mentions(
+    content: &str,
+    org_id: Uuid,
+    pool: &PgPool,
+) -> ApiResult<Vec<ParsedMention>> {
     let mut mentions = Vec::new();
 
     // Regex for @username, @channel, @here, @everyone (supports hyphens for group handles)
@@ -76,7 +80,11 @@ pub async fn parse_mentions(content: &str, org_id: Uuid, pool: &PgPool) -> ApiRe
 }
 
 /// Find user by display name (case-insensitive)
-async fn find_user_by_display_name(pool: &PgPool, org_id: Uuid, display_name: &str) -> ApiResult<Option<User>> {
+async fn find_user_by_display_name(
+    pool: &PgPool,
+    org_id: Uuid,
+    display_name: &str,
+) -> ApiResult<Option<User>> {
     let user = sqlx::query_as::<_, User>(
         r#"
         SELECT * FROM users
@@ -93,7 +101,10 @@ async fn find_user_by_display_name(pool: &PgPool, org_id: Uuid, display_name: &s
 }
 
 /// Convert ParsedMentions to CreateMention structs
-pub fn to_create_mentions(parsed_mentions: Vec<ParsedMention>, message_id: Uuid) -> Vec<CreateMention> {
+pub fn to_create_mentions(
+    parsed_mentions: Vec<ParsedMention>,
+    message_id: Uuid,
+) -> Vec<CreateMention> {
     parsed_mentions
         .into_iter()
         .map(|pm| CreateMention {
@@ -107,12 +118,11 @@ pub fn to_create_mentions(parsed_mentions: Vec<ParsedMention>, message_id: Uuid)
 
 /// Get all channel members for @channel, @here, @everyone mentions
 pub async fn get_channel_members(pool: &PgPool, channel_id: Uuid) -> ApiResult<Vec<Uuid>> {
-    let user_ids = sqlx::query_scalar::<_, Uuid>(
-        "SELECT user_id FROM channel_members WHERE channel_id = $1",
-    )
-    .bind(channel_id)
-    .fetch_all(pool)
-    .await?;
+    let user_ids =
+        sqlx::query_scalar::<_, Uuid>("SELECT user_id FROM channel_members WHERE channel_id = $1")
+            .bind(channel_id)
+            .fetch_all(pool)
+            .await?;
 
     Ok(user_ids)
 }

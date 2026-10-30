@@ -32,10 +32,7 @@ pub enum PubSubEvent {
         edited_at: String,
     },
     /// Message deleted event
-    MessageDeleted {
-        message_id: Uuid,
-        org_id: Uuid,
-    },
+    MessageDeleted { message_id: Uuid, org_id: Uuid },
     /// Typing indicator
     Typing {
         user_id: Uuid,
@@ -144,7 +141,10 @@ impl RedisPubSub {
                                 let payload: String = match msg.get_payload() {
                                     Ok(p) => p,
                                     Err(e) => {
-                                        tracing::error!("Failed to get Redis message payload: {}", e);
+                                        tracing::error!(
+                                            "Failed to get Redis message payload: {}",
+                                            e
+                                        );
                                         continue;
                                     }
                                 };

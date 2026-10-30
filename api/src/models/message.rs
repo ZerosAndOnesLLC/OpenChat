@@ -143,7 +143,14 @@ impl Message {
     }
 
     /// Update a message with encrypted content
-    pub async fn update_encrypted(pool: &PgPool, id: Uuid, content: &str, encrypted_content: &[u8], encryption_metadata: serde_json::Value, user_id: Uuid) -> ApiResult<Message> {
+    pub async fn update_encrypted(
+        pool: &PgPool,
+        id: Uuid,
+        content: &str,
+        encrypted_content: &[u8],
+        encryption_metadata: serde_json::Value,
+        user_id: Uuid,
+    ) -> ApiResult<Message> {
         let mut tx = pool.begin().await?;
 
         let old_message = sqlx::query_as::<_, Message>(
@@ -251,16 +258,22 @@ impl Message {
             // Parse cursor: format is "timestamp_id"
             let parts: Vec<&str> = cursor_str.split('_').collect();
             if parts.len() != 2 {
-                return Err(crate::errors::ApiError::BadRequest("Invalid cursor format".to_string()));
+                return Err(crate::errors::ApiError::BadRequest(
+                    "Invalid cursor format".to_string(),
+                ));
             }
 
-            let cursor_time = parts[0].parse::<i64>()
-                .map_err(|_| crate::errors::ApiError::BadRequest("Invalid cursor timestamp".to_string()))?;
-            let cursor_id = Uuid::parse_str(parts[1])
-                .map_err(|_| crate::errors::ApiError::BadRequest("Invalid cursor ID".to_string()))?;
+            let cursor_time = parts[0].parse::<i64>().map_err(|_| {
+                crate::errors::ApiError::BadRequest("Invalid cursor timestamp".to_string())
+            })?;
+            let cursor_id = Uuid::parse_str(parts[1]).map_err(|_| {
+                crate::errors::ApiError::BadRequest("Invalid cursor ID".to_string())
+            })?;
 
-            let cursor_datetime = DateTime::<Utc>::from_timestamp(cursor_time, 0)
-                .ok_or_else(|| crate::errors::ApiError::BadRequest("Invalid cursor timestamp".to_string()))?;
+            let cursor_datetime =
+                DateTime::<Utc>::from_timestamp(cursor_time, 0).ok_or_else(|| {
+                    crate::errors::ApiError::BadRequest("Invalid cursor timestamp".to_string())
+                })?;
 
             sqlx::query_as::<_, Message>(
                 r#"
@@ -329,16 +342,22 @@ impl Message {
             // Parse cursor: format is "timestamp_id"
             let parts: Vec<&str> = cursor_str.split('_').collect();
             if parts.len() != 2 {
-                return Err(crate::errors::ApiError::BadRequest("Invalid cursor format".to_string()));
+                return Err(crate::errors::ApiError::BadRequest(
+                    "Invalid cursor format".to_string(),
+                ));
             }
 
-            let cursor_time = parts[0].parse::<i64>()
-                .map_err(|_| crate::errors::ApiError::BadRequest("Invalid cursor timestamp".to_string()))?;
-            let cursor_id = Uuid::parse_str(parts[1])
-                .map_err(|_| crate::errors::ApiError::BadRequest("Invalid cursor ID".to_string()))?;
+            let cursor_time = parts[0].parse::<i64>().map_err(|_| {
+                crate::errors::ApiError::BadRequest("Invalid cursor timestamp".to_string())
+            })?;
+            let cursor_id = Uuid::parse_str(parts[1]).map_err(|_| {
+                crate::errors::ApiError::BadRequest("Invalid cursor ID".to_string())
+            })?;
 
-            let cursor_datetime = DateTime::<Utc>::from_timestamp(cursor_time, 0)
-                .ok_or_else(|| crate::errors::ApiError::BadRequest("Invalid cursor timestamp".to_string()))?;
+            let cursor_datetime =
+                DateTime::<Utc>::from_timestamp(cursor_time, 0).ok_or_else(|| {
+                    crate::errors::ApiError::BadRequest("Invalid cursor timestamp".to_string())
+                })?;
 
             sqlx::query_as::<_, Message>(
                 r#"
@@ -409,7 +428,12 @@ impl Message {
 
     /// Update a message (edit)
     /// This function saves the old content to message_edits table before updating
-    pub async fn update(pool: &PgPool, id: Uuid, content: &str, user_id: Uuid) -> ApiResult<Message> {
+    pub async fn update(
+        pool: &PgPool,
+        id: Uuid,
+        content: &str,
+        user_id: Uuid,
+    ) -> ApiResult<Message> {
         // Start a transaction to ensure atomicity
         let mut tx = pool.begin().await?;
 
@@ -635,7 +659,9 @@ impl Message {
                     forwarded_from_message_id: row.forwarded_from_message_id,
                     forwarded_from_channel_id: row.forwarded_from_channel_id,
                     forwarded_from_channel_name: row.forwarded_from_channel_name,
-                    encrypted_content: row.encrypted_content.map(|b| base64::engine::general_purpose::STANDARD.encode(&b)),
+                    encrypted_content: row
+                        .encrypted_content
+                        .map(|b| base64::engine::general_purpose::STANDARD.encode(&b)),
                     encryption_metadata: row.encryption_metadata,
                 }
             })
@@ -721,7 +747,9 @@ impl Message {
                     forwarded_from_message_id: row.forwarded_from_message_id,
                     forwarded_from_channel_id: row.forwarded_from_channel_id,
                     forwarded_from_channel_name: row.forwarded_from_channel_name,
-                    encrypted_content: row.encrypted_content.map(|b| base64::engine::general_purpose::STANDARD.encode(&b)),
+                    encrypted_content: row
+                        .encrypted_content
+                        .map(|b| base64::engine::general_purpose::STANDARD.encode(&b)),
                     encryption_metadata: row.encryption_metadata,
                 }
             })

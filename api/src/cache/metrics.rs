@@ -95,10 +95,7 @@ pub enum CacheType {
 }
 
 /// Record a cache hit
-pub async fn record_hit(
-    redis_pool: &RedisPool,
-    cache_type: CacheType,
-) {
+pub async fn record_hit(redis_pool: &RedisPool, cache_type: CacheType) {
     let field = match cache_type {
         CacheType::Channels => "channels_hits",
         CacheType::ChannelMembers => "channel_members_hits",
@@ -118,10 +115,7 @@ pub async fn record_hit(
 }
 
 /// Record a cache miss
-pub async fn record_miss(
-    redis_pool: &RedisPool,
-    cache_type: CacheType,
-) {
+pub async fn record_miss(redis_pool: &RedisPool, cache_type: CacheType) {
     let field = match cache_type {
         CacheType::Channels => "channels_misses",
         CacheType::ChannelMembers => "channel_members_misses",
@@ -141,11 +135,10 @@ pub async fn record_miss(
 }
 
 /// Increment a metric field in Redis
-async fn increment_metric(
-    redis_pool: &RedisPool,
-    field: &str,
-) -> ApiResult<()> {
-    let mut conn = redis_pool.get().await
+async fn increment_metric(redis_pool: &RedisPool, field: &str) -> ApiResult<()> {
+    let mut conn = redis_pool
+        .get()
+        .await
         .map_err(|e| crate::errors::ApiError::Internal(format!("Redis pool error: {}", e)))?;
 
     // Increment the field
@@ -158,10 +151,10 @@ async fn increment_metric(
 }
 
 /// Get current cache metrics
-pub async fn get_metrics(
-    redis_pool: &RedisPool,
-) -> ApiResult<CacheMetrics> {
-    let mut conn = redis_pool.get().await
+pub async fn get_metrics(redis_pool: &RedisPool) -> ApiResult<CacheMetrics> {
+    let mut conn = redis_pool
+        .get()
+        .await
         .map_err(|e| crate::errors::ApiError::Internal(format!("Redis pool error: {}", e)))?;
 
     let values: Vec<(String, i64)> = conn.hgetall(METRICS_KEY).await?;
@@ -198,10 +191,10 @@ pub async fn get_metrics(
 }
 
 /// Reset cache metrics (useful for testing or periodic resets)
-pub async fn reset_metrics(
-    redis_pool: &RedisPool,
-) -> ApiResult<()> {
-    let mut conn = redis_pool.get().await
+pub async fn reset_metrics(redis_pool: &RedisPool) -> ApiResult<()> {
+    let mut conn = redis_pool
+        .get()
+        .await
         .map_err(|e| crate::errors::ApiError::Internal(format!("Redis pool error: {}", e)))?;
 
     let _: () = conn.del(METRICS_KEY).await?;

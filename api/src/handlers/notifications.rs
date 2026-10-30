@@ -1,5 +1,5 @@
-use actix_web::{web, HttpMessage, HttpRequest, HttpResponse};
 use crate::db::RedisPool;
+use actix_web::{HttpMessage, HttpRequest, HttpResponse, web};
 use serde::{Deserialize, Serialize};
 use sqlx::PgPool;
 use uuid::Uuid;
@@ -89,7 +89,10 @@ pub async fn list_notifications(
 
     let response = NotificationsListResponse {
         total: notifications.len(),
-        notifications: notifications.into_iter().map(NotificationResponse::from).collect(),
+        notifications: notifications
+            .into_iter()
+            .map(NotificationResponse::from)
+            .collect(),
     };
 
     Ok(HttpResponse::Ok().json(response))
@@ -114,7 +117,13 @@ pub async fn get_unread_count(
 
     // Try to get from cache first
 
-    if let Ok(Some(cached_count)) = notif_cache::get_notification_count_from_cache(redis_pool.get_ref(), current_user.org_id, current_user.id).await {
+    if let Ok(Some(cached_count)) = notif_cache::get_notification_count_from_cache(
+        redis_pool.get_ref(),
+        current_user.org_id,
+        current_user.id,
+    )
+    .await
+    {
         return Ok(HttpResponse::Ok().json(serde_json::json!({ "count": cached_count })));
     }
 
@@ -122,7 +131,13 @@ pub async fn get_unread_count(
     let count = Notification::count_unread_by_user(pool.get_ref(), current_user.id).await?;
 
     // Cache the result
-    let _ = notif_cache::set_notification_count_in_cache(redis_pool.get_ref(), current_user.org_id, current_user.id, count as i32).await;
+    let _ = notif_cache::set_notification_count_in_cache(
+        redis_pool.get_ref(),
+        current_user.org_id,
+        current_user.id,
+        count as i32,
+    )
+    .await;
 
     Ok(HttpResponse::Ok().json(serde_json::json!({ "count": count })))
 }
@@ -150,10 +165,16 @@ pub async fn mark_notification_as_read(
     Notification::mark_as_read(pool.get_ref(), *notification_id, current_user.id).await?;
 
     // Decrement cache count
-    let _ = notif_cache::decrement_notification_count_in_cache(redis_pool.get_ref(), current_user.org_id, current_user.id).await;
+    let _ = notif_cache::decrement_notification_count_in_cache(
+        redis_pool.get_ref(),
+        current_user.org_id,
+        current_user.id,
+    )
+    .await;
 
     // Get the new unread count and broadcast via WebSocket
-    let unread_count = Notification::count_unread_by_user(pool.get_ref(), current_user.id).await? as i32;
+    let unread_count =
+        Notification::count_unread_by_user(pool.get_ref(), current_user.id).await? as i32;
     ws_server.do_send(crate::websocket::server::BroadcastToUser {
         org_id: current_user.org_id,
         user_id: current_user.id,
@@ -187,7 +208,13 @@ pub async fn mark_all_notifications_as_read(
     let count = Notification::mark_all_as_read(pool.get_ref(), current_user.id).await?;
 
     // Clear cache count (set to 0)
-    let _ = notif_cache::set_notification_count_in_cache(redis_pool.get_ref(), current_user.org_id, current_user.id, 0).await;
+    let _ = notif_cache::set_notification_count_in_cache(
+        redis_pool.get_ref(),
+        current_user.org_id,
+        current_user.id,
+        0,
+    )
+    .await;
 
     // Broadcast notification count update via WebSocket
     ws_server.do_send(crate::websocket::server::BroadcastToUser {

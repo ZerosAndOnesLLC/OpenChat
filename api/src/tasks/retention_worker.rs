@@ -77,31 +77,20 @@ pub async fn execute(
     let mut total_files_deleted = 0i64;
 
     for policy in &policies {
-        let cutoff = chrono::Utc::now()
-            - chrono::Duration::days(i64::from(policy.retention_days));
+        let cutoff = chrono::Utc::now() - chrono::Duration::days(i64::from(policy.retention_days));
 
         match policy.policy_type.as_str() {
             "messages" => {
-                let (msgs, files) = enforce_message_retention(
-                    pool,
-                    storage_factory,
-                    org_id,
-                    &held_ids,
-                    cutoff,
-                )
-                .await?;
+                let (msgs, files) =
+                    enforce_message_retention(pool, storage_factory, org_id, &held_ids, cutoff)
+                        .await?;
                 total_messages_deleted += msgs;
                 total_files_deleted += files;
             }
             "files" => {
-                let files = enforce_file_retention(
-                    pool,
-                    storage_factory,
-                    org_id,
-                    &held_ids,
-                    cutoff,
-                )
-                .await?;
+                let files =
+                    enforce_file_retention(pool, storage_factory, org_id, &held_ids, cutoff)
+                        .await?;
                 total_files_deleted += files;
             }
             other => {
@@ -205,7 +194,8 @@ async fn enforce_message_retention(
         }
 
         // Delete attachments for these messages
-        let files_deleted = delete_attachments_for_messages(pool, storage_factory, org_id, &message_ids).await?;
+        let files_deleted =
+            delete_attachments_for_messages(pool, storage_factory, org_id, &message_ids).await?;
         total_files += files_deleted;
 
         // Soft-delete the messages
@@ -310,13 +300,12 @@ async fn delete_attachments_for_messages(
     org_id: Uuid,
     message_ids: &[Uuid],
 ) -> Result<i64, String> {
-    let attachments: Vec<AttachmentRow> = sqlx::query_as(
-        "SELECT id, storage_path FROM attachments WHERE message_id = ANY($1)",
-    )
-    .bind(message_ids)
-    .fetch_all(pool)
-    .await
-    .map_err(|e| format!("Failed to fetch attachments: {}", e))?;
+    let attachments: Vec<AttachmentRow> =
+        sqlx::query_as("SELECT id, storage_path FROM attachments WHERE message_id = ANY($1)")
+            .bind(message_ids)
+            .fetch_all(pool)
+            .await
+            .map_err(|e| format!("Failed to fetch attachments: {}", e))?;
 
     if attachments.is_empty() {
         return Ok(0);

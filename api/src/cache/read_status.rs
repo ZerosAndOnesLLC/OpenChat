@@ -12,12 +12,18 @@ const UNREAD_CACHE_PREFIX: &str = "openchat:org";
 
 /// Build cache key for channel unread count: openchat:org:{org_id}:unread:channel:{user_id}:{channel_id}
 fn channel_unread_cache_key(org_id: Uuid, user_id: Uuid, channel_id: Uuid) -> String {
-    format!("{}:{}:unread:channel:{}:{}", UNREAD_CACHE_PREFIX, org_id, user_id, channel_id)
+    format!(
+        "{}:{}:unread:channel:{}:{}",
+        UNREAD_CACHE_PREFIX, org_id, user_id, channel_id
+    )
 }
 
 /// Build cache key for DM unread count: openchat:org:{org_id}:unread:dm:{user_id}:{dm_id}
 fn dm_unread_cache_key(org_id: Uuid, user_id: Uuid, dm_id: Uuid) -> String {
-    format!("{}:{}:unread:dm:{}:{}", UNREAD_CACHE_PREFIX, org_id, user_id, dm_id)
+    format!(
+        "{}:{}:unread:dm:{}:{}",
+        UNREAD_CACHE_PREFIX, org_id, user_id, dm_id
+    )
 }
 
 /// Get channel unread count from cache
@@ -54,7 +60,9 @@ pub async fn set_channel_unread_in_cache(
     channel_id: Uuid,
     unread_count: i32,
 ) -> ApiResult<()> {
-    let mut conn = redis_pool.get().await
+    let mut conn = redis_pool
+        .get()
+        .await
         .map_err(|e| crate::errors::ApiError::Internal(format!("Redis pool error: {}", e)))?;
 
     let key = channel_unread_cache_key(org_id, user_id, channel_id);
@@ -69,7 +77,9 @@ pub async fn invalidate_channel_unread_cache(
     user_id: Uuid,
     channel_id: Uuid,
 ) -> ApiResult<()> {
-    let mut conn = redis_pool.get().await
+    let mut conn = redis_pool
+        .get()
+        .await
         .map_err(|e| crate::errors::ApiError::Internal(format!("Redis pool error: {}", e)))?;
 
     let key = channel_unread_cache_key(org_id, user_id, channel_id);
@@ -83,11 +93,16 @@ pub async fn invalidate_channel_unread_cache_for_all_members(
     org_id: Uuid,
     channel_id: Uuid,
 ) -> ApiResult<()> {
-    let mut conn = redis_pool.get().await
+    let mut conn = redis_pool
+        .get()
+        .await
         .map_err(|e| crate::errors::ApiError::Internal(format!("Redis pool error: {}", e)))?;
 
     // Delete all keys matching the pattern
-    let pattern = format!("{}:{}:unread:channel:*:{}", UNREAD_CACHE_PREFIX, org_id, channel_id);
+    let pattern = format!(
+        "{}:{}:unread:channel:*:{}",
+        UNREAD_CACHE_PREFIX, org_id, channel_id
+    );
     let keys: Vec<String> = conn.keys(&pattern).await?;
 
     if !keys.is_empty() {
@@ -131,7 +146,9 @@ pub async fn set_dm_unread_in_cache(
     dm_id: Uuid,
     unread_count: i32,
 ) -> ApiResult<()> {
-    let mut conn = redis_pool.get().await
+    let mut conn = redis_pool
+        .get()
+        .await
         .map_err(|e| crate::errors::ApiError::Internal(format!("Redis pool error: {}", e)))?;
 
     let key = dm_unread_cache_key(org_id, user_id, dm_id);
@@ -146,7 +163,9 @@ pub async fn invalidate_dm_unread_cache(
     user_id: Uuid,
     dm_id: Uuid,
 ) -> ApiResult<()> {
-    let mut conn = redis_pool.get().await
+    let mut conn = redis_pool
+        .get()
+        .await
         .map_err(|e| crate::errors::ApiError::Internal(format!("Redis pool error: {}", e)))?;
 
     let key = dm_unread_cache_key(org_id, user_id, dm_id);
@@ -160,7 +179,9 @@ pub async fn invalidate_dm_unread_cache_for_all_participants(
     org_id: Uuid,
     dm_id: Uuid,
 ) -> ApiResult<()> {
-    let mut conn = redis_pool.get().await
+    let mut conn = redis_pool
+        .get()
+        .await
         .map_err(|e| crate::errors::ApiError::Internal(format!("Redis pool error: {}", e)))?;
 
     // Delete all keys matching the pattern
@@ -175,11 +196,10 @@ pub async fn invalidate_dm_unread_cache_for_all_participants(
 }
 
 /// Invalidate all unread caches for an organization
-pub async fn invalidate_org_unread_cache(
-    redis_pool: &RedisPool,
-    org_id: Uuid,
-) -> ApiResult<()> {
-    let mut conn = redis_pool.get().await
+pub async fn invalidate_org_unread_cache(redis_pool: &RedisPool, org_id: Uuid) -> ApiResult<()> {
+    let mut conn = redis_pool
+        .get()
+        .await
         .map_err(|e| crate::errors::ApiError::Internal(format!("Redis pool error: {}", e)))?;
 
     let pattern = format!("{}:{}:unread:*", UNREAD_CACHE_PREFIX, org_id);

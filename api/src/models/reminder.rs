@@ -49,12 +49,10 @@ impl Reminder {
     }
 
     pub async fn get_by_id(pool: &PgPool, id: Uuid) -> ApiResult<Option<Reminder>> {
-        let row = sqlx::query_as::<_, Reminder>(
-            "SELECT * FROM reminders WHERE id = $1",
-        )
-        .bind(id)
-        .fetch_optional(pool)
-        .await?;
+        let row = sqlx::query_as::<_, Reminder>("SELECT * FROM reminders WHERE id = $1")
+            .bind(id)
+            .fetch_optional(pool)
+            .await?;
 
         Ok(row)
     }

@@ -1,4 +1,4 @@
-use actix_web::{web, HttpMessage, HttpRequest, HttpResponse};
+use actix_web::{HttpMessage, HttpRequest, HttpResponse, web};
 use regex::Regex;
 use serde::{Deserialize, Serialize};
 use std::time::Duration;
@@ -54,7 +54,10 @@ pub async fn get_link_preview(
 
     // Check if response is successful
     if !response.status().is_success() {
-        return Err(ApiError::BadRequest(format!("Failed to fetch URL: HTTP {}", response.status())));
+        return Err(ApiError::BadRequest(format!(
+            "Failed to fetch URL: HTTP {}",
+            response.status()
+        )));
     }
 
     // Get content type to ensure it's HTML
@@ -81,8 +84,7 @@ pub async fn get_link_preview(
         .map_err(|e| ApiError::Internal(format!("Failed to read response: {}", e)))?;
 
     // Extract metadata using regex
-    let title = extract_meta_tag(&html, "og:title")
-        .or_else(|| extract_title_tag(&html));
+    let title = extract_meta_tag(&html, "og:title").or_else(|| extract_title_tag(&html));
     let description = extract_meta_tag(&html, "og:description")
         .or_else(|| extract_meta_tag(&html, "description"));
     let image = extract_meta_tag(&html, "og:image");

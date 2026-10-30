@@ -1,4 +1,4 @@
-use actix_web::{web, HttpMessage, HttpRequest, HttpResponse};
+use actix_web::{HttpMessage, HttpRequest, HttpResponse, web};
 use serde::{Deserialize, Serialize};
 use sqlx::PgPool;
 use uuid::Uuid;
@@ -374,9 +374,7 @@ pub async fn close_poll(
     }
 
     if poll.closed_at.is_some() {
-        return Err(ApiError::BadRequest(
-            "Poll is already closed".to_string(),
-        ));
+        return Err(ApiError::BadRequest("Poll is already closed".to_string()));
     }
 
     let closed_poll = Poll::close(pool.get_ref(), *id).await?;
@@ -430,7 +428,7 @@ fn broadcast_poll_update(
     let ws_msg = ServerMessage::PollVoteUpdated {
         poll_id: poll.id,
         message_id: poll.message_id,
-        channel_id: None,   // We'll need to look this up
+        channel_id: None, // We'll need to look this up
         dm_id: None,
         options: ws_options,
         total_votes: results.total_votes,

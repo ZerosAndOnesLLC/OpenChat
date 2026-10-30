@@ -1,4 +1,4 @@
-use actix_web::{web, HttpMessage, HttpRequest, HttpResponse};
+use actix_web::{HttpMessage, HttpRequest, HttpResponse, web};
 use chrono::{DateTime, Utc};
 use serde::Deserialize;
 use sqlx::PgPool;
@@ -35,7 +35,9 @@ pub async fn create_reminder(
         .ok_or_else(|| ApiError::NotFound("User not found".to_string()))?;
 
     if body.remind_at <= Utc::now() {
-        return Err(ApiError::BadRequest("remind_at must be in the future".to_string()));
+        return Err(ApiError::BadRequest(
+            "remind_at must be in the future".to_string(),
+        ));
     }
 
     let message = Message::get_by_id(pool.get_ref(), body.message_id)
@@ -65,10 +67,7 @@ pub async fn create_reminder(
 }
 
 /// GET /api/reminders
-pub async fn list_reminders(
-    pool: web::Data<PgPool>,
-    req: HttpRequest,
-) -> ApiResult<HttpResponse> {
+pub async fn list_reminders(pool: web::Data<PgPool>, req: HttpRequest) -> ApiResult<HttpResponse> {
     let claims = req
         .extensions()
         .get::<TokenClaims>()
@@ -107,11 +106,15 @@ pub async fn delete_reminder(
         .ok_or_else(|| ApiError::NotFound("Reminder not found".to_string()))?;
 
     if existing.user_id != user.id {
-        return Err(ApiError::Authorization("Not authorized to delete this reminder".to_string()));
+        return Err(ApiError::Authorization(
+            "Not authorized to delete this reminder".to_string(),
+        ));
     }
 
     if existing.completed {
-        return Err(ApiError::BadRequest("Cannot delete a completed reminder".to_string()));
+        return Err(ApiError::BadRequest(
+            "Cannot delete a completed reminder".to_string(),
+        ));
     }
 
     Reminder::delete(pool.get_ref(), id).await?;

@@ -10,7 +10,10 @@ const NOTIFICATION_CACHE_PREFIX: &str = "openchat:org";
 
 /// Build cache key for notification count: openchat:org:{org_id}:notification_count:{user_id}
 fn notification_count_cache_key(org_id: Uuid, user_id: Uuid) -> String {
-    format!("{}:{}:notification_count:{}", NOTIFICATION_CACHE_PREFIX, org_id, user_id)
+    format!(
+        "{}:{}:notification_count:{}",
+        NOTIFICATION_CACHE_PREFIX, org_id, user_id
+    )
 }
 
 /// Get notification count from cache
@@ -45,7 +48,9 @@ pub async fn set_notification_count_in_cache(
     user_id: Uuid,
     count: i32,
 ) -> ApiResult<()> {
-    let mut conn = redis_pool.get().await
+    let mut conn = redis_pool
+        .get()
+        .await
         .map_err(|e| crate::errors::ApiError::Internal(format!("Redis pool error: {}", e)))?;
 
     let key = notification_count_cache_key(org_id, user_id);
@@ -60,7 +65,9 @@ pub async fn increment_notification_count_in_cache(
     org_id: Uuid,
     user_id: Uuid,
 ) -> ApiResult<i32> {
-    let mut conn = redis_pool.get().await
+    let mut conn = redis_pool
+        .get()
+        .await
         .map_err(|e| crate::errors::ApiError::Internal(format!("Redis pool error: {}", e)))?;
 
     let key = notification_count_cache_key(org_id, user_id);
@@ -76,7 +83,9 @@ pub async fn decrement_notification_count_in_cache(
     org_id: Uuid,
     user_id: Uuid,
 ) -> ApiResult<i32> {
-    let mut conn = redis_pool.get().await
+    let mut conn = redis_pool
+        .get()
+        .await
         .map_err(|e| crate::errors::ApiError::Internal(format!("Redis pool error: {}", e)))?;
 
     let key = notification_count_cache_key(org_id, user_id);
@@ -99,7 +108,9 @@ pub async fn clear_notification_count_from_cache(
     org_id: Uuid,
     user_id: Uuid,
 ) -> ApiResult<()> {
-    let mut conn = redis_pool.get().await
+    let mut conn = redis_pool
+        .get()
+        .await
         .map_err(|e| crate::errors::ApiError::Internal(format!("Redis pool error: {}", e)))?;
 
     let key = notification_count_cache_key(org_id, user_id);
@@ -123,10 +134,15 @@ pub async fn invalidate_org_notification_cache(
     redis_pool: &RedisPool,
     org_id: Uuid,
 ) -> ApiResult<()> {
-    let mut conn = redis_pool.get().await
+    let mut conn = redis_pool
+        .get()
+        .await
         .map_err(|e| crate::errors::ApiError::Internal(format!("Redis pool error: {}", e)))?;
 
-    let pattern = format!("{}:{}:notification_count:*", NOTIFICATION_CACHE_PREFIX, org_id);
+    let pattern = format!(
+        "{}:{}:notification_count:*",
+        NOTIFICATION_CACHE_PREFIX, org_id
+    );
     let keys: Vec<String> = conn.keys(&pattern).await?;
 
     if !keys.is_empty() {

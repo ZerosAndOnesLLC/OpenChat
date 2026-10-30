@@ -1,4 +1,4 @@
-use actix_web::{web, HttpMessage, HttpRequest, HttpResponse};
+use actix_web::{HttpMessage, HttpRequest, HttpResponse, web};
 use serde::{Deserialize, Serialize};
 use sqlx::PgPool;
 use std::sync::Arc;
@@ -9,7 +9,7 @@ use crate::{
     models::{
         call::{Call, CallParticipant},
         channel::ChannelMember,
-        direct_message::{DmParticipant, DirectMessage as DM},
+        direct_message::{DirectMessage as DM, DmParticipant},
         user::User,
     },
     services::{livekit::LiveKitService, tv_api::TokenClaims},
@@ -42,9 +42,7 @@ pub struct JoinCallResponse {
     pub livekit_room_name: String,
 }
 
-fn get_livekit(
-    lk: &web::Data<Option<Arc<LiveKitService>>>,
-) -> ApiResult<&Arc<LiveKitService>> {
+fn get_livekit(lk: &web::Data<Option<Arc<LiveKitService>>>) -> ApiResult<&Arc<LiveKitService>> {
     lk.as_ref()
         .as_ref()
         .ok_or_else(|| ApiError::BadRequest("Voice/video calling is not configured".to_string()))
@@ -67,7 +65,10 @@ pub async fn start_call(
     body: web::Json<StartCallRequest>,
     req: HttpRequest,
 ) -> ApiResult<HttpResponse> {
-    let claims = req.extensions().get::<TokenClaims>().cloned()
+    let claims = req
+        .extensions()
+        .get::<TokenClaims>()
+        .cloned()
         .ok_or_else(|| ApiError::Authentication("Missing authentication".to_string()))?;
     let current_user = User::get_by_tv_user_id(pool.get_ref(), claims.user_id)
         .await?
@@ -76,11 +77,15 @@ pub async fn start_call(
 
     let call_type = body.call_type.as_deref().unwrap_or("audio");
     if !["audio", "video"].contains(&call_type) {
-        return Err(ApiError::BadRequest("call_type must be 'audio' or 'video'".to_string()));
+        return Err(ApiError::BadRequest(
+            "call_type must be 'audio' or 'video'".to_string(),
+        ));
     }
 
     if body.channel_id.is_none() && body.dm_id.is_none() {
-        return Err(ApiError::BadRequest("channel_id or dm_id is required".to_string()));
+        return Err(ApiError::BadRequest(
+            "channel_id or dm_id is required".to_string(),
+        ));
     }
 
     // Validate membership
@@ -89,16 +94,26 @@ pub async fn start_call(
             return Err(ApiError::Authorization("Not a channel member".to_string()));
         }
         // Check no existing active call
-        if Call::get_active_for_channel(pool.get_ref(), ch_id).await?.is_some() {
-            return Err(ApiError::BadRequest("An active call already exists in this channel".to_string()));
+        if Call::get_active_for_channel(pool.get_ref(), ch_id)
+            .await?
+            .is_some()
+        {
+            return Err(ApiError::BadRequest(
+                "An active call already exists in this channel".to_string(),
+            ));
         }
     }
     if let Some(d_id) = body.dm_id {
         if !DM::is_participant(pool.get_ref(), d_id, current_user.id).await? {
             return Err(ApiError::Authorization("Not a DM participant".to_string()));
         }
-        if Call::get_active_for_dm(pool.get_ref(), d_id).await?.is_some() {
-            return Err(ApiError::BadRequest("An active call already exists in this DM".to_string()));
+        if Call::get_active_for_dm(pool.get_ref(), d_id)
+            .await?
+            .is_some()
+        {
+            return Err(ApiError::BadRequest(
+                "An active call already exists in this DM".to_string(),
+            ));
         }
     }
 
@@ -220,7 +235,10 @@ pub async fn join_call(
     path: web::Path<Uuid>,
     req: HttpRequest,
 ) -> ApiResult<HttpResponse> {
-    let claims = req.extensions().get::<TokenClaims>().cloned()
+    let claims = req
+        .extensions()
+        .get::<TokenClaims>()
+        .cloned()
         .ok_or_else(|| ApiError::Authentication("Missing authentication".to_string()))?;
     let current_user = User::get_by_tv_user_id(pool.get_ref(), claims.user_id)
         .await?
@@ -293,7 +311,10 @@ pub async fn leave_call(
     path: web::Path<Uuid>,
     req: HttpRequest,
 ) -> ApiResult<HttpResponse> {
-    let claims = req.extensions().get::<TokenClaims>().cloned()
+    let claims = req
+        .extensions()
+        .get::<TokenClaims>()
+        .cloned()
         .ok_or_else(|| ApiError::Authentication("Missing authentication".to_string()))?;
     let current_user = User::get_by_tv_user_id(pool.get_ref(), claims.user_id)
         .await?
@@ -347,7 +368,10 @@ pub async fn end_call(
     path: web::Path<Uuid>,
     req: HttpRequest,
 ) -> ApiResult<HttpResponse> {
-    let claims = req.extensions().get::<TokenClaims>().cloned()
+    let claims = req
+        .extensions()
+        .get::<TokenClaims>()
+        .cloned()
         .ok_or_else(|| ApiError::Authentication("Missing authentication".to_string()))?;
     let current_user = User::get_by_tv_user_id(pool.get_ref(), claims.user_id)
         .await?
@@ -364,7 +388,9 @@ pub async fn end_call(
 
     // Only starter can end the call (unless they're an admin—simplified here)
     if call.started_by != current_user.id {
-        return Err(ApiError::Authorization("Only the call starter can end the call".to_string()));
+        return Err(ApiError::Authorization(
+            "Only the call starter can end the call".to_string(),
+        ));
     }
 
     Call::end_call(pool.get_ref(), call.id).await?;
@@ -387,7 +413,10 @@ pub async fn list_active_calls(
     pool: web::Data<PgPool>,
     req: HttpRequest,
 ) -> ApiResult<HttpResponse> {
-    let claims = req.extensions().get::<TokenClaims>().cloned()
+    let claims = req
+        .extensions()
+        .get::<TokenClaims>()
+        .cloned()
         .ok_or_else(|| ApiError::Authentication("Missing authentication".to_string()))?;
     let current_user = User::get_by_tv_user_id(pool.get_ref(), claims.user_id)
         .await?
@@ -406,7 +435,10 @@ pub async fn join_huddle(
     path: web::Path<Uuid>,
     req: HttpRequest,
 ) -> ApiResult<HttpResponse> {
-    let claims = req.extensions().get::<TokenClaims>().cloned()
+    let claims = req
+        .extensions()
+        .get::<TokenClaims>()
+        .cloned()
         .ok_or_else(|| ApiError::Authentication("Missing authentication".to_string()))?;
     let current_user = User::get_by_tv_user_id(pool.get_ref(), claims.user_id)
         .await?
@@ -509,7 +541,10 @@ pub async fn leave_huddle(
     path: web::Path<Uuid>,
     req: HttpRequest,
 ) -> ApiResult<HttpResponse> {
-    let claims = req.extensions().get::<TokenClaims>().cloned()
+    let claims = req
+        .extensions()
+        .get::<TokenClaims>()
+        .cloned()
         .ok_or_else(|| ApiError::Authentication("Missing authentication".to_string()))?;
     let current_user = User::get_by_tv_user_id(pool.get_ref(), claims.user_id)
         .await?

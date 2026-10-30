@@ -33,8 +33,12 @@ pub async fn get_cached_token_claims(
     match cached {
         Some(json) => {
             debug!("Token cache hit");
-            let claims: TokenClaims = serde_json::from_str(&json)
-                .map_err(|e| crate::errors::ApiError::Internal(format!("Token cache deserialization error: {}", e)))?;
+            let claims: TokenClaims = serde_json::from_str(&json).map_err(|e| {
+                crate::errors::ApiError::Internal(format!(
+                    "Token cache deserialization error: {}",
+                    e
+                ))
+            })?;
             Ok(Some(claims))
         }
         None => {
@@ -52,13 +56,16 @@ pub async fn cache_token_claims(
     claims: &TokenClaims,
     ttl_seconds: u64,
 ) -> ApiResult<()> {
-    let mut conn = redis_pool.get().await
+    let mut conn = redis_pool
+        .get()
+        .await
         .map_err(|e| crate::errors::ApiError::Internal(format!("Redis pool error: {}", e)))?;
 
     let hash = hash_token(token);
     let key = format!("openchat:token:{}", hash);
-    let value = serde_json::to_string(claims)
-        .map_err(|e| crate::errors::ApiError::Internal(format!("Token cache serialization error: {}", e)))?;
+    let value = serde_json::to_string(claims).map_err(|e| {
+        crate::errors::ApiError::Internal(format!("Token cache serialization error: {}", e))
+    })?;
 
     let _: () = conn.set_ex(&key, value, ttl_seconds).await?;
 
@@ -68,11 +75,10 @@ pub async fn cache_token_claims(
 
 /// Invalidate a cached token (e.g., on logout)
 #[allow(dead_code)]
-pub async fn invalidate_token_cache(
-    redis_pool: &RedisPool,
-    token: &str,
-) -> ApiResult<()> {
-    let mut conn = redis_pool.get().await
+pub async fn invalidate_token_cache(redis_pool: &RedisPool, token: &str) -> ApiResult<()> {
+    let mut conn = redis_pool
+        .get()
+        .await
         .map_err(|e| crate::errors::ApiError::Internal(format!("Redis pool error: {}", e)))?;
 
     let hash = hash_token(token);
@@ -88,7 +94,11 @@ pub async fn invalidate_token_cache(
 fn hash_token(token: &str) -> String {
     let mut hasher = Sha256::new();
     hasher.update(token.as_bytes());
-    hasher.finalize().iter().map(|b| format!("{:02x}", b)).collect()
+    hasher
+        .finalize()
+        .iter()
+        .map(|b| format!("{:02x}", b))
+        .collect()
 }
 
 #[cfg(test)]

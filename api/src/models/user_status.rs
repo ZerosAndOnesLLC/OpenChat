@@ -101,10 +101,7 @@ impl UserStatus {
 
     /// Get multiple user statuses by user IDs
     #[allow(dead_code)]
-    pub async fn get_by_user_ids(
-        pool: &PgPool,
-        user_ids: &[Uuid],
-    ) -> ApiResult<Vec<UserStatus>> {
+    pub async fn get_by_user_ids(pool: &PgPool, user_ids: &[Uuid]) -> ApiResult<Vec<UserStatus>> {
         let statuses = sqlx::query_as::<_, UserStatus>(
             r#"
             SELECT * FROM user_status

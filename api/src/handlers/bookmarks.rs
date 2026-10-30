@@ -1,4 +1,4 @@
-use actix_web::{web, HttpMessage, HttpRequest, HttpResponse};
+use actix_web::{HttpMessage, HttpRequest, HttpResponse, web};
 use serde::{Deserialize, Serialize};
 use sqlx::PgPool;
 use uuid::Uuid;
@@ -6,11 +6,8 @@ use uuid::Uuid;
 use crate::{
     errors::{ApiError, ApiResult},
     models::{
-        bookmark::Bookmark,
-        channel::ChannelMember,
-        direct_message::DirectMessage,
-        message::Message,
-        user::User,
+        bookmark::Bookmark, channel::ChannelMember, direct_message::DirectMessage,
+        message::Message, user::User,
     },
     services::tv_api::TokenClaims,
     websocket::{
@@ -138,10 +135,7 @@ pub async fn delete_bookmark(
 }
 
 /// GET /api/bookmarks - List all bookmarks for the current user
-pub async fn list_bookmarks(
-    pool: web::Data<PgPool>,
-    req: HttpRequest,
-) -> ApiResult<HttpResponse> {
+pub async fn list_bookmarks(pool: web::Data<PgPool>, req: HttpRequest) -> ApiResult<HttpResponse> {
     let claims = req
         .extensions()
         .get::<TokenClaims>()
@@ -155,7 +149,8 @@ pub async fn list_bookmarks(
 
     // Get bookmarks from database
     let bookmarks = Bookmark::list_by_user(pool.get_ref(), current_user.id).await?;
-    let response: Vec<BookmarkResponse> = bookmarks.into_iter().map(BookmarkResponse::from).collect();
+    let response: Vec<BookmarkResponse> =
+        bookmarks.into_iter().map(BookmarkResponse::from).collect();
 
     Ok(HttpResponse::Ok().json(response))
 }

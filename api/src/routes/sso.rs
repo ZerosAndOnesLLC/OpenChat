@@ -1,7 +1,7 @@
-use actix_web::{web, HttpRequest, HttpResponse};
+use actix_web::{HttpRequest, HttpResponse, web};
+use jsonwebtoken::{Algorithm, DecodingKey, Validation, decode, decode_header};
 use serde::{Deserialize, Serialize};
 use std::time::Duration;
-use jsonwebtoken::{decode, decode_header, DecodingKey, Validation, Algorithm};
 
 use crate::errors::ApiError;
 
@@ -37,7 +37,7 @@ pub struct TokenResponse {
 // OpenID Connect ID Token claims
 #[derive(Debug, Serialize, Deserialize)]
 pub struct IDTokenClaims {
-    pub sub: String,  // User ID
+    pub sub: String, // User ID
     pub email: Option<String>,
     pub name: Option<String>,
     pub given_name: Option<String>,
@@ -70,11 +70,10 @@ pub async fn exchange_code(
     tracing::debug!("Calling token endpoint: {}", token_endpoint);
 
     // Get OAuth configuration from environment
-    let client_id = std::env::var("OAUTH_CLIENT_ID")
-        .unwrap_or_else(|_| "openchat-api".to_string());
+    let client_id = std::env::var("OAUTH_CLIENT_ID").unwrap_or_else(|_| "openchat-api".to_string());
 
-    let client_secret = std::env::var("OAUTH_CLIENT_SECRET")
-        .unwrap_or_else(|_| "web-ui-secret".to_string());
+    let client_secret =
+        std::env::var("OAUTH_CLIENT_SECRET").unwrap_or_else(|_| "web-ui-secret".to_string());
 
     let redirect_uri = std::env::var("OAUTH_REDIRECT_URI")
         .unwrap_or_else(|_| "http://localhost:3000/sso/callback".to_string());
@@ -88,7 +87,11 @@ pub async fn exchange_code(
         ("redirect_uri", &redirect_uri),
     ];
 
-    tracing::debug!("Token request: client_id={}, code={}", client_id, payload.code);
+    tracing::debug!(
+        "Token request: client_id={}, code={}",
+        client_id,
+        payload.code
+    );
 
     let response = client
         .post(&token_endpoint)
@@ -105,8 +108,15 @@ pub async fn exchange_code(
 
     if !status.is_success() {
         let error_text = response.text().await.unwrap_or_default();
-        tracing::error!("Token exchange failed with status {}: {}", status, error_text);
-        return Err(ApiError::BadRequest(format!("Token exchange failed: {}", error_text)));
+        tracing::error!(
+            "Token exchange failed with status {}: {}",
+            status,
+            error_text
+        );
+        return Err(ApiError::BadRequest(format!(
+            "Token exchange failed: {}",
+            error_text
+        )));
     }
 
     let token_response: TokenResponse = response
@@ -126,7 +136,10 @@ pub async fn exchange_code(
                 Some(claims)
             }
             Err(e) => {
-                tracing::warn!("Failed to validate ID token: {}, falling back to userinfo endpoint", e);
+                tracing::warn!(
+                    "Failed to validate ID token: {}, falling back to userinfo endpoint",
+                    e
+                );
                 None
             }
         }
@@ -166,7 +179,8 @@ async fn validate_id_token(
     let header = decode_header(id_token)
         .map_err(|e| ApiError::Internal(format!("Failed to decode JWT header: {}", e)))?;
 
-    let kid = header.kid
+    let kid = header
+        .kid
         .ok_or_else(|| ApiError::Internal("ID token missing 'kid' in header".to_string()))?;
 
     // Fetch JWKS from TitaniumVault
@@ -213,9 +227,7 @@ async fn validate_id_token(
 
 /// POST /api/sso/userinfo
 /// Proxies the /userinfo request to TitaniumVault to avoid CORS issues
-pub async fn get_userinfo(
-    req: HttpRequest,
-) -> Result<HttpResponse, ApiError> {
+pub async fn get_userinfo(req: HttpRequest) -> Result<HttpResponse, ApiError> {
     tracing::info!("Proxying userinfo request to TitaniumVault");
 
     let tv_api_url = std::env::var("TV_API_URL")
@@ -228,7 +240,9 @@ pub async fn get_userinfo(
         .headers()
         .get("Authorization")
         .and_then(|h| h.to_str().ok())
-        .ok_or(ApiError::Authentication("Missing Authorization header".to_string()))?;
+        .ok_or(ApiError::Authentication(
+            "Missing Authorization header".to_string(),
+        ))?;
 
     // The end user's connection terminates at OpenChat's load balancer, so by the time we call
     // TitaniumVault it would only see our egress IP. Forward the observed client IP (leftmost
@@ -270,8 +284,15 @@ pub async fn get_userinfo(
 
     if !status.is_success() {
         let error_text = response.text().await.unwrap_or_default();
-        tracing::error!("Userinfo request failed with status {}: {}", status, error_text);
-        return Err(ApiError::BadRequest(format!("Userinfo request failed: {}", error_text)));
+        tracing::error!(
+            "Userinfo request failed with status {}: {}",
+            status,
+            error_text
+        );
+        return Err(ApiError::BadRequest(format!(
+            "Userinfo request failed: {}",
+            error_text
+        )));
     }
 
     let userinfo_data: serde_json::Value = response
@@ -288,6 +309,6 @@ pub fn configure(cfg: &mut web::ServiceConfig) {
     cfg.service(
         web::scope("/api/sso")
             .route("/exchange", web::post().to(exchange_code))
-            .route("/userinfo", web::post().to(get_userinfo))
+            .route("/userinfo", web::post().to(get_userinfo)),
     );
 }

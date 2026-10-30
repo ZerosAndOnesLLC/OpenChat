@@ -32,17 +32,28 @@ pub struct CallParticipant {
     pub video_off: bool,
 }
 
+/// Fields for [`Call::create`].
+pub struct NewCall<'a> {
+    pub org_id: Uuid,
+    pub channel_id: Option<Uuid>,
+    pub dm_id: Option<Uuid>,
+    pub call_type: &'a str,
+    pub started_by: Uuid,
+    pub livekit_room_name: &'a str,
+    pub is_huddle: bool,
+}
+
 impl Call {
-    pub async fn create(
-        pool: &PgPool,
-        org_id: Uuid,
-        channel_id: Option<Uuid>,
-        dm_id: Option<Uuid>,
-        call_type: &str,
-        started_by: Uuid,
-        livekit_room_name: &str,
-        is_huddle: bool,
-    ) -> ApiResult<Call> {
+    pub async fn create(pool: &PgPool, new: NewCall<'_>) -> ApiResult<Call> {
+        let NewCall {
+            org_id,
+            channel_id,
+            dm_id,
+            call_type,
+            started_by,
+            livekit_room_name,
+            is_huddle,
+        } = new;
         let status = if is_huddle { "active" } else { "ringing" };
         let call = sqlx::query_as::<_, Call>(
             r#"

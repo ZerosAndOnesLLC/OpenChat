@@ -7,7 +7,7 @@ use crate::{
     config::Config,
     errors::{ApiError, ApiResult},
     models::channel::Channel,
-    models::incoming_webhook::IncomingWebhook,
+    models::incoming_webhook::{IncomingWebhook, IncomingWebhookUpdate, NewIncomingWebhook},
     models::message::Message,
     models::user::User,
     services::tv_api::TokenClaims,
@@ -156,13 +156,15 @@ pub async fn create_webhook(
 
     let webhook = IncomingWebhook::create(
         pool.get_ref(),
-        claims.org_id,
-        body.channel_id,
-        &body.display_name,
-        body.description.as_deref(),
-        body.icon_url.as_deref(),
-        body.username.as_deref(),
-        current_user.id,
+        NewIncomingWebhook {
+            org_id: claims.org_id,
+            channel_id: body.channel_id,
+            display_name: &body.display_name,
+            description: body.description.as_deref(),
+            icon_url: body.icon_url.as_deref(),
+            username: body.username.as_deref(),
+            created_by: current_user.id,
+        },
     )
     .await?;
 
@@ -239,12 +241,14 @@ pub async fn update_webhook(
     let webhook = IncomingWebhook::update(
         pool.get_ref(),
         *webhook_id,
-        body.display_name.as_deref(),
-        body.description.as_deref(),
-        body.icon_url.as_deref(),
-        body.username.as_deref(),
-        body.channel_id,
-        body.enabled,
+        IncomingWebhookUpdate {
+            display_name: body.display_name.as_deref(),
+            description: body.description.as_deref(),
+            icon_url: body.icon_url.as_deref(),
+            username: body.username.as_deref(),
+            channel_id: body.channel_id,
+            enabled: body.enabled,
+        },
     )
     .await?;
 

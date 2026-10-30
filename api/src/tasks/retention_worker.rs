@@ -100,8 +100,8 @@ pub async fn execute(
     }
 
     // Audit log the enforcement
-    if total_messages_deleted > 0 || total_files_deleted > 0 {
-        if let Err(e) = AuditLogger::log(
+    if (total_messages_deleted > 0 || total_files_deleted > 0)
+        && let Err(e) = AuditLogger::log(
             pool,
             None,
             "retention.enforced",
@@ -115,9 +115,8 @@ pub async fn execute(
             None,
         )
         .await
-        {
-            error!(org_id = %org_id, "Failed to create audit log for retention: {}", e);
-        }
+    {
+        error!(org_id = %org_id, "Failed to create audit log for retention: {}", e);
     }
 
     info!(

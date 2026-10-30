@@ -174,11 +174,11 @@ impl TvApiClient {
         // Check cache first
         {
             let cache = self.jwks_cache.read().await;
-            if let Some((jwks, cached_at)) = cache.as_ref() {
-                if cached_at.elapsed() < self.jwks_ttl {
-                    tracing::debug!("JWKS cache hit");
-                    return Ok(jwks.clone());
-                }
+            if let Some((jwks, cached_at)) = cache.as_ref()
+                && cached_at.elapsed() < self.jwks_ttl
+            {
+                tracing::debug!("JWKS cache hit");
+                return Ok(jwks.clone());
             }
         }
 

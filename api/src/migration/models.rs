@@ -191,10 +191,10 @@ pub struct MmUser {
 
 impl MmUser {
     pub fn display_name(&self) -> String {
-        if let Some(nick) = &self.nickname {
-            if !nick.is_empty() {
-                return nick.clone();
-            }
+        if let Some(nick) = &self.nickname
+            && !nick.is_empty()
+        {
+            return nick.clone();
         }
         match (&self.first_name, &self.last_name) {
             (Some(f), Some(l)) if !f.is_empty() && !l.is_empty() => format!("{} {}", f, l),
@@ -288,12 +288,12 @@ impl MmPost {
     }
 
     pub fn is_system_message(&self) -> bool {
-        self.post_type.as_ref().map_or(false, |t| !t.is_empty())
+        self.post_type.as_ref().is_some_and(|t| !t.is_empty())
     }
 
     #[allow(dead_code)]
     pub fn is_reply(&self) -> bool {
-        self.root_id.as_ref().map_or(false, |r| !r.is_empty())
+        self.root_id.as_ref().is_some_and(|r| !r.is_empty())
     }
 }
 

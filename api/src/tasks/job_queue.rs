@@ -43,20 +43,19 @@ pub async fn enqueue_job(
     let job_id = row.0;
 
     // Only push to stream for immediate jobs; scheduled jobs are picked up by the poller
-    if scheduled <= Utc::now() {
-        if let Err(e) = redis::cmd("XADD")
+    if scheduled <= Utc::now()
+        && let Err(e) = redis::cmd("XADD")
             .arg(STREAM_KEY)
             .arg("*")
             .arg("job_id")
             .arg(job_id.to_string())
             .query_async::<()>(redis)
             .await
-        {
-            warn!(
-                "Failed to XADD job {} to stream (will be picked up by poller): {}",
-                job_id, e
-            );
-        }
+    {
+        warn!(
+            "Failed to XADD job {} to stream (will be picked up by poller): {}",
+            job_id, e
+        );
     }
 
     info!(job_id = %job_id, job_type = %job_type_str, "Job enqueued");

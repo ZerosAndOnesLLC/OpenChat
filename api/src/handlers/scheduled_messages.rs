@@ -6,7 +6,7 @@ use uuid::Uuid;
 
 use crate::{
     errors::{ApiError, ApiResult},
-    models::scheduled_message::ScheduledMessage,
+    models::scheduled_message::{NewScheduledMessage, ScheduledMessage},
     models::user::User,
     services::tv_api::TokenClaims,
 };
@@ -66,13 +66,15 @@ pub async fn create_scheduled_message(
 
     let sm = ScheduledMessage::create(
         pool.get_ref(),
-        user.org_id,
-        user.id,
-        body.channel_id,
-        body.dm_id,
-        &body.content,
-        body.parent_message_id,
-        body.scheduled_at,
+        NewScheduledMessage {
+            org_id: user.org_id,
+            user_id: user.id,
+            channel_id: body.channel_id,
+            dm_id: body.dm_id,
+            content: &body.content,
+            parent_message_id: body.parent_message_id,
+            scheduled_at: body.scheduled_at,
+        },
     )
     .await?;
 
@@ -134,12 +136,12 @@ pub async fn update_scheduled_message(
         ));
     }
 
-    if let Some(ref scheduled_at) = body.scheduled_at {
-        if *scheduled_at <= Utc::now() {
-            return Err(ApiError::BadRequest(
-                "scheduled_at must be in the future".to_string(),
-            ));
-        }
+    if let Some(ref scheduled_at) = body.scheduled_at
+        && *scheduled_at <= Utc::now()
+    {
+        return Err(ApiError::BadRequest(
+            "scheduled_at must be in the future".to_string(),
+        ));
     }
 
     let updated = ScheduledMessage::update(

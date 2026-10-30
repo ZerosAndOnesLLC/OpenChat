@@ -157,16 +157,12 @@ pub async fn register_device(
     .await?;
 
     // Upload one-time keys if provided
-    if let Some(ref otk) = body.one_time_keys {
-        if otk.is_object() && !otk.as_object().unwrap().is_empty() {
-            CryptoDevice::upload_one_time_keys(
-                pool.get_ref(),
-                user.id,
-                &body.device_id,
-                otk.clone(),
-            )
+    if let Some(ref otk) = body.one_time_keys
+        && otk.is_object()
+        && !otk.as_object().unwrap().is_empty()
+    {
+        CryptoDevice::upload_one_time_keys(pool.get_ref(), user.id, &body.device_id, otk.clone())
             .await?;
-        }
     }
 
     // Set fallback key if provided

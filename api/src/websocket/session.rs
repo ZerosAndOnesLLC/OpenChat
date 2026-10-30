@@ -284,10 +284,10 @@ pub async fn handle_ws_session(
     // Spawn task to write messages to WebSocket
     let write_task = tokio::spawn(async move {
         while let Some(msg) = rx.recv().await {
-            if let Ok(json) = serde_json::to_string(&msg) {
-                if session_clone.text(json).await.is_err() {
-                    break;
-                }
+            if let Ok(json) = serde_json::to_string(&msg)
+                && session_clone.text(json).await.is_err()
+            {
+                break;
             }
         }
     });

@@ -404,28 +404,27 @@ pub async fn send_message(
         for pm in &parsed_mentions {
             match pm.mention_type {
                 MentionType::User => {
-                    if let Some(uid) = pm.mentioned_user_id {
-                        if uid != current_user.id {
-                            all_notif_user_ids.push(uid);
-                        }
+                    if let Some(uid) = pm.mentioned_user_id
+                        && uid != current_user.id
+                    {
+                        all_notif_user_ids.push(uid);
                     }
                 }
                 MentionType::Channel | MentionType::Here | MentionType::Everyone => {
-                    if let Some(ch_id) = message.channel_id {
-                        if let Ok(ids) =
+                    if let Some(ch_id) = message.channel_id
+                        && let Ok(ids) =
                             mention_parser::get_channel_members(pool.get_ref(), ch_id).await
-                        {
-                            all_notif_user_ids
-                                .extend(ids.into_iter().filter(|id| *id != current_user.id));
-                        }
+                    {
+                        all_notif_user_ids
+                            .extend(ids.into_iter().filter(|id| *id != current_user.id));
                     }
                 }
                 MentionType::Group => {
-                    if let Some(group_id) = pm.mentioned_group_id {
-                        if let Ok(ids) = UserGroup::get_member_ids(pool.get_ref(), group_id).await {
-                            all_notif_user_ids
-                                .extend(ids.into_iter().filter(|id| *id != current_user.id));
-                        }
+                    if let Some(group_id) = pm.mentioned_group_id
+                        && let Ok(ids) = UserGroup::get_member_ids(pool.get_ref(), group_id).await
+                    {
+                        all_notif_user_ids
+                            .extend(ids.into_iter().filter(|id| *id != current_user.id));
                     }
                 }
             }
@@ -619,68 +618,66 @@ pub async fn send_message(
     }
 
     // If this is a thread reply, create a notification for the parent message author
-    if let Some(parent_message_id) = body.parent_message_id {
-        if let Ok(Some(parent_message)) =
+    if let Some(parent_message_id) = body.parent_message_id
+        && let Ok(Some(parent_message)) =
             Message::get_by_id(pool.get_ref(), parent_message_id).await
-        {
-            // Don't notify if replying to your own message
-            if parent_message.user_id != current_user.id {
-                // Check notification preference — thread replies count as direct mentions
-                let thread_pref = if let Some(channel_id) = message.channel_id {
-                    NotificationPref::get_for_channel(
-                        pool.get_ref(),
-                        parent_message.user_id,
-                        channel_id,
-                    )
+    {
+        // Don't notify if replying to your own message
+        if parent_message.user_id != current_user.id {
+            // Check notification preference — thread replies count as direct mentions
+            let thread_pref = if let Some(channel_id) = message.channel_id {
+                NotificationPref::get_for_channel(
+                    pool.get_ref(),
+                    parent_message.user_id,
+                    channel_id,
+                )
+                .await
+                .ok()
+                .flatten()
+            } else if let Some(dm_id) = message.dm_id {
+                NotificationPref::get_for_dm(pool.get_ref(), parent_message.user_id, dm_id)
                     .await
                     .ok()
                     .flatten()
-                } else if let Some(dm_id) = message.dm_id {
-                    NotificationPref::get_for_dm(pool.get_ref(), parent_message.user_id, dm_id)
-                        .await
-                        .ok()
-                        .flatten()
-                } else {
-                    None
+            } else {
+                None
+            };
+
+            if NotificationPref::should_notify(thread_pref.as_ref(), true) {
+                let notification = CreateNotification {
+                    user_id: parent_message.user_id,
+                    notification_type: NotificationType::ThreadReply,
+                    message_id: Some(message.id),
+                    channel_id: message.channel_id,
+                    dm_id: message.dm_id,
                 };
+                let created_notif = Notification::create(pool.get_ref(), notification).await?;
 
-                if NotificationPref::should_notify(thread_pref.as_ref(), true) {
-                    let notification = CreateNotification {
-                        user_id: parent_message.user_id,
-                        notification_type: NotificationType::ThreadReply,
-                        message_id: Some(message.id),
-                        channel_id: message.channel_id,
-                        dm_id: message.dm_id,
-                    };
-                    let created_notif = Notification::create(pool.get_ref(), notification).await?;
-
-                    // Broadcast notification count and new notification
-                    if let Ok(notif_count) =
-                        Notification::count_unread_by_user(pool.get_ref(), parent_message.user_id)
-                            .await
-                    {
-                        ws_server.do_send(crate::websocket::server::BroadcastToUser {
-                            org_id: current_user.org_id,
-                            user_id: parent_message.user_id,
-                            message: ServerMessage::NotificationCountUpdated {
-                                unread_count: notif_count as i32,
-                            },
-                        });
-                    }
-
+                // Broadcast notification count and new notification
+                if let Ok(notif_count) =
+                    Notification::count_unread_by_user(pool.get_ref(), parent_message.user_id).await
+                {
                     ws_server.do_send(crate::websocket::server::BroadcastToUser {
                         org_id: current_user.org_id,
                         user_id: parent_message.user_id,
-                        message: ServerMessage::NewNotification {
-                            notification_id: created_notif.id,
-                            notification_type: "thread_reply".to_string(),
-                            message_id: Some(message.id),
-                            channel_id: message.channel_id,
-                            dm_id: message.dm_id,
-                            created_at: created_notif.created_at.to_rfc3339(),
+                        message: ServerMessage::NotificationCountUpdated {
+                            unread_count: notif_count as i32,
                         },
                     });
                 }
+
+                ws_server.do_send(crate::websocket::server::BroadcastToUser {
+                    org_id: current_user.org_id,
+                    user_id: parent_message.user_id,
+                    message: ServerMessage::NewNotification {
+                        notification_id: created_notif.id,
+                        notification_type: "thread_reply".to_string(),
+                        message_id: Some(message.id),
+                        channel_id: message.channel_id,
+                        dm_id: message.dm_id,
+                        created_at: created_notif.created_at.to_rfc3339(),
+                    },
+                });
             }
         }
     }
@@ -697,16 +694,15 @@ pub async fn send_message(
         {
             tracing::warn!("Failed to invalidate channel messages cache: {}", e);
         }
-    } else if let Some(dm_id) = body.dm_id {
-        if let Err(e) = message_cache::invalidate_dm_messages_cache(
+    } else if let Some(dm_id) = body.dm_id
+        && let Err(e) = message_cache::invalidate_dm_messages_cache(
             redis_pool.get_ref(),
             current_user.org_id,
             dm_id,
         )
         .await
-        {
-            tracing::warn!("Failed to invalidate DM messages cache: {}", e);
-        }
+    {
+        tracing::warn!("Failed to invalidate DM messages cache: {}", e);
     }
 
     // Broadcast message to WebSocket clients
@@ -944,7 +940,7 @@ pub async fn list_channel_messages(
     for reaction in reactions {
         reaction_map
             .entry(reaction.message_id)
-            .or_insert_with(Vec::new)
+            .or_default()
             .push(reaction);
     }
 
@@ -987,7 +983,7 @@ pub async fn list_channel_messages(
     for attachment in attachments {
         attachment_map
             .entry(attachment.message_id)
-            .or_insert_with(Vec::new)
+            .or_default()
             .push(attachment);
     }
 
@@ -1075,14 +1071,14 @@ pub async fn list_channel_messages(
             if let Some(&reply_count) = reply_counts.get(&msg.id) {
                 response = response.with_reply_count(reply_count);
                 // If there's a reply count, include the first reply
-                if reply_count > 0 {
-                    if let Some(first_reply) = first_replies.get(&msg.id) {
-                        let mut first_reply_response = MessageResponse::from(first_reply.clone());
-                        if let Some(user) = first_reply_user_map.get(&first_reply.user_id) {
-                            first_reply_response = first_reply_response.with_user(user.clone());
-                        }
-                        response = response.with_first_reply(first_reply_response);
+                if reply_count > 0
+                    && let Some(first_reply) = first_replies.get(&msg.id)
+                {
+                    let mut first_reply_response = MessageResponse::from(first_reply.clone());
+                    if let Some(user) = first_reply_user_map.get(&first_reply.user_id) {
+                        first_reply_response = first_reply_response.with_user(user.clone());
                     }
+                    response = response.with_first_reply(first_reply_response);
                 }
             }
             if let Some(attachments) = attachment_map.get(&msg.id) {
@@ -1178,16 +1174,15 @@ pub async fn update_message(
         {
             tracing::warn!("Failed to invalidate channel messages cache: {}", e);
         }
-    } else if let Some(dm_id) = message.dm_id {
-        if let Err(e) = message_cache::invalidate_dm_messages_cache(
+    } else if let Some(dm_id) = message.dm_id
+        && let Err(e) = message_cache::invalidate_dm_messages_cache(
             redis_pool.get_ref(),
             current_user.org_id,
             dm_id,
         )
         .await
-        {
-            tracing::warn!("Failed to invalidate DM messages cache: {}", e);
-        }
+    {
+        tracing::warn!("Failed to invalidate DM messages cache: {}", e);
     }
 
     Ok(HttpResponse::Ok().json(MessageResponse::from(updated_message)))
@@ -1253,16 +1248,15 @@ pub async fn delete_message(
         {
             tracing::warn!("Failed to invalidate channel messages cache: {}", e);
         }
-    } else if let Some(dm_id) = message.dm_id {
-        if let Err(e) = message_cache::invalidate_dm_messages_cache(
+    } else if let Some(dm_id) = message.dm_id
+        && let Err(e) = message_cache::invalidate_dm_messages_cache(
             redis_pool.get_ref(),
             current_user.org_id,
             dm_id,
         )
         .await
-        {
-            tracing::warn!("Failed to invalidate DM messages cache: {}", e);
-        }
+    {
+        tracing::warn!("Failed to invalidate DM messages cache: {}", e);
     }
 
     Ok(HttpResponse::NoContent().finish())
@@ -1342,7 +1336,7 @@ pub async fn get_message_thread(
     for reaction in reactions {
         reaction_map
             .entry(reaction.message_id)
-            .or_insert_with(Vec::new)
+            .or_default()
             .push(reaction);
     }
 
@@ -1559,16 +1553,15 @@ pub async fn forward_message(
         {
             tracing::warn!("Failed to invalidate channel messages cache: {}", e);
         }
-    } else if let Some(dm_id) = forwarded_message.dm_id {
-        if let Err(e) = message_cache::invalidate_dm_messages_cache(
+    } else if let Some(dm_id) = forwarded_message.dm_id
+        && let Err(e) = message_cache::invalidate_dm_messages_cache(
             redis_pool.get_ref(),
             current_user.org_id,
             dm_id,
         )
         .await
-        {
-            tracing::warn!("Failed to invalidate DM messages cache: {}", e);
-        }
+    {
+        tracing::warn!("Failed to invalidate DM messages cache: {}", e);
     }
 
     // Broadcast via WebSocket

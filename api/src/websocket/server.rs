@@ -141,14 +141,14 @@ impl WsServer {
 
     /// Flush a message batch to a session
     fn flush_batch(&mut self, session_id: &Uuid) {
-        if let Some(batch) = self.message_batches.get_mut(session_id) {
-            if !batch.is_empty() {
-                let messages = batch.flush();
-                if let Some(addr) = self.sessions.get(session_id) {
-                    // Send all messages in batch
-                    for message in messages {
-                        addr.do_send(WsSessionMessage(message));
-                    }
+        if let Some(batch) = self.message_batches.get_mut(session_id)
+            && !batch.is_empty()
+        {
+            let messages = batch.flush();
+            if let Some(addr) = self.sessions.get(session_id) {
+                // Send all messages in batch
+                for message in messages {
+                    addr.do_send(WsSessionMessage(message));
                 }
             }
         }
@@ -158,10 +158,10 @@ impl WsServer {
     fn flush_all_batches(&mut self) {
         let session_ids: Vec<Uuid> = self.message_batches.keys().copied().collect();
         for session_id in session_ids {
-            if let Some(batch) = self.message_batches.get(&session_id) {
-                if batch.should_flush(&self.config) {
-                    self.flush_batch(&session_id);
-                }
+            if let Some(batch) = self.message_batches.get(&session_id)
+                && batch.should_flush(&self.config)
+            {
+                self.flush_batch(&session_id);
             }
         }
     }
@@ -171,10 +171,10 @@ impl WsServer {
         if let Some(session_ids) = self.org_sessions.get(org_id) {
             let session_ids: Vec<Uuid> = session_ids.iter().copied().collect();
             for session_id in session_ids {
-                if let Some(exclude_id) = exclude {
-                    if session_id == exclude_id {
-                        continue;
-                    }
+                if let Some(exclude_id) = exclude
+                    && session_id == exclude_id
+                {
+                    continue;
                 }
                 self.send_message(&session_id, message.clone());
             }
@@ -236,24 +236,24 @@ impl Handler<Connect> for WsServer {
         }
 
         // Check per-user connection limit
-        if let Some(user_sessions) = self.user_sessions.get(&msg.user_id) {
-            if user_sessions.len() >= self.config.max_connections_per_user {
-                tracing::warn!(
-                    "WebSocket: User {} has reached max connections per user ({}/{})",
-                    msg.user_id,
-                    user_sessions.len(),
+        if let Some(user_sessions) = self.user_sessions.get(&msg.user_id)
+            && user_sessions.len() >= self.config.max_connections_per_user
+        {
+            tracing::warn!(
+                "WebSocket: User {} has reached max connections per user ({}/{})",
+                msg.user_id,
+                user_sessions.len(),
+                self.config.max_connections_per_user
+            );
+            // Optionally disconnect oldest session or reject new connection
+            // For now, we'll reject the new connection
+            msg.addr.do_send(WsSessionMessage(ServerMessage::Error {
+                message: format!(
+                    "Maximum connections per user reached ({}). Please disconnect another device.",
                     self.config.max_connections_per_user
-                );
-                // Optionally disconnect oldest session or reject new connection
-                // For now, we'll reject the new connection
-                msg.addr.do_send(WsSessionMessage(ServerMessage::Error {
-                    message: format!(
-                        "Maximum connections per user reached ({}). Please disconnect another device.",
-                        self.config.max_connections_per_user
-                    ),
-                }));
-                return;
-            }
+                ),
+            }));
+            return;
         }
 
         tracing::info!(
@@ -270,13 +270,13 @@ impl Handler<Connect> for WsServer {
         // Add to user sessions
         self.user_sessions
             .entry(msg.user_id)
-            .or_insert_with(HashSet::new)
+            .or_default()
             .insert(msg.session_id);
 
         // Add to org sessions
         self.org_sessions
             .entry(msg.org_id)
-            .or_insert_with(HashSet::new)
+            .or_default()
             .insert(msg.session_id);
 
         // Broadcast user online status to org
@@ -342,17 +342,17 @@ impl Handler<Disconnect> for WsServer {
         }
 
         // Remove from all channel subscriptions
-        for (_, subscribers) in self.channel_subscriptions.iter_mut() {
+        for subscribers in self.channel_subscriptions.values_mut() {
             subscribers.remove(&msg.session_id);
         }
 
         // Remove from all DM subscriptions
-        for (_, subscribers) in self.dm_subscriptions.iter_mut() {
+        for subscribers in self.dm_subscriptions.values_mut() {
             subscribers.remove(&msg.session_id);
         }
 
         // Remove from all thread subscriptions
-        for (_, subscribers) in self.thread_subscriptions.iter_mut() {
+        for subscribers in self.thread_subscriptions.values_mut() {
             subscribers.remove(&msg.session_id);
         }
     }
@@ -571,7 +571,7 @@ impl Handler<SubscribeChannel> for WsServer {
         // Register subscription
         self.channel_subscriptions
             .entry(msg.channel_id)
-            .or_insert_with(HashSet::new)
+            .or_default()
             .insert(msg.session_id);
 
         // Fetch and send channel data
@@ -700,10 +700,10 @@ impl Handler<SubscribeChannel> for WsServer {
         }
         .into_actor(self)
         .map(move |result, _actor, _ctx| {
-            if let Some(message) = result {
-                if let Some(session) = session {
-                    session.do_send(WsSessionMessage(message));
-                }
+            if let Some(message) = result
+                && let Some(session) = session
+            {
+                session.do_send(WsSessionMessage(message));
             }
         });
 
@@ -756,7 +756,7 @@ impl Handler<SubscribeDm> for WsServer {
         // Register subscription
         self.dm_subscriptions
             .entry(msg.dm_id)
-            .or_insert_with(HashSet::new)
+            .or_default()
             .insert(msg.session_id);
 
         // Fetch and send DM data
@@ -798,10 +798,10 @@ impl Handler<SubscribeDm> for WsServer {
         }
         .into_actor(self)
         .map(move |result, _actor, _ctx| {
-            if let Some(message) = result {
-                if let Some(session) = session {
-                    session.do_send(WsSessionMessage(message));
-                }
+            if let Some(message) = result
+                && let Some(session) = session
+            {
+                session.do_send(WsSessionMessage(message));
             }
         });
 
@@ -1677,7 +1677,7 @@ impl Handler<SubscribeThread> for WsServer {
         // Register thread subscription
         self.thread_subscriptions
             .entry(msg.message_id)
-            .or_insert_with(HashSet::new)
+            .or_default()
             .insert(msg.session_id);
     }
 }

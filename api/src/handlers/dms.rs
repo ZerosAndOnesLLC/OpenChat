@@ -471,7 +471,7 @@ pub async fn list_dm_messages(
     for reaction in reactions {
         reaction_map
             .entry(reaction.message_id)
-            .or_insert_with(Vec::new)
+            .or_default()
             .push(reaction);
     }
 
@@ -493,7 +493,7 @@ pub async fn list_dm_messages(
     for attachment in attachments {
         attachment_map
             .entry(attachment.message_id)
-            .or_insert_with(Vec::new)
+            .or_default()
             .push(attachment);
     }
 

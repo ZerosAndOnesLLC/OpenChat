@@ -7,7 +7,7 @@ use uuid::Uuid;
 use crate::{
     errors::{ApiError, ApiResult},
     models::message::Message,
-    models::reminder::Reminder,
+    models::reminder::{NewReminder, Reminder},
     models::user::User,
     services::tv_api::TokenClaims,
 };
@@ -53,13 +53,15 @@ pub async fn create_reminder(
 
     let reminder = Reminder::create(
         pool.get_ref(),
-        user.id,
-        user.org_id,
-        body.message_id,
-        message.channel_id,
-        message.dm_id,
-        body.remind_at,
-        &preview,
+        NewReminder {
+            user_id: user.id,
+            org_id: user.org_id,
+            message_id: body.message_id,
+            channel_id: message.channel_id,
+            dm_id: message.dm_id,
+            remind_at: body.remind_at,
+            message_preview: &preview,
+        },
     )
     .await?;
 

@@ -7,7 +7,7 @@ use crate::{
     errors::{ApiError, ApiResult},
     models::message::Message,
     models::notification_pref::{NotificationPref, UpsertNotificationPref},
-    models::slash_command::SlashCommand,
+    models::slash_command::{NewSlashCommand, SlashCommand},
     models::user::User,
     services::tv_api::TokenClaims,
     websocket::{
@@ -391,14 +391,16 @@ pub async fn create_command(
 
     let command = SlashCommand::create(
         pool.get_ref(),
-        current_user.org_id,
-        &command_name,
-        &body.description,
-        body.usage_hint.as_deref(),
-        "webhook",
-        Some(&body.webhook_url),
-        response_type,
-        current_user.id,
+        NewSlashCommand {
+            org_id: current_user.org_id,
+            command_name: &command_name,
+            description: &body.description,
+            usage_hint: body.usage_hint.as_deref(),
+            handler_type: "webhook",
+            webhook_url: Some(&body.webhook_url),
+            response_type,
+            created_by: current_user.id,
+        },
     )
     .await?;
 
@@ -438,12 +440,12 @@ pub async fn update_command(
         ));
     }
 
-    if let Some(ref rt) = body.response_type {
-        if !["ephemeral", "in_channel"].contains(&rt.as_str()) {
-            return Err(ApiError::BadRequest(
-                "response_type must be 'ephemeral' or 'in_channel'".to_string(),
-            ));
-        }
+    if let Some(ref rt) = body.response_type
+        && !["ephemeral", "in_channel"].contains(&rt.as_str())
+    {
+        return Err(ApiError::BadRequest(
+            "response_type must be 'ephemeral' or 'in_channel'".to_string(),
+        ));
     }
 
     let updated = SlashCommand::update(

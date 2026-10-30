@@ -369,12 +369,12 @@ pub async fn update_workflow(
         ));
     }
 
-    if let Some(ref name) = body.name {
-        if name.trim().is_empty() || name.len() > 255 {
-            return Err(ApiError::BadRequest(
-                "Workflow name must be 1-255 characters".to_string(),
-            ));
-        }
+    if let Some(ref name) = body.name
+        && (name.trim().is_empty() || name.len() > 255)
+    {
+        return Err(ApiError::BadRequest(
+            "Workflow name must be 1-255 characters".to_string(),
+        ));
     }
 
     if let Some(ref trigger_type) = body.trigger_type {

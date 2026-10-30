@@ -7,7 +7,7 @@ use uuid::Uuid;
 use crate::{
     errors::{ApiError, ApiResult},
     models::{
-        call::{Call, CallParticipant},
+        call::{Call, CallParticipant, NewCall},
         channel::ChannelMember,
         direct_message::{DirectMessage as DM, DmParticipant},
         user::User,
@@ -120,13 +120,15 @@ pub async fn start_call(
     // Create call record
     let call = Call::create(
         pool.get_ref(),
-        current_user.org_id,
-        body.channel_id,
-        body.dm_id,
-        call_type,
-        current_user.id,
-        "pending", // placeholder, will update
-        false,
+        NewCall {
+            org_id: current_user.org_id,
+            channel_id: body.channel_id,
+            dm_id: body.dm_id,
+            call_type,
+            started_by: current_user.id,
+            livekit_room_name: "pending", // placeholder, will update
+            is_huddle: false,
+        },
     )
     .await?;
 
@@ -255,15 +257,15 @@ pub async fn join_call(
     }
 
     // Verify membership
-    if let Some(ch_id) = call.channel_id {
-        if !ChannelMember::is_member(pool.get_ref(), ch_id, current_user.id).await? {
-            return Err(ApiError::Authorization("Not a channel member".to_string()));
-        }
+    if let Some(ch_id) = call.channel_id
+        && !ChannelMember::is_member(pool.get_ref(), ch_id, current_user.id).await?
+    {
+        return Err(ApiError::Authorization("Not a channel member".to_string()));
     }
-    if let Some(d_id) = call.dm_id {
-        if !DM::is_participant(pool.get_ref(), d_id, current_user.id).await? {
-            return Err(ApiError::Authorization("Not a DM participant".to_string()));
-        }
+    if let Some(d_id) = call.dm_id
+        && !DM::is_participant(pool.get_ref(), d_id, current_user.id).await?
+    {
+        return Err(ApiError::Authorization("Not a DM participant".to_string()));
     }
 
     // Transition ringing → active on first join (by someone other than starter)
@@ -456,13 +458,15 @@ pub async fn join_huddle(
         None => {
             let call = Call::create(
                 pool.get_ref(),
-                current_user.org_id,
-                Some(channel_id),
-                None,
-                "audio",
-                current_user.id,
-                "pending",
-                true,
+                NewCall {
+                    org_id: current_user.org_id,
+                    channel_id: Some(channel_id),
+                    dm_id: None,
+                    call_type: "audio",
+                    started_by: current_user.id,
+                    livekit_room_name: "pending",
+                    is_huddle: true,
+                },
             )
             .await?;
 
@@ -606,15 +610,15 @@ async fn broadcast_call_event(
             channel_id: Some(ch_id),
             message,
         });
-    } else if let Some(d_id) = call.dm_id {
-        if let Ok(participants) = DmParticipant::list_by_dm(pool.get_ref(), d_id).await {
-            for participant in participants {
-                ws_server.do_send(BroadcastToUser {
-                    org_id: call.org_id,
-                    user_id: participant.user_id,
-                    message: message.clone(),
-                });
-            }
+    } else if let Some(d_id) = call.dm_id
+        && let Ok(participants) = DmParticipant::list_by_dm(pool.get_ref(), d_id).await
+    {
+        for participant in participants {
+            ws_server.do_send(BroadcastToUser {
+                org_id: call.org_id,
+                user_id: participant.user_id,
+                message: message.clone(),
+            });
         }
     }
 }

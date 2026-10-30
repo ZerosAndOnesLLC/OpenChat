@@ -78,17 +78,17 @@ impl SearchFilters {
         // Parse before:YYYY-MM-DD
         let before_re = Regex::new(r"before:(\d{4}-\d{2}-\d{2})").unwrap();
         if let Some(cap) = before_re.captures(query) {
-            if let Some(date_str) = cap.get(1) {
-                if let Ok(date) = NaiveDate::parse_from_str(date_str.as_str(), "%Y-%m-%d") {
-                    // Set to end of day (23:59:59)
-                    filters.before_date = Some(
-                        date.and_hms_opt(23, 59, 59)
-                            .unwrap()
-                            .and_local_timezone(Utc)
-                            .single()
-                            .unwrap(),
-                    );
-                }
+            if let Some(date_str) = cap.get(1)
+                && let Ok(date) = NaiveDate::parse_from_str(date_str.as_str(), "%Y-%m-%d")
+            {
+                // Set to end of day (23:59:59)
+                filters.before_date = Some(
+                    date.and_hms_opt(23, 59, 59)
+                        .unwrap()
+                        .and_local_timezone(Utc)
+                        .single()
+                        .unwrap(),
+                );
             }
             filters.text_query = before_re.replace(&filters.text_query, "").to_string();
         }
@@ -96,17 +96,17 @@ impl SearchFilters {
         // Parse after:YYYY-MM-DD
         let after_re = Regex::new(r"after:(\d{4}-\d{2}-\d{2})").unwrap();
         if let Some(cap) = after_re.captures(query) {
-            if let Some(date_str) = cap.get(1) {
-                if let Ok(date) = NaiveDate::parse_from_str(date_str.as_str(), "%Y-%m-%d") {
-                    // Set to start of day (00:00:00)
-                    filters.after_date = Some(
-                        date.and_hms_opt(0, 0, 0)
-                            .unwrap()
-                            .and_local_timezone(Utc)
-                            .single()
-                            .unwrap(),
-                    );
-                }
+            if let Some(date_str) = cap.get(1)
+                && let Ok(date) = NaiveDate::parse_from_str(date_str.as_str(), "%Y-%m-%d")
+            {
+                // Set to start of day (00:00:00)
+                filters.after_date = Some(
+                    date.and_hms_opt(0, 0, 0)
+                        .unwrap()
+                        .and_local_timezone(Utc)
+                        .single()
+                        .unwrap(),
+                );
             }
             filters.text_query = after_re.replace(&filters.text_query, "").to_string();
         }

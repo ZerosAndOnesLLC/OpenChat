@@ -98,7 +98,7 @@ pub async fn upload_attachment(
             }
 
             let file_size = file_data.len() as i64;
-            validate_file_size(file_size, MAX_FILE_SIZE).map_err(|e| ApiError::BadRequest(e))?;
+            validate_file_size(file_size, MAX_FILE_SIZE).map_err(ApiError::BadRequest)?;
 
             // Upload to storage
             let uploaded = storage

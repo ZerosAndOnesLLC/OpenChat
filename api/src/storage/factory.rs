@@ -48,7 +48,7 @@ impl StorageFactory {
         // Default to local storage if no settings found
         let storage_type = settings
             .as_ref()
-            .and_then(|s| StorageType::from_str(&s.storage_type))
+            .and_then(|s| s.storage_type.parse::<StorageType>().ok())
             .unwrap_or(StorageType::Local);
 
         match storage_type {

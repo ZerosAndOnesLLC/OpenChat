@@ -6,7 +6,7 @@ use uuid::Uuid;
 use crate::{
     errors::{ApiError, ApiResult},
     models::message::Message,
-    models::poll::{Poll, PollOptionInfo, PollResults},
+    models::poll::{NewPoll, Poll, PollOptionInfo, PollResults},
     models::user::User,
     services::tv_api::TokenClaims,
     websocket::{
@@ -151,14 +151,16 @@ pub async fn create_poll(
 
     let poll = Poll::create(
         pool.get_ref(),
-        message.id,
-        current_user.org_id,
-        &body.question,
-        &options_value,
-        poll_type,
-        anonymous,
-        body.expires_at,
-        current_user.id,
+        NewPoll {
+            message_id: message.id,
+            org_id: current_user.org_id,
+            question: &body.question,
+            options: &options_value,
+            poll_type,
+            anonymous,
+            expires_at: body.expires_at,
+            created_by: current_user.id,
+        },
     )
     .await?;
 

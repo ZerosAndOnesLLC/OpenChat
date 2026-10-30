@@ -67,7 +67,7 @@ where
     fn new_transform(&self, service: S) -> Self::Future {
         ready(Ok(RateLimitMiddlewareService {
             service: Rc::new(service),
-            limit_type: self.limit_type.clone(),
+            limit_type: self.limit_type,
             enabled: self.enabled,
         }))
     }
@@ -93,7 +93,7 @@ where
 
     fn call(&self, req: ServiceRequest) -> Self::Future {
         let service = self.service.clone();
-        let limit_type = self.limit_type.clone();
+        let limit_type = self.limit_type;
         let enabled = self.enabled;
 
         Box::pin(async move {

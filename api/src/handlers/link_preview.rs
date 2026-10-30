@@ -109,10 +109,10 @@ fn extract_meta_tag(html: &str, property: &str) -> Option<String> {
         r#"<meta\s+property=["']{}["']\s+content=["']([^"']+)["']"#,
         regex::escape(property)
     );
-    if let Ok(re) = Regex::new(&og_pattern) {
-        if let Some(cap) = re.captures(html) {
-            return Some(cap[1].to_string());
-        }
+    if let Ok(re) = Regex::new(&og_pattern)
+        && let Some(cap) = re.captures(html)
+    {
+        return Some(cap[1].to_string());
     }
 
     // Try standard name format: <meta name="description" content="..." />
@@ -120,10 +120,10 @@ fn extract_meta_tag(html: &str, property: &str) -> Option<String> {
         r#"<meta\s+name=["']{}["']\s+content=["']([^"']+)["']"#,
         regex::escape(property)
     );
-    if let Ok(re) = Regex::new(&name_pattern) {
-        if let Some(cap) = re.captures(html) {
-            return Some(cap[1].to_string());
-        }
+    if let Ok(re) = Regex::new(&name_pattern)
+        && let Some(cap) = re.captures(html)
+    {
+        return Some(cap[1].to_string());
     }
 
     // Try alternate format: content before property/name
@@ -131,10 +131,10 @@ fn extract_meta_tag(html: &str, property: &str) -> Option<String> {
         r#"<meta\s+content=["']([^"']+)["']\s+property=["']{}["']"#,
         regex::escape(property)
     );
-    if let Ok(re) = Regex::new(&alt_og_pattern) {
-        if let Some(cap) = re.captures(html) {
-            return Some(cap[1].to_string());
-        }
+    if let Ok(re) = Regex::new(&alt_og_pattern)
+        && let Some(cap) = re.captures(html)
+    {
+        return Some(cap[1].to_string());
     }
 
     None
@@ -142,10 +142,10 @@ fn extract_meta_tag(html: &str, property: &str) -> Option<String> {
 
 fn extract_title_tag(html: &str) -> Option<String> {
     let pattern = r#"<title>([^<]+)</title>"#;
-    if let Ok(re) = Regex::new(pattern) {
-        if let Some(cap) = re.captures(html) {
-            return Some(cap[1].trim().to_string());
-        }
+    if let Ok(re) = Regex::new(pattern)
+        && let Some(cap) = re.captures(html)
+    {
+        return Some(cap[1].trim().to_string());
     }
     None
 }

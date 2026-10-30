@@ -332,12 +332,12 @@ impl AuditLogger {
     /// Extract IP address from request, preferring X-Forwarded-For header
     fn extract_ip_address(req: &HttpRequest) -> Option<String> {
         // Check X-Forwarded-For header first (for ALB/CloudFront)
-        if let Some(forwarded) = req.headers().get("X-Forwarded-For") {
-            if let Ok(forwarded_str) = forwarded.to_str() {
-                // Take the first IP in the list (client IP)
-                if let Some(client_ip) = forwarded_str.split(',').next() {
-                    return Some(client_ip.trim().to_string());
-                }
+        if let Some(forwarded) = req.headers().get("X-Forwarded-For")
+            && let Ok(forwarded_str) = forwarded.to_str()
+        {
+            // Take the first IP in the list (client IP)
+            if let Some(client_ip) = forwarded_str.split(',').next() {
+                return Some(client_ip.trim().to_string());
             }
         }
 

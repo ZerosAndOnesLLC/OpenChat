@@ -19,17 +19,28 @@ pub struct Reminder {
     pub created_at: DateTime<Utc>,
 }
 
+/// Fields for [`Reminder::create`].
+pub struct NewReminder<'a> {
+    pub user_id: Uuid,
+    pub org_id: Uuid,
+    pub message_id: Uuid,
+    pub channel_id: Option<Uuid>,
+    pub dm_id: Option<Uuid>,
+    pub remind_at: DateTime<Utc>,
+    pub message_preview: &'a str,
+}
+
 impl Reminder {
-    pub async fn create(
-        pool: &PgPool,
-        user_id: Uuid,
-        org_id: Uuid,
-        message_id: Uuid,
-        channel_id: Option<Uuid>,
-        dm_id: Option<Uuid>,
-        remind_at: DateTime<Utc>,
-        message_preview: &str,
-    ) -> ApiResult<Reminder> {
+    pub async fn create(pool: &PgPool, new: NewReminder<'_>) -> ApiResult<Reminder> {
+        let NewReminder {
+            user_id,
+            org_id,
+            message_id,
+            channel_id,
+            dm_id,
+            remind_at,
+            message_preview,
+        } = new;
         let row = sqlx::query_as::<_, Reminder>(
             r#"INSERT INTO reminders (user_id, org_id, message_id, channel_id, dm_id, remind_at, message_preview)
                VALUES ($1, $2, $3, $4, $5, $6, $7)

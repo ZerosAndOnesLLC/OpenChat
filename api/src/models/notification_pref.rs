@@ -194,10 +194,10 @@ impl NotificationPref {
         };
 
         // Check mute_until first — if muted and not expired, suppress
-        if let Some(mute_until) = pref.mute_until {
-            if Utc::now() < mute_until {
-                return false;
-            }
+        if let Some(mute_until) = pref.mute_until
+            && Utc::now() < mute_until
+        {
+            return false;
         }
 
         match pref.preference.as_str() {

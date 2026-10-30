@@ -241,16 +241,16 @@ where
             }
 
             // Check if user has the required role (device tokens always pass since they were validated at pairing)
-            if let Some(required) = &required_role {
-                if !verified_claims.roles.contains(required) {
-                    error!(
-                        "User {} does not have required role: {}. User roles: {:?}",
-                        verified_claims.email, required, verified_claims.roles
-                    );
-                    return Err(actix_web::error::ErrorForbidden(ApiError::Authorization(
-                        format!("Missing required role: {}", required),
-                    )));
-                }
+            if let Some(required) = &required_role
+                && !verified_claims.roles.contains(required)
+            {
+                error!(
+                    "User {} does not have required role: {}. User roles: {:?}",
+                    verified_claims.email, required, verified_claims.roles
+                );
+                return Err(actix_web::error::ErrorForbidden(ApiError::Authorization(
+                    format!("Missing required role: {}", required),
+                )));
             }
 
             // Set RLS context for this request

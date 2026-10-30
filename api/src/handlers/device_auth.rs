@@ -21,12 +21,12 @@ use crate::{
 /// Extract IP address from request, checking X-Forwarded-For header first (for ALB)
 fn get_client_ip(req: &HttpRequest) -> String {
     // Check X-Forwarded-For header first (for ALB)
-    if let Some(forwarded_for) = req.headers().get("x-forwarded-for") {
-        if let Ok(forwarded_str) = forwarded_for.to_str() {
-            // Take the first IP in the chain
-            if let Some(first_ip) = forwarded_str.split(',').next() {
-                return first_ip.trim().to_string();
-            }
+    if let Some(forwarded_for) = req.headers().get("x-forwarded-for")
+        && let Ok(forwarded_str) = forwarded_for.to_str()
+    {
+        // Take the first IP in the chain
+        if let Some(first_ip) = forwarded_str.split(',').next() {
+            return first_ip.trim().to_string();
         }
     }
 

@@ -728,20 +728,18 @@ pub async fn leave_channel(
     let member_count = members.len();
 
     // Handle creator leaving based on channel type
-    if channel.created_by == current_user.id {
-        if channel.channel_type == "private" {
-            // For private channels, archive if creator leaves (they're usually the last member)
-            // If there are other members, the channel will be archived
-            if member_count > 1 {
-                // Archive the channel when creator leaves a private channel
-                Channel::archive(pool.get_ref(), *channel_id).await?;
-            } else {
-                // Creator is the only member, archive the channel
-                Channel::archive(pool.get_ref(), *channel_id).await?;
-            }
+    if channel.created_by == current_user.id && channel.channel_type == "private" {
+        // For private channels, archive if creator leaves (they're usually the last member)
+        // If there are other members, the channel will be archived
+        if member_count > 1 {
+            // Archive the channel when creator leaves a private channel
+            Channel::archive(pool.get_ref(), *channel_id).await?;
+        } else {
+            // Creator is the only member, archive the channel
+            Channel::archive(pool.get_ref(), *channel_id).await?;
         }
-        // For public channels, creator can leave freely
     }
+    // For public channels, creator can leave freely
 
     // Remove user from channel
     ChannelMember::remove(pool.get_ref(), *channel_id, current_user.id).await?;

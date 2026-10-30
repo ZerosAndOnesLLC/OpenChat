@@ -340,7 +340,7 @@ impl MigrationService {
             let posts = client.get_all_channel_posts(mm_channel_id).await?;
 
             for post in &posts {
-                progress.current_item = Some(format!("Message in channel"));
+                progress.current_item = Some("Message in channel".to_string());
 
                 match self
                     .migrate_message(
@@ -376,7 +376,7 @@ impl MigrationService {
             let posts = client.get_all_channel_posts(mm_dm_id).await?;
 
             for post in &posts {
-                progress.current_item = Some(format!("Message in DM"));
+                progress.current_item = Some("Message in DM".to_string());
 
                 match self
                     .migrate_message(
@@ -595,7 +595,7 @@ impl MigrationService {
         let members = client.get_channel_members(&channel.id).await?;
         for member in &members {
             if let Some(oc_user_id) = id_mapping.mattermost_user_ids.get(&member.user_id) {
-                let role = if member.roles.as_ref().map_or(false, |r| r.contains("admin")) {
+                let role = if member.roles.as_ref().is_some_and(|r| r.contains("admin")) {
                     "admin"
                 } else {
                     "member"
@@ -729,22 +729,22 @@ impl MigrationService {
         .await?;
 
         // Handle pinned messages
-        if post.is_pinned {
-            if let Some(ch_id) = channel_id {
-                sqlx::query(
-                    r#"
+        if post.is_pinned
+            && let Some(ch_id) = channel_id
+        {
+            sqlx::query(
+                r#"
                     INSERT INTO pinned_messages (id, channel_id, message_id, pinned_by, pinned_at)
                     VALUES ($1, $2, $3, $4, NOW())
                     ON CONFLICT (channel_id, message_id) DO NOTHING
                     "#,
-                )
-                .bind(Uuid::new_v4())
-                .bind(ch_id)
-                .bind(message_id)
-                .bind(user_id)
-                .execute(&self.openchat_pool)
-                .await?;
-            }
+            )
+            .bind(Uuid::new_v4())
+            .bind(ch_id)
+            .bind(message_id)
+            .bind(user_id)
+            .execute(&self.openchat_pool)
+            .await?;
         }
 
         // Handle reactions
@@ -770,12 +770,10 @@ impl MigrationService {
         }
 
         // Handle attachments
-        if include_attachments {
-            if let Some(file_ids) = &post.file_ids {
-                for file_id in file_ids {
-                    if let Err(e) = self.migrate_attachment(client, file_id, message_id).await {
-                        tracing::warn!("Failed to migrate attachment {}: {}", file_id, e);
-                    }
+        if include_attachments && let Some(file_ids) = &post.file_ids {
+            for file_id in file_ids {
+                if let Err(e) = self.migrate_attachment(client, file_id, message_id).await {
+                    tracing::warn!("Failed to migrate attachment {}: {}", file_id, e);
                 }
             }
         }

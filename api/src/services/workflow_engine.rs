@@ -73,35 +73,35 @@ fn matches_trigger_config(config: &JsonValue, data: &JsonValue) -> bool {
     }
 
     // Keyword filter (for message_posted)
-    if let Some(keyword) = config_obj.get("keyword").and_then(|v| v.as_str()) {
-        if !keyword.is_empty() {
-            let content = data.get("content").and_then(|v| v.as_str()).unwrap_or("");
-            if !content.to_lowercase().contains(&keyword.to_lowercase()) {
-                return false;
-            }
+    if let Some(keyword) = config_obj.get("keyword").and_then(|v| v.as_str())
+        && !keyword.is_empty()
+    {
+        let content = data.get("content").and_then(|v| v.as_str()).unwrap_or("");
+        if !content.to_lowercase().contains(&keyword.to_lowercase()) {
+            return false;
         }
     }
 
     // Emoji filter (for reaction_added)
-    if let Some(emoji) = config_obj.get("emoji").and_then(|v| v.as_str()) {
-        if !emoji.is_empty() {
-            let data_emoji = data.get("emoji").and_then(|v| v.as_str()).unwrap_or("");
-            if emoji != data_emoji {
-                return false;
-            }
+    if let Some(emoji) = config_obj.get("emoji").and_then(|v| v.as_str())
+        && !emoji.is_empty()
+    {
+        let data_emoji = data.get("emoji").and_then(|v| v.as_str()).unwrap_or("");
+        if emoji != data_emoji {
+            return false;
         }
     }
 
     // Command name filter (for slash_command)
-    if let Some(command_name) = config_obj.get("command_name").and_then(|v| v.as_str()) {
-        if !command_name.is_empty() {
-            let data_command = data
-                .get("command_name")
-                .and_then(|v| v.as_str())
-                .unwrap_or("");
-            if command_name != data_command {
-                return false;
-            }
+    if let Some(command_name) = config_obj.get("command_name").and_then(|v| v.as_str())
+        && !command_name.is_empty()
+    {
+        let data_command = data
+            .get("command_name")
+            .and_then(|v| v.as_str())
+            .unwrap_or("");
+        if command_name != data_command {
+            return false;
         }
     }
 
@@ -166,10 +166,12 @@ async fn execute_workflow(
     match run_steps_from(
         pool,
         ws_server,
-        workflow,
-        &execution,
-        &steps,
-        &exec_steps,
+        StepRun {
+            workflow,
+            execution: &execution,
+            steps: &steps,
+            exec_steps: &exec_steps,
+        },
         &mut context,
         0,
     )
@@ -211,17 +213,29 @@ async fn execute_workflow(
     }
 }
 
+/// One workflow execution's definition and per-step state, as loaded for
+/// [`run_steps_from`]. `steps` and `exec_steps` are index-aligned.
+struct StepRun<'a> {
+    workflow: &'a Workflow,
+    execution: &'a WorkflowExecution,
+    steps: &'a [WorkflowStep],
+    exec_steps: &'a [WorkflowExecutionStep],
+}
+
 /// Run workflow steps starting from `start_index`. Returns Ok(true) if paused (create_form), Ok(false) if completed.
 async fn run_steps_from(
     pool: &PgPool,
     ws_server: &actix::Addr<WsServer>,
-    workflow: &Workflow,
-    execution: &WorkflowExecution,
-    steps: &[WorkflowStep],
-    exec_steps: &[WorkflowExecutionStep],
+    run: StepRun<'_>,
     context: &mut JsonValue,
     start_index: usize,
 ) -> Result<bool, String> {
+    let StepRun {
+        workflow,
+        execution,
+        steps,
+        exec_steps,
+    } = run;
     for i in start_index..steps.len() {
         let step = &steps[i];
         let exec_step = &exec_steps[i];
@@ -343,11 +357,8 @@ fn interpolate_string(template: &str, context: &JsonValue) -> String {
     let mut result = template.to_string();
     let mut start = 0;
 
-    loop {
-        let open = match result[start..].find("{{") {
-            Some(pos) => start + pos,
-            None => break,
-        };
+    while let Some(pos) = result[start..].find("{{") {
+        let open = start + pos;
         let close = match result[open..].find("}}") {
             Some(pos) => open + pos,
             None => break,
@@ -793,10 +804,10 @@ pub async fn resume_after_form(
     });
 
     for (i, es) in exec_steps.iter().enumerate() {
-        if es.status == "completed" {
-            if let Some(ref output) = es.output_data {
-                context["steps"][i.to_string()] = output.clone();
-            }
+        if es.status == "completed"
+            && let Some(ref output) = es.output_data
+        {
+            context["steps"][i.to_string()] = output.clone();
         }
     }
 
@@ -806,10 +817,12 @@ pub async fn resume_after_form(
     match run_steps_from(
         pool,
         ws_server,
-        &workflow,
-        &execution,
-        &steps,
-        &exec_steps,
+        StepRun {
+            workflow: &workflow,
+            execution: &execution,
+            steps: &steps,
+            exec_steps: &exec_steps,
+        },
         &mut context,
         resume_from,
     )

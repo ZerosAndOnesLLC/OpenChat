@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiClient } from '@/lib/api';
 import { useFocusTrap } from '@/hooks/useFocusTrap';
@@ -39,14 +39,16 @@ export default function AddMembersModal({
     enabled: isOpen,
   });
 
-  // Reset state when modal opens/closes
-  useEffect(() => {
+  // Reset state when the modal opens (adjusted during render, not in an effect)
+  const [wasOpen, setWasOpen] = useState(isOpen);
+  if (isOpen !== wasOpen) {
+    setWasOpen(isOpen);
     if (isOpen) {
       setSearchQuery('');
       setError(null);
       setAddingUserId(null);
     }
-  }, [isOpen]);
+  }
 
   // Get set of existing member user IDs for fast lookup
   const memberUserIds = useMemo(() => {

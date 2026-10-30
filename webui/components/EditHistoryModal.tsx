@@ -20,25 +20,36 @@ export default function EditHistoryModal({ messageId, currentContent, isOpen, on
   const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
   const trapRef = useFocusTrap(isOpen);
 
-  useEffect(() => {
-    if (isOpen && messageId) {
-      loadHistory();
+  // Message whose history should be on screen; null while closed.
+  const historyFor = isOpen && messageId ? messageId : null;
+  const [requestedFor, setRequestedFor] = useState<string | null>(null);
+  if (requestedFor !== historyFor) {
+    setRequestedFor(historyFor);
+    if (historyFor) {
+      setLoading(true);
+      setError(null);
     }
-  }, [isOpen, messageId]);
+  }
 
-  const loadHistory = async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const data = await apiClient.getMessageHistory(messageId);
-      setHistory(data);
-    } catch (err) {
-      console.error('Failed to load edit history:', err);
-      setError('Failed to load edit history');
-    } finally {
-      setLoading(false);
-    }
-  };
+  useEffect(() => {
+    if (!historyFor) return;
+    let cancelled = false;
+    apiClient.getMessageHistory(historyFor)
+      .then((data) => {
+        if (!cancelled) setHistory(data);
+      })
+      .catch((err) => {
+        if (cancelled) return;
+        console.error('Failed to load edit history:', err);
+        setError('Failed to load edit history');
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [historyFor]);
 
   const formatTime = (timestamp: string) => {
     const date = new Date(timestamp);

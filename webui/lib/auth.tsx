@@ -4,6 +4,10 @@ import { create } from 'zustand';
 import { apiClient } from './api';
 import { useWebSocketStore } from './websocket';
 import type { User } from './types';
+import { reloadAppRoot } from './navigation';
+
+/** `window` inside the Tauri desktop shell. */
+type TauriWindow = Window & { __TAURI__?: unknown };
 
 // PKCE helper functions
 function generateCodeVerifier(): string {
@@ -49,7 +53,7 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
     set({ token: null, user: null, isAuthenticated: false, isLoading: false });
 
     // If in Tauri desktop app, clear credentials and close window (native login will show)
-    if (typeof window !== 'undefined' && (window as any).__TAURI__) {
+    if (typeof window !== 'undefined' && (window as TauriWindow).__TAURI__) {
       try {
         const { invoke } = await import('@tauri-apps/api/core');
         await invoke('clear_credentials');
@@ -63,7 +67,7 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
 
     // Redirect to home (which will trigger SSO flow)
     if (typeof window !== 'undefined') {
-      window.location.href = '/';
+      reloadAppRoot();
     }
   },
 
@@ -116,7 +120,7 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
         }
 
         // Check if running in Tauri desktop app
-        if ((window as any).__TAURI__) {
+        if ((window as TauriWindow).__TAURI__) {
           console.log('Detected Tauri environment, using desktop auth flow');
           try {
             const { invoke } = await import('@tauri-apps/api/core');

@@ -11,8 +11,30 @@ interface StorageSettings {
   s3_endpoint?: string | null;
 }
 
+interface StorageSettingsPayload {
+  storage_type: string;
+  s3_bucket?: string;
+  s3_region?: string;
+  s3_access_key_id?: string;
+  s3_secret_key?: string;
+  s3_endpoint?: string;
+}
+
+async function fetchStorageSettings(): Promise<StorageSettings> {
+  const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080'}/api/settings/storage`, {
+    headers: {
+      'Authorization': `Bearer ${apiClient.getToken()}`,
+    },
+  });
+
+  if (!response.ok) {
+    throw new Error('Failed to fetch storage settings');
+  }
+
+  return response.json();
+}
+
 export default function StorageSettingsPage() {
-  const [settings, setSettings] = useState<StorageSettings | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -25,32 +47,41 @@ export default function StorageSettingsPage() {
   const [s3SecretKey, setS3SecretKey] = useState('');
   const [s3Endpoint, setS3Endpoint] = useState('');
 
+  const applySettings = (data: StorageSettings) => {
+    setStorageType(data.storage_type || 'local');
+    setS3Bucket(data.s3_bucket || '');
+    setS3Region(data.s3_region || '');
+    setS3Endpoint(data.s3_endpoint || '');
+  };
+
+  const reportLoadError = (err: unknown) => {
+    console.error('Failed to fetch settings:', err);
+    setError('Failed to load storage settings');
+  };
+
   useEffect(() => {
-    fetchSettings();
+    let cancelled = false;
+    fetchStorageSettings()
+      .then((data) => {
+        if (!cancelled) applySettings(data);
+      })
+      .catch((err) => {
+        if (!cancelled) reportLoadError(err);
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   const fetchSettings = async () => {
     try {
       setLoading(true);
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080'}/api/settings/storage`, {
-        headers: {
-          'Authorization': `Bearer ${apiClient.getToken()}`,
-        },
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to fetch storage settings');
-      }
-
-      const data = await response.json();
-      setSettings(data);
-      setStorageType(data.storage_type || 'local');
-      setS3Bucket(data.s3_bucket || '');
-      setS3Region(data.s3_region || '');
-      setS3Endpoint(data.s3_endpoint || '');
+      applySettings(await fetchStorageSettings());
     } catch (err) {
-      console.error('Failed to fetch settings:', err);
-      setError('Failed to load storage settings');
+      reportLoadError(err);
     } finally {
       setLoading(false);
     }
@@ -76,7 +107,7 @@ export default function StorageSettingsPage() {
     try {
       setSaving(true);
 
-      const payload: any = {
+      const payload: StorageSettingsPayload = {
         storage_type: storageType,
       };
 
@@ -111,9 +142,9 @@ export default function StorageSettingsPage() {
 
       // Refresh settings
       await fetchSettings();
-    } catch (err: any) {
+    } catch (err) {
       console.error('Failed to save settings:', err);
-      setError(err.message || 'Failed to save storage settings');
+      setError(err instanceof Error && err.message ? err.message : 'Failed to save storage settings');
     } finally {
       setSaving(false);
     }
@@ -167,7 +198,7 @@ export default function StorageSettingsPage() {
                 />
                 <div>
                   <div className="font-medium text-white">Local File System</div>
-                  <div className="text-sm text-gray-400">Store files on the server's local disk</div>
+                  <div className="text-sm text-gray-400">Store files on the server&apos;s local disk</div>
                 </div>
               </label>
 

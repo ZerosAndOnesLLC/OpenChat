@@ -100,13 +100,16 @@ export default function WorkflowBuilder({ workflow, onSave, onCancel }: Workflow
   const [triggerConfig, setTriggerConfig] = useState<Record<string, unknown>>(
     workflow?.trigger_config || {}
   );
-  const [steps, setSteps] = useState<StepDraft[]>(
-    workflow?.steps?.map((s, i) => ({
-      id: `step-${i}-${Date.now()}`,
-      action_type: s.action_type,
-      action_config: s.action_config,
-    })) || []
-  );
+  const [steps, setSteps] = useState<StepDraft[]>(() => {
+    const createdAt = Date.now();
+    return (
+      workflow?.steps?.map((s, i) => ({
+        id: `step-${i}-${createdAt}`,
+        action_type: s.action_type,
+        action_config: s.action_config,
+      })) || []
+    );
+  });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 

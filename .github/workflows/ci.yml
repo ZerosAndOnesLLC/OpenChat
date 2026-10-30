@@ -69,12 +69,9 @@ jobs:
         working-directory: api
         run: cargo fmt --check
 
-      # Clippy lints are advisory here (--cap-lints warn) until the API's
-      # existing backlog is fixed; drop the flag then to make it blocking.
-      # Compiler warnings still fail the job (RUSTFLAGS) in cargo test.
-      - name: cargo clippy (lints advisory)
+      - name: cargo clippy
         working-directory: api
-        run: cargo clippy --locked --all-targets -- --cap-lints warn
+        run: cargo clippy --locked --all-targets -- -D warnings
 
       - name: cargo test
         working-directory: api
@@ -133,7 +130,7 @@ jobs:
 
       - uses: actions/setup-node@v7
         with:
-          node-version: '24'
+          node-version: '26'
           cache: npm
           cache-dependency-path: webui/package-lock.json
 
@@ -142,8 +139,5 @@ jobs:
       - name: Typecheck
         run: npx tsc --noEmit
 
-      # Advisory until the existing ESLint errors are fixed; then remove
-      # continue-on-error to make it blocking.
-      - name: Lint (report only until existing errors are fixed)
-        continue-on-error: true
+      - name: Lint
         run: npm run lint

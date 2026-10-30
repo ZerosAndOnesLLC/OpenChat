@@ -34,7 +34,7 @@ export default function KeyBackupWizard({ mode, onClose }: KeyBackupWizardProps)
       const data = await exportKeys(passphrase);
       setBackupData(data);
       setStep(2);
-    } catch (err) {
+    } catch {
       setError('Failed to export keys. Make sure crypto is initialized.');
     } finally {
       setLoading(false);
@@ -55,7 +55,7 @@ export default function KeyBackupWizard({ mode, onClose }: KeyBackupWizardProps)
     try {
       await importKeys(importData, passphrase);
       setStep(2);
-    } catch (err) {
+    } catch {
       setError('Failed to import keys. Check your backup data and passphrase.');
     } finally {
       setLoading(false);
@@ -85,7 +85,7 @@ export default function KeyBackupWizard({ mode, onClose }: KeyBackupWizardProps)
             <div className="flex items-start gap-2 rounded-lg bg-yellow-900/20 border border-yellow-700/30 p-3">
               <AlertTriangle className="h-5 w-5 flex-shrink-0 text-yellow-400 mt-0.5" />
               <p className="text-sm text-yellow-300">
-                This passphrase protects your encryption keys. If you lose it, you won't be able to restore your keys.
+                This passphrase protects your encryption keys. If you lose it, you won&apos;t be able to restore your keys.
               </p>
             </div>
             <div>

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { apiClient } from '@/lib/api';
 
 type ConnectionType = 'api' | 'database';
@@ -86,6 +86,19 @@ interface MigrationJob {
 
 type Step = 'connection' | 'preview' | 'options' | 'running' | 'complete';
 
+/** Existing migration jobs, or null when the server rejects the request. */
+async function fetchMigrationJobs(): Promise<MigrationJob[] | null> {
+  const response = await fetch(
+    `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080'}/api/settings/import/mattermost/jobs`,
+    {
+      headers: {
+        'Authorization': `Bearer ${apiClient.getToken()}`,
+      },
+    }
+  );
+  return response.ok ? response.json() : null;
+}
+
 export default function ImportPage() {
   const [step, setStep] = useState<Step>('connection');
   const [loading, setLoading] = useState(false);
@@ -109,47 +122,7 @@ export default function ImportPage() {
   const [currentJob, setCurrentJob] = useState<MigrationJob | null>(null);
   const [jobs, setJobs] = useState<MigrationJob[]>([]);
 
-  // Fetch existing jobs on mount
-  useEffect(() => {
-    fetchJobs();
-  }, []);
-
-  // Poll for job status when running
-  useEffect(() => {
-    if (currentJob && (currentJob.status === 'pending' || currentJob.status === 'running')) {
-      const interval = setInterval(() => {
-        fetchJobStatus(currentJob.id);
-      }, 2000);
-      return () => clearInterval(interval);
-    }
-  }, [currentJob?.id, currentJob?.status]);
-
-  const fetchJobs = async () => {
-    try {
-      const response = await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080'}/api/settings/import/mattermost/jobs`,
-        {
-          headers: {
-            'Authorization': `Bearer ${apiClient.getToken()}`,
-          },
-        }
-      );
-      if (response.ok) {
-        const data = await response.json();
-        setJobs(data);
-        // Check for running job
-        const runningJob = data.find((j: MigrationJob) => j.status === 'running' || j.status === 'pending');
-        if (runningJob) {
-          setCurrentJob(runningJob);
-          setStep('running');
-        }
-      }
-    } catch (err) {
-      console.error('Failed to fetch jobs:', err);
-    }
-  };
-
-  const fetchJobStatus = async (jobId: string) => {
+  const fetchJobStatus = useCallback(async (jobId: string) => {
     try {
       const response = await fetch(
         `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080'}/api/settings/import/mattermost/jobs/${jobId}`,
@@ -169,7 +142,40 @@ export default function ImportPage() {
     } catch (err) {
       console.error('Failed to fetch job status:', err);
     }
-  };
+  }, []);
+
+  // Fetch existing jobs on mount
+  useEffect(() => {
+    let cancelled = false;
+    fetchMigrationJobs()
+      .then((data) => {
+        if (cancelled || !data) return;
+        setJobs(data);
+        // Resume tracking a job that is still in flight
+        const runningJob = data.find((j) => j.status === 'running' || j.status === 'pending');
+        if (runningJob) {
+          setCurrentJob(runningJob);
+          setStep('running');
+        }
+      })
+      .catch((err) => console.error('Failed to fetch jobs:', err));
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  // Poll for job status while a job is pending or running
+  const pollJobId =
+    currentJob && (currentJob.status === 'pending' || currentJob.status === 'running')
+      ? currentJob.id
+      : null;
+  useEffect(() => {
+    if (!pollJobId) return;
+    const interval = setInterval(() => {
+      fetchJobStatus(pollJobId);
+    }, 2000);
+    return () => clearInterval(interval);
+  }, [pollJobId, fetchJobStatus]);
 
   const buildConnection = (): MattermostConnection => {
     if (connectionType === 'api') {
@@ -214,8 +220,8 @@ export default function ImportPage() {
       } else {
         setError(data.message || 'Connection invalid');
       }
-    } catch (err: any) {
-      setError(err.message || 'Failed to validate connection');
+    } catch (err) {
+      setError(err instanceof Error && err.message ? err.message : 'Failed to validate connection');
     } finally {
       setLoading(false);
     }
@@ -247,8 +253,8 @@ export default function ImportPage() {
       setPreview(data);
       setSelectedChannels(data.channels.channels.map((c: ChannelInfo) => c.mattermost_id));
       setStep('preview');
-    } catch (err: any) {
-      setError(err.message || 'Failed to fetch preview');
+    } catch (err) {
+      setError(err instanceof Error && err.message ? err.message : 'Failed to fetch preview');
     } finally {
       setLoading(false);
     }
@@ -289,8 +295,8 @@ export default function ImportPage() {
       // Fetch the job status
       fetchJobStatus(data.job_id);
       setStep('running');
-    } catch (err: any) {
-      setError(err.message || 'Failed to start migration');
+    } catch (err) {
+      setError(err instanceof Error && err.message ? err.message : 'Failed to start migration');
     } finally {
       setLoading(false);
     }

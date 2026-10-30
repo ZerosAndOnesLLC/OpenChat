@@ -46,11 +46,19 @@ export default function QuickSwitcher({ isOpen, onClose, onSelectChannel, onSele
     ...filteredDms.map((d) => ({ type: 'dm' as const, item: d })),
   ];
 
-  // Reset search and selection when opened
-  useEffect(() => {
+  // Reset search and selection when opened (adjusted during render)
+  const [wasOpen, setWasOpen] = useState(isOpen);
+  if (wasOpen !== isOpen) {
+    setWasOpen(isOpen);
     if (isOpen) {
       setSearch('');
       setSelectedIndex(0);
+    }
+  }
+
+  // Focus the search box when opened
+  useEffect(() => {
+    if (isOpen) {
       setTimeout(() => inputRef.current?.focus(), 0);
     }
   }, [isOpen]);

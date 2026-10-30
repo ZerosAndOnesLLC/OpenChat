@@ -29,7 +29,7 @@ export default function ScheduledMessagesList({ isOpen, onClose }: ScheduledMess
       await apiClient.deleteScheduledMessage(id);
       queryClient.invalidateQueries({ queryKey: ['scheduled-messages'] });
       toastManager.success('Scheduled message cancelled');
-    } catch (error) {
+    } catch {
       toastManager.error('Failed to cancel scheduled message');
     }
   };
@@ -43,7 +43,7 @@ export default function ScheduledMessagesList({ isOpen, onClose }: ScheduledMess
       queryClient.invalidateQueries({ queryKey: ['scheduled-messages'] });
       setEditingId(null);
       toastManager.success('Scheduled message updated');
-    } catch (error) {
+    } catch {
       toastManager.error('Failed to update scheduled message');
     }
   };

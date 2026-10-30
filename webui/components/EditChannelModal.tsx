@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiClient } from '@/lib/api';
 import { useWebSocketStore } from '@/lib/websocket';
@@ -35,13 +35,17 @@ export default function EditChannelModal({
   const isCreator = user?.id === channel.created_by;
   const trapRef = useFocusTrap(isOpen);
 
-  useEffect(() => {
+  // Re-seed the form when the modal opens or the channel changes (adjusted
+  // during render rather than in an effect).
+  const [formSource, setFormSource] = useState({ isOpen, channel });
+  if (formSource.isOpen !== isOpen || formSource.channel !== channel) {
+    setFormSource({ isOpen, channel });
     if (isOpen) {
       setName(channel.name);
       setDescription(channel.description || '');
       setError(null);
     }
-  }, [isOpen, channel]);
+  }
 
   const updateMutation = useMutation({
     mutationFn: () =>
@@ -148,7 +152,7 @@ export default function EditChannelModal({
                           await apiClient.enableChannelEncryption(channel.id);
                           updateChannelInStore(channel.id, { encryption_enabled: true });
                           setShowEncryptConfirm(false);
-                        } catch (err) {
+                        } catch {
                           setError('Failed to enable encryption');
                         } finally {
                           setEnablingEncryption(false);

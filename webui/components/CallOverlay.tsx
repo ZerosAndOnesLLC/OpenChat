@@ -31,14 +31,28 @@ export default function CallOverlay() {
 
   const isVideo = currentCall?.call_type === 'video';
 
-  // Check PiP: if user navigated away from the call's channel/DM
-  useEffect(() => {
-    if (!currentCall) return;
-    const isInCallContext =
-      (currentCall.channel_id && activeChannelId === currentCall.channel_id) ||
-      (currentCall.dm_id && activeDmId === currentCall.dm_id);
-    setIsPip(!isInCallContext);
-  }, [activeChannelId, activeDmId, currentCall]);
+  // Check PiP: if user navigated away from the call's channel/DM. Adjusted
+  // during render whenever the call or the active conversation changes; the
+  // user can still toggle PiP manually in between.
+  const [pipInputs, setPipInputs] = useState<{
+    currentCall: typeof currentCall;
+    activeChannelId: typeof activeChannelId;
+    activeDmId: typeof activeDmId;
+  } | null>(null);
+  if (
+    pipInputs === null ||
+    pipInputs.currentCall !== currentCall ||
+    pipInputs.activeChannelId !== activeChannelId ||
+    pipInputs.activeDmId !== activeDmId
+  ) {
+    setPipInputs({ currentCall, activeChannelId, activeDmId });
+    if (currentCall) {
+      const isInCallContext =
+        (currentCall.channel_id && activeChannelId === currentCall.channel_id) ||
+        (currentCall.dm_id && activeDmId === currentCall.dm_id);
+      setIsPip(!isInCallContext);
+    }
+  }
 
   // Duration timer
   useEffect(() => {

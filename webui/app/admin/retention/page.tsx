@@ -13,8 +13,22 @@ interface RetentionPolicy {
   updated_at: string;
 }
 
+async function fetchRetentionPolicies(): Promise<RetentionPolicy[]> {
+  const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080'}/api/settings/retention`, {
+    headers: {
+      'Authorization': `Bearer ${apiClient.getToken()}`,
+    },
+  });
+
+  if (!response.ok) {
+    throw new Error('Failed to fetch retention policies');
+  }
+
+  const data: { policies: RetentionPolicy[] } = await response.json();
+  return data.policies;
+}
+
 export default function RetentionPoliciesPage() {
-  const [policies, setPolicies] = useState<RetentionPolicy[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -25,47 +39,40 @@ export default function RetentionPoliciesPage() {
   const [fileRetentionDays, setFileRetentionDays] = useState(365);
   const [fileRetentionEnabled, setFileRetentionEnabled] = useState(false);
 
-  useEffect(() => {
-    fetchPolicies();
-  }, []);
+  /** Set form values from existing policies. */
+  const applyPolicies = (policies: RetentionPolicy[]) => {
+    const messagePolicy = policies.find((p) => p.policy_type === 'messages');
+    const filePolicy = policies.find((p) => p.policy_type === 'files');
 
-  const fetchPolicies = async () => {
-    try {
-      setLoading(true);
-      setError(null);
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080'}/api/settings/retention`, {
-        headers: {
-          'Authorization': `Bearer ${apiClient.getToken()}`,
-        },
-      });
+    if (messagePolicy) {
+      setMessageRetentionDays(messagePolicy.retention_days);
+      setMessageRetentionEnabled(messagePolicy.enabled);
+    }
 
-      if (!response.ok) {
-        throw new Error('Failed to fetch retention policies');
-      }
-
-      const data = await response.json();
-      setPolicies(data.policies);
-
-      // Set form values from existing policies
-      const messagePolicy = data.policies.find((p: RetentionPolicy) => p.policy_type === 'messages');
-      const filePolicy = data.policies.find((p: RetentionPolicy) => p.policy_type === 'files');
-
-      if (messagePolicy) {
-        setMessageRetentionDays(messagePolicy.retention_days);
-        setMessageRetentionEnabled(messagePolicy.enabled);
-      }
-
-      if (filePolicy) {
-        setFileRetentionDays(filePolicy.retention_days);
-        setFileRetentionEnabled(filePolicy.enabled);
-      }
-    } catch (err) {
-      console.error('Failed to fetch policies:', err);
-      setError('Failed to load retention policies');
-    } finally {
-      setLoading(false);
+    if (filePolicy) {
+      setFileRetentionDays(filePolicy.retention_days);
+      setFileRetentionEnabled(filePolicy.enabled);
     }
   };
+
+  useEffect(() => {
+    let cancelled = false;
+    fetchRetentionPolicies()
+      .then((policies) => {
+        if (!cancelled) applyPolicies(policies);
+      })
+      .catch((err) => {
+        if (cancelled) return;
+        console.error('Failed to fetch policies:', err);
+        setError('Failed to load retention policies');
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const handleSavePolicy = async (policyType: 'messages' | 'files') => {
     setError(null);
@@ -102,10 +109,10 @@ export default function RetentionPoliciesPage() {
       }
 
       setSuccess(true);
-      await fetchPolicies();
-    } catch (err: any) {
+      applyPolicies(await fetchRetentionPolicies());
+    } catch (err) {
       console.error('Failed to save policy:', err);
-      setError(err.message || 'Failed to save retention policy');
+      setError(err instanceof Error && err.message ? err.message : 'Failed to save retention policy');
     } finally {
       setSaving(false);
     }
@@ -278,7 +285,7 @@ export default function RetentionPoliciesPage() {
             <h3 className="text-lg font-semibold text-red-400 mb-2">Warning</h3>
             <p className="text-sm text-gray-300">
               Once messages and files are deleted by retention policies, they cannot be recovered.
-              Ensure your retention periods comply with your organization's data retention requirements and applicable laws.
+              Ensure your retention periods comply with your organization&apos;s data retention requirements and applicable laws.
             </p>
           </div>
         </div>

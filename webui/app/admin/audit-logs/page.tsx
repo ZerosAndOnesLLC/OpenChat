@@ -9,7 +9,7 @@ interface AuditLog {
   action: string;
   resource_type: string;
   resource_id: string | null;
-  metadata: any;
+  metadata: unknown;
   ip_address: string | null;
   user_agent: string | null;
   timestamp: string;
@@ -22,19 +22,74 @@ interface AuditLogsResponse {
   offset: number;
 }
 
+interface AuditLogFilters {
+  userId: string;
+  action: string;
+  resourceType: string;
+  resourceId: string;
+  startDate: string;
+  endDate: string;
+}
+
+const EMPTY_FILTERS: AuditLogFilters = {
+  userId: '',
+  action: '',
+  resourceType: '',
+  resourceId: '',
+  startDate: '',
+  endDate: '',
+};
+
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080';
+
+function authHeaders() {
+  return { 'Authorization': `Bearer ${apiClient.getToken()}` };
+}
+
+async function fetchStringList(path: string): Promise<string[]> {
+  const response = await fetch(`${API_BASE}${path}`, { headers: authHeaders() });
+  if (!response.ok) {
+    throw new Error(`Request failed: ${response.status}`);
+  }
+  return response.json();
+}
+
+async function fetchAuditLogs(
+  filters: AuditLogFilters,
+  limit: number,
+  offset: number,
+): Promise<AuditLogsResponse> {
+  const params = new URLSearchParams();
+  if (filters.userId) params.append('user_id', filters.userId);
+  if (filters.action) params.append('action', filters.action);
+  if (filters.resourceType) params.append('resource_type', filters.resourceType);
+  if (filters.resourceId) params.append('resource_id', filters.resourceId);
+  if (filters.startDate) params.append('start_date', new Date(filters.startDate).toISOString());
+  if (filters.endDate) params.append('end_date', new Date(filters.endDate).toISOString());
+  params.append('limit', limit.toString());
+  params.append('offset', offset.toString());
+
+  const response = await fetch(`${API_BASE}/api/audit-logs?${params}`, { headers: authHeaders() });
+  if (!response.ok) {
+    throw new Error('Failed to fetch audit logs');
+  }
+  return response.json();
+}
+
 export default function AuditLogsPage() {
   const [logs, setLogs] = useState<AuditLog[]>([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Filters
+  // Filters (form inputs; applied to the query on Search / Reset)
   const [userId, setUserId] = useState('');
   const [action, setAction] = useState('');
   const [resourceType, setResourceType] = useState('');
   const [resourceId, setResourceId] = useState('');
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
+  const [appliedFilters, setAppliedFilters] = useState<AuditLogFilters>(EMPTY_FILTERS);
   const [limit, setLimit] = useState(50);
   const [offset, setOffset] = useState(0);
 
@@ -46,87 +101,45 @@ export default function AuditLogsPage() {
   const [expandedRow, setExpandedRow] = useState<string | null>(null);
 
   useEffect(() => {
-    fetchActions();
-    fetchResourceTypes();
+    fetchStringList('/api/audit-logs/actions')
+      .then(setActions)
+      .catch((err) => console.error('Failed to fetch actions:', err));
+    fetchStringList('/api/audit-logs/resource-types')
+      .then(setResourceTypes)
+      .catch((err) => console.error('Failed to fetch resource types:', err));
   }, []);
 
   useEffect(() => {
-    fetchLogs();
-  }, [offset, limit]);
-
-  const fetchActions = async () => {
-    try {
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080'}/api/audit-logs/actions`, {
-        headers: {
-          'Authorization': `Bearer ${apiClient.getToken()}`,
-        },
+    let cancelled = false;
+    fetchAuditLogs(appliedFilters, limit, offset)
+      .then((data) => {
+        if (cancelled) return;
+        setLogs(data.logs);
+        setTotal(data.total);
+      })
+      .catch((err) => {
+        if (cancelled) return;
+        console.error('Failed to fetch logs:', err);
+        setError('Failed to load audit logs');
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
       });
+    return () => {
+      cancelled = true;
+    };
+  }, [appliedFilters, limit, offset]);
 
-      if (response.ok) {
-        const data = await response.json();
-        setActions(data);
-      }
-    } catch (err) {
-      console.error('Failed to fetch actions:', err);
-    }
-  };
-
-  const fetchResourceTypes = async () => {
-    try {
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080'}/api/audit-logs/resource-types`, {
-        headers: {
-          'Authorization': `Bearer ${apiClient.getToken()}`,
-        },
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        setResourceTypes(data);
-      }
-    } catch (err) {
-      console.error('Failed to fetch resource types:', err);
-    }
-  };
-
-  const fetchLogs = async () => {
-    try {
-      setLoading(true);
-      setError(null);
-
-      const params = new URLSearchParams();
-      if (userId) params.append('user_id', userId);
-      if (action) params.append('action', action);
-      if (resourceType) params.append('resource_type', resourceType);
-      if (resourceId) params.append('resource_id', resourceId);
-      if (startDate) params.append('start_date', new Date(startDate).toISOString());
-      if (endDate) params.append('end_date', new Date(endDate).toISOString());
-      params.append('limit', limit.toString());
-      params.append('offset', offset.toString());
-
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080'}/api/audit-logs?${params}`, {
-        headers: {
-          'Authorization': `Bearer ${apiClient.getToken()}`,
-        },
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to fetch audit logs');
-      }
-
-      const data: AuditLogsResponse = await response.json();
-      setLogs(data.logs);
-      setTotal(data.total);
-    } catch (err) {
-      console.error('Failed to fetch logs:', err);
-      setError('Failed to load audit logs');
-    } finally {
-      setLoading(false);
-    }
+  /** Mark the list as reloading; the effect above performs the fetch. */
+  const startReload = () => {
+    setLoading(true);
+    setError(null);
   };
 
   const handleSearch = () => {
+    startReload();
     setOffset(0);
-    fetchLogs();
+    setAppliedFilters({ userId, action, resourceType, resourceId, startDate, endDate });
   };
 
   const handleReset = () => {
@@ -136,8 +149,9 @@ export default function AuditLogsPage() {
     setResourceId('');
     setStartDate('');
     setEndDate('');
+    startReload();
     setOffset(0);
-    fetchLogs();
+    setAppliedFilters({ ...EMPTY_FILTERS });
   };
 
   const handleExport = async () => {
@@ -182,10 +196,12 @@ export default function AuditLogsPage() {
   };
 
   const nextPage = () => {
+    startReload();
     setOffset(offset + limit);
   };
 
   const prevPage = () => {
+    startReload();
     setOffset(Math.max(0, offset - limit));
   };
 
@@ -321,6 +337,7 @@ export default function AuditLogsPage() {
                 <select
                   value={limit}
                   onChange={(e) => {
+                    startReload();
                     setLimit(Number(e.target.value));
                     setOffset(0);
                   }}

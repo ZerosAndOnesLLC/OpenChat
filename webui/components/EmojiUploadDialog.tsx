@@ -3,6 +3,7 @@
 import { useState, useRef } from 'react';
 import { apiClient } from '@/lib/api';
 import { CustomEmoji } from '@/lib/types';
+import Image from 'next/image';
 
 interface EmojiUploadDialogProps {
   isOpen: boolean;
@@ -81,8 +82,8 @@ export default function EmojiUploadDialog({ isOpen, onClose, onUploadSuccess }: 
 
       onUploadSuccess(newEmoji);
       handleClose();
-    } catch (err: any) {
-      setError(err.message || 'Failed to upload emoji');
+    } catch (err) {
+      setError((err instanceof Error && err.message) || 'Failed to upload emoji');
     } finally {
       setUploading(false);
     }
@@ -173,9 +174,11 @@ export default function EmojiUploadDialog({ isOpen, onClose, onUploadSuccess }: 
               </label>
               <div className="flex items-center space-x-2">
                 <div className="w-16 h-16 bg-gray-100 dark:bg-gray-700 rounded flex items-center justify-center">
-                  <img
+                  <Image
                     src={previewUrl}
                     alt="Preview"
+                    width={64}
+                    height={64}
                     className="max-w-full max-h-full object-contain"
                   />
                 </div>

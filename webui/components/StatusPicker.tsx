@@ -78,28 +78,37 @@ export default function StatusPicker({
   );
   const setUserStatusDetails = useWebSocketStore((state) => state.setUserStatusDetails);
 
-  // Update local state when WebSocket status changes
-  useEffect(() => {
-    if (wsStatusDetails) {
+  // Keep the form in sync with WebSocket status updates and with the props
+  // (e.g. initial load). Adjusted during render rather than in effects; when
+  // both change together the props win, as before.
+  const [syncedWs, setSyncedWs] = useState(wsStatusDetails);
+  const [syncedProps, setSyncedProps] = useState({ currentStatus, currentCustomMessage, currentEmoji });
+  const propsChanged =
+    syncedProps.currentStatus !== currentStatus ||
+    syncedProps.currentCustomMessage !== currentCustomMessage ||
+    syncedProps.currentEmoji !== currentEmoji;
+  if (propsChanged || syncedWs !== wsStatusDetails) {
+    setSyncedWs(wsStatusDetails);
+    setSyncedProps({ currentStatus, currentCustomMessage, currentEmoji });
+    if (propsChanged) {
+      setSelectedStatus(currentStatus);
+      setCustomMessage(currentCustomMessage);
+      setEmoji(currentEmoji);
+    } else if (wsStatusDetails) {
       setSelectedStatus(wsStatusDetails.status);
       setCustomMessage(wsStatusDetails.custom_message || '');
       setEmoji(wsStatusDetails.emoji || '');
     }
-  }, [wsStatusDetails]);
-
-  // Sync with props when they change (e.g., initial load)
-  useEffect(() => {
-    setSelectedStatus(currentStatus);
-    setCustomMessage(currentCustomMessage);
-    setEmoji(currentEmoji);
-  }, [currentStatus, currentCustomMessage, currentEmoji]);
+  }
 
   // Reset hasChanges when dropdown opens
-  useEffect(() => {
+  const [wasOpen, setWasOpen] = useState(isOpen);
+  if (wasOpen !== isOpen) {
+    setWasOpen(isOpen);
     if (isOpen) {
       setHasChanges(false);
     }
-  }, [isOpen]);
+  }
 
   // Close dropdown when clicking outside
   useEffect(() => {

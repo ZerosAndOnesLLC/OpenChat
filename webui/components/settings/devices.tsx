@@ -28,7 +28,20 @@ export default function DeviceManagement() {
   };
 
   useEffect(() => {
-    loadDevices();
+    let cancelled = false;
+    apiClient.getDeviceSessions()
+      .then((sessions) => {
+        if (!cancelled) setDevices(sessions);
+      })
+      .catch((err) => {
+        if (!cancelled) setError(err instanceof Error ? err.message : 'Failed to load devices');
+      })
+      .finally(() => {
+        if (!cancelled) setIsLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   const handleRevoke = async (deviceId: string) => {

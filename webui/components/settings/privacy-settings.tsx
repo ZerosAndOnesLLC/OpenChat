@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect } from 'react';
 import { apiClient } from '@/lib/api';
 import { User } from '@/lib/types';
 import { Eye, EyeOff, CheckCircle, AlertCircle, RefreshCw } from 'lucide-react';
@@ -15,22 +15,22 @@ export default function PrivacySettings({ user }: PrivacySettingsProps) {
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
-  const loadSettings = useCallback(async () => {
-    if (!user) return;
-    setLoading(true);
-    try {
-      const userData = await apiClient.getUser(user.id);
-      setDisableReadReceipts((userData as { disable_read_receipts?: boolean }).disable_read_receipts || false);
-    } catch (err) {
-      console.error('Failed to load settings:', err);
-    } finally {
-      setLoading(false);
-    }
-  }, [user]);
-
   useEffect(() => {
-    loadSettings();
-  }, [loadSettings]);
+    if (!user) return;
+    let cancelled = false;
+    apiClient.getUser(user.id)
+      .then((userData) => {
+        if (cancelled) return;
+        setDisableReadReceipts((userData as { disable_read_receipts?: boolean }).disable_read_receipts || false);
+      })
+      .catch((err) => console.error('Failed to load settings:', err))
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [user]);
 
   const handleToggle = async () => {
     if (!user) return;

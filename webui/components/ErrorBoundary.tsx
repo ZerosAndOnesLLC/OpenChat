@@ -1,6 +1,7 @@
 'use client';
 
 import React, { Component, ReactNode } from 'react';
+import { reloadAppRoot } from '@/lib/navigation';
 
 interface Props {
   children: ReactNode;
@@ -46,7 +47,7 @@ export class ErrorBoundary extends Component<Props, State> {
                 <button
                   onClick={() => {
                     this.setState({ hasError: false, error: undefined });
-                    window.location.href = '/';
+                    reloadAppRoot();
                   }}
                   className="w-full rounded-md bg-blue-600 px-4 py-2 text-white transition-colors hover:bg-blue-700"
                 >

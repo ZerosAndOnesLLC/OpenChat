@@ -1,7 +1,6 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { QRCodeSVG } from 'qrcode.react';
 import { apiClient } from '@/lib/api';
 import { Copy, Check, Monitor, QrCode, Smartphone, RefreshCw, ExternalLink, AlertCircle } from 'lucide-react';
 
@@ -223,7 +222,7 @@ export default function DesktopLogin() {
                       </li>
                       <li className="flex gap-3">
                         <span className="font-bold">3.</span>
-                        <span>You'll be logged in automatically</span>
+                        <span>You&apos;ll be logged in automatically</span>
                       </li>
                     </ol>
                   </div>
@@ -265,7 +264,7 @@ export default function DesktopLogin() {
 
               <div className="mt-10 bg-gray-50 dark:bg-gray-900/50 rounded-xl p-6 border border-gray-200 dark:border-gray-700 max-w-md mx-auto">
                 <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">
-                  Don't have the desktop app installed?
+                  Don&apos;t have the desktop app installed?
                 </p>
                 <a
                   href="https://openchat.com/download"

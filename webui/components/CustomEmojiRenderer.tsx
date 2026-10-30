@@ -3,6 +3,7 @@
 import React, { useEffect, useState } from 'react';
 import { CustomEmoji } from '@/lib/types';
 import { apiClient } from '@/lib/api';
+import Image from 'next/image';
 
 interface CustomEmojiRendererProps {
   content: string;
@@ -13,19 +14,19 @@ export default function CustomEmojiRenderer({ content }: CustomEmojiRendererProp
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    loadCustomEmojis();
+    let cancelled = false;
+    apiClient.getCustomEmojis()
+      .then((emojis) => {
+        if (!cancelled) setCustomEmojis(emojis);
+      })
+      .catch((error) => console.error('Failed to load custom emojis:', error))
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
   }, []);
-
-  const loadCustomEmojis = async () => {
-    try {
-      const emojis = await apiClient.getCustomEmojis();
-      setCustomEmojis(emojis);
-    } catch (error) {
-      console.error('Failed to load custom emojis:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const renderContentWithCustomEmojis = (text: string) => {
     if (loading || customEmojis.length === 0) {
@@ -53,9 +54,11 @@ export default function CustomEmojiRenderer({ content }: CustomEmojiRendererProp
       if (customEmoji) {
         // Render custom emoji image
         parts.push(
-          <img
+          <Image
             key={`emoji-${matchIndex}`}
             src={apiClient.getEmojiImage(customEmoji.id)}
+            width={20}
+            height={20}
             alt={`:${emojiName}:`}
             title={`:${emojiName}:`}
             className="inline-block w-5 h-5 align-text-bottom mx-0.5"

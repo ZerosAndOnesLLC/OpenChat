@@ -24,8 +24,25 @@ export default function UserGroupsPage() {
   const [loadingMembers, setLoadingMembers] = useState(false);
 
   useEffect(() => {
-    fetchGroups();
-    fetchUsers();
+    let cancelled = false;
+    apiClient.listUserGroups()
+      .then((data) => {
+        if (!cancelled) setGroups(data);
+      })
+      .catch((err) => {
+        if (!cancelled) setError((err as Error).message);
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    apiClient.listUsers()
+      .then((data) => {
+        if (!cancelled) setUsers(data);
+      })
+      .catch((err) => console.error('Failed to load users:', err));
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   const fetchGroups = async () => {
@@ -38,15 +55,6 @@ export default function UserGroupsPage() {
       setError((err as Error).message);
     } finally {
       setLoading(false);
-    }
-  };
-
-  const fetchUsers = async () => {
-    try {
-      const data = await apiClient.listUsers();
-      setUsers(data);
-    } catch (err) {
-      console.error('Failed to load users:', err);
     }
   };
 

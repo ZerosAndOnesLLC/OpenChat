@@ -4,7 +4,6 @@ import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiClient } from '@/lib/api';
 import type { Channel, ChannelMetadata } from '@/lib/types';
-import { useAuth } from '@/lib/auth';
 import { useWebSocketStore } from '@/lib/websocket';
 import { useFocusTrap } from '@/hooks/useFocusTrap';
 
@@ -21,7 +20,6 @@ export default function BrowseChannelsModal({
   onSelectChannel,
   currentChannels,
 }: BrowseChannelsModalProps) {
-  const { user } = useAuth();
   const [searchQuery, setSearchQuery] = useState('');
   const queryClient = useQueryClient();
   const addChannel = useWebSocketStore((state) => state.addChannel);

@@ -40,7 +40,6 @@ import type {
   MessageEditWithUser,
   DeviceSession,
   PairingCodeResponse,
-  VerifyPairingCodeRequest,
   IncomingWebhook,
   CreateWebhookRequest,
   UpdateWebhookRequest,
@@ -66,6 +65,7 @@ import type {
   SubmitFormRequest,
   CryptoDevice,
 } from './types';
+import { reloadAppRoot } from './navigation';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080';
 
@@ -134,7 +134,7 @@ class ApiClient {
         if (typeof window !== 'undefined' && !window.location.pathname.includes('/sso/callback')) {
           // Trigger re-authentication by reloading the page
           // The auth.initialize() will detect no valid token and start OAuth flow
-          window.location.href = '/';
+          reloadAppRoot();
         }
 
         throw new Error('Authentication required');
@@ -143,7 +143,6 @@ class ApiClient {
       // Handle 429 Rate Limit - show user-friendly message with retry info
       if (response.status === 429) {
         const retryAfter = response.headers.get('Retry-After');
-        const rateLimitRemaining = response.headers.get('X-RateLimit-Remaining');
 
         let message = 'Rate limit exceeded. Please slow down and try again in a moment.';
 
@@ -160,8 +159,8 @@ class ApiClient {
         }
 
         // Show toast notification if toast library is available
-        if (typeof window !== 'undefined' && (window as any).showToast) {
-          (window as any).showToast(message, 'warning');
+        if (typeof window !== 'undefined') {
+          window.showToast?.(message, 'warning');
         }
 
         throw new Error(message);
@@ -412,7 +411,7 @@ class ApiClient {
       if (response.status === 401) {
         this.clearToken();
         if (typeof window !== 'undefined' && !window.location.pathname.includes('/sso/callback')) {
-          window.location.href = '/';
+          reloadAppRoot();
         }
         throw new Error('Authentication required');
       }
@@ -438,7 +437,7 @@ class ApiClient {
       if (response.status === 401) {
         this.clearToken();
         if (typeof window !== 'undefined' && !window.location.pathname.includes('/sso/callback')) {
-          window.location.href = '/';
+          reloadAppRoot();
         }
         throw new Error('Authentication required');
       }
@@ -477,7 +476,7 @@ class ApiClient {
       if (response.status === 401) {
         this.clearToken();
         if (typeof window !== 'undefined' && !window.location.pathname.includes('/sso/callback')) {
-          window.location.href = '/';
+          reloadAppRoot();
         }
       }
       const error = await response.text();

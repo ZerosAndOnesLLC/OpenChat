@@ -72,8 +72,8 @@ export default function MessageArea({ channel, dm, onLeaveChannel }: MessageArea
         livekit_room_name: resp.livekit_room_name,
         started_at: new Date().toISOString(),
       });
-    } catch (err: any) {
-      setToast({ message: err.message || 'Failed to start call', type: 'error' });
+    } catch (err) {
+      setToast({ message: (err instanceof Error && err.message) || 'Failed to start call', type: 'error' });
     }
   };
 
@@ -90,8 +90,8 @@ export default function MessageArea({ channel, dm, onLeaveChannel }: MessageArea
         livekit_room_name: resp.livekit_room_name,
         started_at: new Date().toISOString(),
       });
-    } catch (err: any) {
-      setToast({ message: err.message || 'Failed to start huddle', type: 'error' });
+    } catch (err) {
+      setToast({ message: (err instanceof Error && err.message) || 'Failed to start huddle', type: 'error' });
     }
   };
 

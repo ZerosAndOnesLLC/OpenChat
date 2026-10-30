@@ -72,7 +72,7 @@ export default function PollCreator({ isOpen, onClose, channelId, dmId }: PollCr
       setAnonymous(false);
       setHasExpiry(false);
       onClose();
-    } catch (error) {
+    } catch {
       toastManager.error('Failed to create poll');
     } finally {
       setSubmitting(false);

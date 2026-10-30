@@ -666,8 +666,8 @@ export const useWebSocketStore = create<WebSocketStore>((set, get) => ({
           case 'reminder_triggered': {
             console.log('Reminder triggered:', message.reminder_id);
             // Show toast notification for reminder
-            if (typeof window !== 'undefined' && (window as any).showToast) {
-              (window as any).showToast(`Reminder: ${message.message_preview}`, 'info');
+            if (typeof window !== 'undefined') {
+              window.showToast?.(`Reminder: ${message.message_preview}`, 'info');
             }
             break;
           }

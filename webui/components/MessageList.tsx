@@ -7,10 +7,11 @@ import MessageItem from './MessageItem';
 // Track the latest new message for screen reader announcement
 function useNewMessageAnnouncement(messages: Message[]) {
   const [announcement, setAnnouncement] = useState('');
-  const prevCountRef = useRef(messages.length);
+  const [prevCount, setPrevCount] = useState(messages.length);
 
-  useEffect(() => {
-    if (messages.length > prevCountRef.current) {
+  // Adjusted during render: announce when the message count grows.
+  if (messages.length !== prevCount) {
+    if (messages.length > prevCount) {
       const newest = messages[messages.length - 1];
       if (newest) {
         const name = newest.user?.display_name || 'Someone';
@@ -18,8 +19,8 @@ function useNewMessageAnnouncement(messages: Message[]) {
         setAnnouncement(`${name}: ${preview}`);
       }
     }
-    prevCountRef.current = messages.length;
-  }, [messages]);
+    setPrevCount(messages.length);
+  }
 
   return announcement;
 }

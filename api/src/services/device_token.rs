@@ -67,12 +67,11 @@ pub fn generate_device_token(
 ) -> ApiResult<String> {
     let claims = DeviceTokenClaims::new(tv_user_id, user_id, org_id, device_id, device_type, roles);
 
-    let token = encode(
-        &Header::default(),
-        &claims,
-        &EncodingKey::from_secret(jwt_secret.as_bytes()),
-    )
-    .map_err(|e| ApiError::Internal(format!("Failed to generate device token: {}", e)))?;
+    let key = EncodingKey::from_secret(jwt_secret.as_bytes())
+        .map_err(|e| ApiError::Internal(format!("Invalid device token secret: {}", e)))?;
+
+    let token = encode(&Header::default(), &claims, &key)
+        .map_err(|e| ApiError::Internal(format!("Failed to generate device token: {}", e)))?;
 
     Ok(token)
 }
@@ -80,13 +79,11 @@ pub fn generate_device_token(
 /// Verify and decode a device token
 pub fn verify_device_token(token: &str, jwt_secret: &str) -> ApiResult<DeviceTokenClaims> {
     let validation = Validation::default();
+    let key = DecodingKey::from_secret(jwt_secret.as_bytes())
+        .map_err(|e| ApiError::Internal(format!("Invalid device token secret: {}", e)))?;
 
-    let token_data = decode::<DeviceTokenClaims>(
-        token,
-        &DecodingKey::from_secret(jwt_secret.as_bytes()),
-        &validation,
-    )
-    .map_err(|e| ApiError::Authentication(format!("Invalid device token: {}", e)))?;
+    let token_data = decode::<DeviceTokenClaims>(token, &key, &validation)
+        .map_err(|e| ApiError::Authentication(format!("Invalid device token: {}", e)))?;
 
     Ok(token_data.claims)
 }
